@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Aeonix Navigation",
+	"Description": "3D Navigation System",
+	"Category": "Other",
+	"CreatedBy": "Chris Ashworth",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "AeonixNavigation",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "AeonixEditor",
+			"Type": "Editor",
+			"LoadingPhase":  "PostEngineInit"
+		}
+	]
+}

@@ -75,5 +75,5 @@ private:
 	/* Constructs the path by navigating back through our CameFrom map */
 	void BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath);
 
-	/*void Smooth_Chaikin(TArray<FVector>& somePoints, int aNumIterations);*/
+	void Smooth_Chaikin(TArray<FVector>& somePoints, int aNumIterations);
 };

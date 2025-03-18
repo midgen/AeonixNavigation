@@ -1,10 +1,5 @@
-# ueAeonix
+# Aeonix Navigation
 3D navigation plugin for UnrealEngine
 
-Engine Version : Master tested with 4.25. Should be backwards compatible with to at least 4.20, see branches for previous snapshots, but note features are not backported.
-
-Please view the [Wiki](https://github.com/midgen/ueAeonix/wiki) for more information
-
-[![UEAeonix Demo](http://img.youtube.com/vi/84AFdg0ykwY/0.jpg)](http://www.youtube.com/watch?v=84AFdg0ykwY "Video Title")
-
+Refactored and improved version of https://github.com/midgen/uesvon
 

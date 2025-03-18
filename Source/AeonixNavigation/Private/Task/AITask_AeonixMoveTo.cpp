@@ -85,7 +85,7 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 	if (!NavComponent)
 	{
 		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent"), *MoveRequest.ToString());
-		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"));
+		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the AIController"));
 		return;
 	}
 

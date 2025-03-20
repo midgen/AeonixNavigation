@@ -25,13 +25,7 @@ public:
 	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	bool ShouldTickIfViewportsOnly() const override { return true; }
 	//~ End AActor Interface
-
-#if WITH_EDITOR
-	//~ Begin UObject Interface
-	void PostEditUndo() override;
-	//~ End UObject Interface
-#endif // WITH_EDITOR 
-
+	
 	//~ Begin UObject 
 	void Serialize(FArchive& Ar) override;
 	//~ End UObject 
@@ -40,8 +34,6 @@ public:
 	bool HasData() const;
 	void ClearData();
 
-	virtual void PostInitializeComponents() override;
-
 	const FAeonixData& GetNavData() const { return NavigationData; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
@@ -49,7 +41,7 @@ public:
 
 	bool bIsReadyForNavigation{false};
 
-private:
+protected:
 	FAeonixData NavigationData;
 
 	UPROPERTY()
@@ -59,7 +51,7 @@ private:
 
 	void UpdateBounds();
 
-//  IAeonixDebugDrawInterface BEGIN
+	//  IAeonixDebugDrawInterface BEGIN
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;
 	void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override;
 	//  IAeonixDebugDrawInterface END

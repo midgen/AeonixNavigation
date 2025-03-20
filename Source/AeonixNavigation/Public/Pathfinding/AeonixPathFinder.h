@@ -4,39 +4,43 @@
 #include <AeonixNavigation/Public/Data/AeonixTypes.h>
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
 
+#include "AeonixPathFinder.generated.h"
+
 class AAeonixBoundingVolume;
 
 struct FNavigationPath;
 struct FAeonixNavigationPath;
 struct AeonixLink;
 
-struct AeonixPathFinderSettings
+USTRUCT(BlueprintType)
+struct FAeonixPathFinderSettings
 {
-	bool DebugOpenNodes;
-	bool UseUnitCost;
-	float UnitCost;
-	float EstimateWeight;
-	float NodeSizeCompensation;
-	int SmoothingIterations;
-	EAeonixPathCostType PathCostType;
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	bool bDebugOpenNodes{false};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	bool bUseUnitCost{false};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	float UnitCost{1.0f};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	float EstimateWeight{1.0f};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	float NodeSizeCompensation{1.0f};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	int SmoothingIterations{0};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	int32 MaxIterations{5000};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	EAeonixPathCostType PathCostType{EAeonixPathCostType::EUCLIDEAN};
+	
 	TArray<FVector> DebugPoints;
-
-	AeonixPathFinderSettings()
-		: DebugOpenNodes(false)
-		, UseUnitCost(false)
-		, UnitCost(1.0f)
-		, EstimateWeight(1.0f)
-		, NodeSizeCompensation(1.0f)
-		, SmoothingIterations(0.f)
-		, PathCostType(EAeonixPathCostType::EUCLIDEAN)
-	{
-	}
 };
 
 class AEONIXNAVIGATION_API AeonixPathFinder
 {
 public:
-	AeonixPathFinder(UWorld* World, const FAeonixData& Data, AeonixPathFinderSettings& Settings)
+	AeonixPathFinder(UWorld* World, const FAeonixData& Data, FAeonixPathFinderSettings& Settings)
 		: NavigationData(Data)
 		, Settings(Settings)
 		, World(World){};
@@ -60,7 +64,7 @@ private:
 
 	const FAeonixData& NavigationData;
 
-	AeonixPathFinderSettings& Settings;
+	FAeonixPathFinderSettings& Settings;
 
 	UWorld* World;
 

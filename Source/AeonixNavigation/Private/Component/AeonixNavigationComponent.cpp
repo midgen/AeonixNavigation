@@ -95,8 +95,8 @@ bool UAeonixNavigationComponent::FindPathAsync(const FVector& StartPosition, con
 			return false;
 		}
 
-		AeonixPathFinderSettings Settings;
-		Settings.UseUnitCost = bUseUnitCost;
+		FAeonixPathFinderSettings Settings;
+		Settings.bUseUnitCost = bUseUnitCost;
 		Settings.UnitCost = UnitCost;
 		Settings.EstimateWeight = EstimateWeight;
 		Settings.NodeSizeCompensation = NodeSizeCompensation;
@@ -145,8 +145,8 @@ bool UAeonixNavigationComponent::FindPathImmediate(const FVector& StartPosition,
 
 		Path->ResetForRepath();
 
-		AeonixPathFinderSettings Settings;
-		Settings.UseUnitCost = bUseUnitCost;
+		FAeonixPathFinderSettings Settings;
+		Settings.bUseUnitCost = bUseUnitCost;
 		Settings.UnitCost = UnitCost;
 		Settings.EstimateWeight = EstimateWeight;
 		Settings.NodeSizeCompensation = NodeSizeCompensation;

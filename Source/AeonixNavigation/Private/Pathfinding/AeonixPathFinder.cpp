@@ -1,10 +1,11 @@
+
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
 
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
 #include <AeonixNavigation/Public/Data/AeonixNode.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
 #include <AeonixNavigation/Public/AeonixNavigation.h>
+#include <AeonixNavigation/Public/Data/AeonixData.h>
 
 int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavPathSharedPtr* Path)
 {
@@ -43,9 +44,8 @@ int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGo
 		if (Current == Goal)
 		{
 			BuildPath(CameFrom, Current, StartPos, TargetPos, Path);
-#if WITH_EDITOR
 			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
-#endif
+
 			return 1;
 		}
 
@@ -69,10 +69,15 @@ int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGo
 		}
 
 		numIterations++;
+
+		if (numIterations > Settings.MaxIterations)
+		{
+			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
+			return 0;
+		}
 	}
-#if WITH_EDITOR
+
 	UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
-#endif
 	return 0;
 }
 
@@ -105,7 +110,7 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 	float cost = 0.f;
 
 	// Unit cost implementation
-	if (Settings.UseUnitCost)
+	if (Settings.bUseUnitCost)
 	{
 		cost = Settings.UnitCost;
 	}
@@ -136,7 +141,7 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		{
 			OpenSet.Add(aNeighbour);
 
-			if (Settings.DebugOpenNodes)
+			if (Settings.bDebugOpenNodes)
 			{
 				FVector pos;
 				NavigationData.GetLinkPosition(aNeighbour, pos);

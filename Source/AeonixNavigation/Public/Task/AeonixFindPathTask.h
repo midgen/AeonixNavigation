@@ -15,7 +15,7 @@ class FAeonixFindPathTask : public FNonAbandonableTask
 	friend class FAutoDeleteAsyncTask<FAeonixFindPathTask>;
 
 public:
-	FAeonixFindPathTask(const FAeonixData& Data, AeonixPathFinderSettings& aSettings, UWorld* aWorld, const AeonixLink aStart, const AeonixLink aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath, FThreadSafeBool& aCompleteFlag)
+	FAeonixFindPathTask(const FAeonixData& Data, FAeonixPathFinderSettings& aSettings, UWorld* aWorld, const AeonixLink aStart, const AeonixLink aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath, FThreadSafeBool& aCompleteFlag)
 		: NavigationData(Data)
 		, myWorld(aWorld)
 		, myStart(aStart)
@@ -39,7 +39,7 @@ protected:
 	FAeonixNavPathSharedPtr* myPath;
 
 	// TODO: const this and have the debug data elsewhere
-	AeonixPathFinderSettings mySettings;
+	FAeonixPathFinderSettings mySettings;
 
 	FThreadSafeBool& myCompleteFlag;
 

@@ -24,15 +24,6 @@ AAeonixBoundingVolume::AAeonixBoundingVolume(const FObjectInitializer& ObjectIni
 	UpdateBounds();
 }
 
-#if WITH_EDITOR
-
-void AAeonixBoundingVolume::PostEditUndo()
-{
-	Super::PostEditUndo();
-}
-
-#endif // WITH_EDITOR
-
 // Regenerates the SVO Navigation Data
 bool AAeonixBoundingVolume::Generate()
 {
@@ -142,21 +133,6 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
 	{
 		Ar << NavigationData.OctreeData;
-	}
-}
-
-void AAeonixBoundingVolume::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
-
-	AeonixSubsystemInterface = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
-	if (!AeonixSubsystemInterface.GetInterface())
-	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
-	}
-	else
-	{
-		AeonixSubsystemInterface->RegisterVolume(this);
 	}
 }
 

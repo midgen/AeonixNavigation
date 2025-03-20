@@ -20,24 +20,25 @@ class AEONIXNAVIGATION_API UAeonixNavigationComponent : public UActorComponent
 	UAeonixNavigationComponent(const FObjectInitializer& ObjectInitializer);
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Debug")
 	bool bDebugPrintCurrentPosition;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Debug")
 	bool bDebugPrintMortonCodes;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Debug")
 	bool bDebugDrawOpenNodes = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Heuristics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Heuristics")
 	bool bUseUnitCost = false;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Heuristics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Heuristics")
 	float UnitCost = 10.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Heuristics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Heuristics")
 	float EstimateWeight = 1.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Heuristics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Heuristics")
 	float NodeSizeCompensation = 1.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Heuristics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Heuristics")
 	EAeonixPathCostType PathCostType = EAeonixPathCostType::EUCLIDEAN;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation | Smoothing")
+	/** Implements a simple Chaikin smoothing algorithm */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Post Processing")
 	int SmoothingIterations = 0;
 
 	const AAeonixBoundingVolume* GetCurrentVolume() const { return CurrentNavVolume; }

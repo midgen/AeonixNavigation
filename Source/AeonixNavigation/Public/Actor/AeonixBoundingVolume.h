@@ -40,6 +40,8 @@ public:
 	bool HasData() const;
 	void ClearData();
 
+	virtual void PostInitializeComponents() override;
+
 	const FAeonixData& GetNavData() const { return NavigationData; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
@@ -60,5 +62,5 @@ private:
 //  IAeonixDebugDrawInterface BEGIN
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;
 	void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override;
-//  IAeonixDebugDrawInterface END
+	//  IAeonixDebugDrawInterface END
 };

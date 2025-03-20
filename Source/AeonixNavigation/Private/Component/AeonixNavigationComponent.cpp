@@ -23,7 +23,7 @@ void UAeonixNavigationComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AeonixSubsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystem.GetInterface())
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));

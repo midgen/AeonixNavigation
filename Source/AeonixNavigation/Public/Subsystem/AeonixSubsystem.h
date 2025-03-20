@@ -2,7 +2,7 @@
 
 #include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
 
-#include <Subsystems/WorldSubsystem.h>
+#include <Subsystems/EngineSubsystem.h>
 
 #include "AeonixSubsystem.generated.h"
 
@@ -10,7 +10,7 @@ class AAeonixBoundingVolume;
 class UAeonixNavigationComponent;
 
 UCLASS()
-class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, public IAeonixSubsystemInterface
+class AEONIXNAVIGATION_API UAeonixSubsystem : public UEngineSubsystem, public IAeonixSubsystemInterface, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -27,11 +27,13 @@ public:
 	UFUNCTION()
 	const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) override;
 	/* IAeonixSubsystemInterface END */
-
-
-
+	
 	virtual void Tick(float DeltaTime) override;
 	TStatId GetStatId() const override;
+	
+	bool IsTickable() const override;
+	bool IsTickableInEditor() const override;
+	bool IsTickableWhenPaused() const override;
 
 private:
 	UPROPERTY()

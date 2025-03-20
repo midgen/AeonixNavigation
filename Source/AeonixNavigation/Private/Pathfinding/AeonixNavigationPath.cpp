@@ -17,6 +17,7 @@ void FAeonixNavigationPath::ResetForRepath()
 
 void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 {
+	FlushPersistentDebugLines(World);
 	for (int i = 0; i < myPoints.Num(); i++)
 	{
 		FAeonixPathPoint& point = myPoints[i];
@@ -28,11 +29,12 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			// offSet.Z -= 300.f;
 			float Size = point.Layer == 0 ? Data.GetVoxelSize(point.Layer) * 0.25f : Data.GetVoxelSize(point.Layer) * 0.5f;
 
-			DrawDebugBox(World, point.Position, FVector(Size), AeonixStatics::myLinkColors[point.Layer], true, -1.f, 0, 30.f);
+			
+			DrawDebugBox(World, point.Position, FVector(Size), point.Layer > 0 ? AeonixStatics::myLinkColors[point.Layer] : FColor::Red, true, -1.f, 0, 2.f);
 
-			DrawDebugSphere(World, point.Position + offSet, 30.f, 20, FColor::Cyan, true, -1.f, 0, 100.f);
-
-			// DrawDebugLine(aWorld, point.myPosition + offSet, myPoints[i+1].myPosition, FColor::Cyan, true, -1.f, 0, 100.f);
+			DrawDebugSphere(World, point.Position + offSet, 30.f, 20, FColor::Cyan, true, -1.f, 0, 2.f);
+			
+			DrawDebugLine(World, point.Position + offSet, myPoints[i+1].Position, FColor::Green, true, -1.f, 0, 10.f);
 		}
 	}
 }

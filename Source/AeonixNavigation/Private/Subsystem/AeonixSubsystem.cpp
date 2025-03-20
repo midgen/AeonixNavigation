@@ -64,3 +64,18 @@ TStatId UAeonixSubsystem::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UAeonixSubsystem, STATGROUP_Tickables);
 }
+
+bool UAeonixSubsystem::IsTickable() const 
+{
+	return true;
+}
+
+bool UAeonixSubsystem::IsTickableInEditor() const 
+{
+	return true;
+}
+
+bool UAeonixSubsystem::IsTickableWhenPaused() const
+{
+	return true;
+}

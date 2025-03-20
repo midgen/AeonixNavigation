@@ -51,14 +51,14 @@ public:
 	bool FindPathImmediate(const FVector& aStartPosition, const FVector& aTargetPosition, FAeonixNavPathSharedPtr* oNavPath);
 	UFUNCTION(BlueprintCallable, Category = Aeonix)
 	void FindPathImmediate(const FVector& aStartPosition, const FVector& aTargetPosition, TArray<FVector>& OutPathPoints);
-
-protected:
-	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
 	// The current navigation volume that the owned pawn is inside, null if not inside a volume
 	UPROPERTY()
 	const AAeonixBoundingVolume* CurrentNavVolume;
+	
+protected:
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	
 	UPROPERTY()
 	TScriptInterface<IAeonixSubsystemInterface> AeonixSubsystem;
 
@@ -67,5 +67,6 @@ protected:
 	// Print current layer/morton code information
 	void DebugLocalPosition(FVector& aPosition);
 
+protected:
 	FAeonixNavPathSharedPtr CurrentPath;
 };

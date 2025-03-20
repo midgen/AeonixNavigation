@@ -132,6 +132,8 @@ void AAeonixBoundingVolume::ClearData()
 	FlushPersistentDebugLines(GetWorld());
 }
 
+
+
 void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 {
 	// Serialize the usual UPROPERTIES
@@ -143,9 +145,24 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 	}
 }
 
+void AAeonixBoundingVolume::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	AeonixSubsystemInterface = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+	if (!AeonixSubsystemInterface.GetInterface())
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+	}
+	else
+	{
+		AeonixSubsystemInterface->RegisterVolume(this);
+	}
+}
+
 void AAeonixBoundingVolume::BeginPlay()
 {
-	AeonixSubsystemInterface = GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	AeonixSubsystemInterface = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystemInterface.GetInterface())
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));

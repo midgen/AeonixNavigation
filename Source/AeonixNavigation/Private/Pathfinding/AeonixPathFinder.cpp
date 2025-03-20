@@ -203,7 +203,7 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		points.Emplace(aStartPos, Start.GetLayerIndex());
 	}
 
-	// Smooth_Chaikin(points, Settings.SmoothingIterations);
+	Smooth_Chaikin(points, Settings.SmoothingIterations);
 
 	for (int i = points.Num() - 1; i >= 0; i--)
 	{
@@ -211,18 +211,18 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	}
 }
 
- void AeonixPathFinder::Smooth_Chaikin(TArray<FVector>& somePoints, int aNumIterations)
+ void AeonixPathFinder::Smooth_Chaikin(TArray<FAeonixPathPoint>& somePoints, int aNumIterations)
 {
 	for (int i = 0; i < aNumIterations; i++)
 	{
 		for (int j = 0; j < somePoints.Num() - 1; j += 2)
 		{
-			FVector start = somePoints[j];
-			FVector end = somePoints[j + 1];
+			FVector start = somePoints[j].Position;
+			FVector end = somePoints[j + 1].Position;
 			if (j > 0)
-				somePoints[j] = FMath::Lerp(start, end, 0.25f);
+				somePoints[j].Position = FMath::Lerp(start, end, 0.25f);
 			FVector secondVal = FMath::Lerp(start, end, 0.75f);
-			somePoints.Insert(secondVal, j + 1);
+			somePoints.Insert(FAeonixPathPoint(secondVal, -2), j + 1);
 		}
 		somePoints.RemoveAt(somePoints.Num() - 1);
 	}

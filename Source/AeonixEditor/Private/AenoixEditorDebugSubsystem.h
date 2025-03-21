@@ -1,7 +1,7 @@
 ﻿
 #pragma once
 
-#include <AeonixNavigation/Public//Data/AeonixTypes.h>
+#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
 
 #include <EditorSubsystem.h>
 
@@ -16,15 +16,13 @@ UCLASS()
 class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()
-
-	UAenoixEditorDebugSubsystem(const FObjectInitializer& Initializer);
 	
 	UPROPERTY()
 	TObjectPtr<AAeonixPathDebugActor> StartDebugActor{nullptr};
 	UPROPERTY()
 	TObjectPtr<AAeonixPathDebugActor> EndDebugActor{nullptr};
-
-	FAeonixNavPathSharedPtr Path;
+	UPROPERTY()
+	FAeonixNavigationPath CurrentDebugPath{};
 
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")

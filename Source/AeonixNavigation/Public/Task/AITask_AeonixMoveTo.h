@@ -1,6 +1,8 @@
 // Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Subsystem/AeonixSubsystem.h"
+
 #include <AeonixNavigation/Public/Data/AeonixDefines.h>
 #include <AeonixNavigation/Public/Data/AeonixTypes.h>
 
@@ -83,7 +85,9 @@ protected:
 	/** currently followed path */
 	FNavPathSharedPtr Path;
 
-	FAeonixNavPathSharedPtr AeonixPath;
+	FAeonixNavigationPath* AeonixPath;
+
+	TScriptInterface<UAeonixSubsystem> AeonixSubsystem;
 
 	TEnumAsByte<EPathFollowingResult::Type> MoveResult;
 	bool bUseContinuousTracking{false};

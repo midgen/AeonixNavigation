@@ -26,7 +26,8 @@ public:
 	explicit AAeonixPathDebugActor(const FObjectInitializer& Initializer);
 	
 	virtual void PostEditMove(bool bFinished) override;
-	
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathDebugActorType DebugType;
 

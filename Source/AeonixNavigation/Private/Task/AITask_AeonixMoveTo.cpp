@@ -68,6 +68,8 @@ UAITask_AeonixMoveTo* UAITask_AeonixMoveTo::AeonixAIMoveTo(AAIController* Contro
 		{
 			MyTask->RequestAILogicLocking();
 		}
+
+		MyTask->AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 	}
 
 	return MyTask;
@@ -90,7 +92,8 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 	}
 
 	// Use the path instance from the navcomponent
-	AeonixPath = NavComponent->GetPath();
+	AeonixPath = &NavComponent->GetPath();
+	AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 }
 
 void UAITask_AeonixMoveTo::SetContinuousGoalTracking(bool bEnable)
@@ -309,10 +312,15 @@ void UAITask_AeonixMoveTo::RequestPathSynchronous()
 
 	UE_VLOG(this, VAeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
 	UE_LOG(AeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
-
-	if (NavComponent->FindPathImmediate(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), &AeonixPath))
+	
+	if (AeonixSubsystem->FindPathImmediateAgent(NavComponent, MoveRequest.GetGoalLocation(), NavComponent->GetPath()))
 	{
 		Result.Code = EAeonixPathfindingRequestResult::Success;
+	}
+
+	//if (NavComponent->FindPathImmediate(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AeonixPath))
+	{
+		
 	}
 
 	return;
@@ -330,7 +338,8 @@ void UAITask_AeonixMoveTo::RequestPathAsync()
 	AsyncTaskComplete = false;
 
 	// Request the async path
-	AeonixNavComponent->FindPathAsync(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AsyncTaskComplete, &AeonixPath);
+	//TODO: implement async
+	//AeonixNavComponent->FindPathAsync(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AsyncTaskComplete, &AeonixPath);
 
 	Result.Code = EAeonixPathfindingRequestResult::Deferred;
 }
@@ -386,8 +395,10 @@ void UAITask_AeonixMoveTo::ResetPaths()
 	if (Path.IsValid())
 		Path->ResetForRepath();
 
-	if (AeonixPath.IsValid())
+	if (AeonixPath)
+	{
 		AeonixPath->ResetForRepath();
+	}
 }
 
 /** Renders the octree path as a 3d tunnel in the visual logger */
@@ -396,40 +407,40 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 #if WITH_EDITOR
 #if ENABLE_VISUAL_LOG
 
-	UAeonixNavigationComponent* AeonixNavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
-	if (!AeonixNavComponent)
-		return;
-
-	FVisualLogger& Vlog = FVisualLogger::Get();
-	if (Vlog.IsRecording() &&
-		AeonixPath.IsValid() && AeonixPath.Get()->GetPathPoints().Num())
-	{
-
-		FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VAeonixNavigation);
-		if (Entry)
-		{
-			for (int i = 0; i < AeonixPath->GetPathPoints().Num(); i++)
-			{
-				if (i == 0 || i == AeonixPath->GetPathPoints().Num() - 1)
-					continue;
-
-				const FAeonixPathPoint& Point = AeonixPath->GetPathPoints()[i];
-
-				float size = 0.f;
-
-				if (Point.Layer == 0)
-				{
-					size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(0) * 0.25f;
-				}
-				else
-				{
-					size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(Point.Layer - 1);
-				}
-
-				UE_VLOG_BOX(OwnerController->GetPawn(), VAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
-			}
-		}
-	}
+	// UAeonixNavigationComponent* AeonixNavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
+	// if (!AeonixNavComponent)
+	// 	return;
+	//
+	// FVisualLogger& Vlog = FVisualLogger::Get();
+	// if (Vlog.IsRecording() &&
+	// 	AeonixPath.IsValid() && AeonixPath.Get()->GetPathPoints().Num())
+	// {
+	//
+	// 	FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VAeonixNavigation);
+	// 	if (Entry)
+	// 	{
+	// 		for (int i = 0; i < AeonixPath->GetPathPoints().Num(); i++)
+	// 		{
+	// 			if (i == 0 || i == AeonixPath->GetPathPoints().Num() - 1)
+	// 				continue;
+	//
+	// 			const FAeonixPathPoint& Point = AeonixPath->GetPathPoints()[i];
+	//
+	// 			float size = 0.f;
+	//
+	// 			if (Point.Layer == 0)
+	// 			{
+	// 				size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(0) * 0.25f;
+	// 			}
+	// 			else
+	// 			{
+	// 				size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(Point.Layer - 1);
+	// 			}
+	//
+	// 			UE_VLOG_BOX(OwnerController->GetPawn(), VAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
+	// 		}
+	// 	}
+	// }
 #endif // ENABLE_VISUAL_LOG
 #endif // WITH_EDITOR
 }

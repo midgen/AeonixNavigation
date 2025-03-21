@@ -6,8 +6,9 @@
 
 class AAeonixBoundingVolume;
 class UAeonixNavigationComponent;
+struct FAeonixNavigationPath;
 
-UINTERFACE(MinimalAPI)
+UINTERFACE(MinimalAPI, NotBlueprintable)
 class UAeonixSubsystemInterface : public UInterface
 {
 	GENERATED_BODY()
@@ -31,5 +32,17 @@ public:
 	virtual void UnRegisterNavComponent(UAeonixNavigationComponent* NavComponent) = 0;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) = 0;
+
+	UFUNCTION()
+	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavigationComponent* NavigationComponent) = 0;
+
+	// UFUNCTION(BlueprintCallable, Category="Aeonix")
+	// virtual bool FindPathImmediatePosition(const FVector& Start, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
+
+	UFUNCTION(BlueprintCallable, Category="Aeonix")
+	virtual bool FindPathImmediateAgent(UAeonixNavigationComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
+
+	UFUNCTION()
+	virtual void UpdateComponents() = 0;
 	
 };

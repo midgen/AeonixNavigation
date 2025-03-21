@@ -47,7 +47,7 @@ public:
 	~AeonixPathFinder(){};
 
 	/* Performs an A* search from start to target navlink */
-	int FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath);
+	int FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
 
 private:
 	TArray<AeonixLink> OpenSet;
@@ -77,7 +77,7 @@ private:
 	void ProcessLink(const AeonixLink& aNeighbour);
 
 	/* Constructs the path by navigating back through our CameFrom map */
-	void BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath);
+	void BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
 
 	void Smooth_Chaikin(TArray<FAeonixPathPoint>& somePoints, int aNumIterations);
 };

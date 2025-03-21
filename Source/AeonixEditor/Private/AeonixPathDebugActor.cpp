@@ -24,9 +24,16 @@ void AAeonixPathDebugActor::PostEditMove(bool bFinished)
 {
 	Super::PostEditMove(bFinished);
 
-	UAeonixSubsystem* AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+	//UAeonixSubsystem* AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 
-	NavigationComponent->CurrentNavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
+	//NavigationComponent->CurrentNavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
 	
+	GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
+}
+
+void AAeonixPathDebugActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
 	GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
 }

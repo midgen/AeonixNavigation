@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AeonixNavigationPath.generated.h"
+
 struct FAeonixData;
 
 UENUM(BlueprintType)
@@ -12,8 +14,11 @@ enum class EAeonixPathCostType : uint8
 struct FNavigationPath;
 class AAeonixBoundingVolume;
 
+USTRUCT(BlueprintType)
 struct AEONIXNAVIGATION_API FAeonixPathPoint
 {
+	GENERATED_BODY()
+	
 	FAeonixPathPoint()
 		: Position(FVector())
 		, Layer(-1)
@@ -29,9 +34,10 @@ struct AEONIXNAVIGATION_API FAeonixPathPoint
 	int Layer;		// Layer that the point came from (so we can infer it's volume)
 };
 
+USTRUCT(BlueprintType)
 struct AEONIXNAVIGATION_API FAeonixNavigationPath
 {
-
+	GENERATED_BODY()
 public:
 	void AddPoint(const FAeonixPathPoint& aPoint);
 	void ResetForRepath();

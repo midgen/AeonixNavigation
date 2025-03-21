@@ -12,11 +12,6 @@
 
 #include "EngineUtils.h"
 
-UAenoixEditorDebugSubsystem::UAenoixEditorDebugSubsystem(const FObjectInitializer& Initializer)
-{
-	Path = MakeShareable<FAeonixNavigationPath>(new FAeonixNavigationPath());
-}
-
 void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugActor)
 {
 	if (!DebugActor)
@@ -33,19 +28,29 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 		EndDebugActor = DebugActor;
 	}
 
-	// Now pathfind between the two and show all the debug stuff
-
+	// TODO: if we're in Editor, the bounding volumes only register themselves on BeginPlay, so just force register them here for now
 	UAeonixSubsystem* AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
 	for (TActorIterator<AAeonixBoundingVolume> ActorItr(DebugActor->GetWorld()); ActorItr; ++ActorItr)
 	{
 		AeonixSubsystem->RegisterVolume(*ActorItr);
 	}
+
+	AeonixSubsystem->RegisterNavComponent(DebugActor->NavigationComponent);
 	
+	AeonixSubsystem->UpdateComponents();
+
+	// TODO: same with nav components
+	
+
+	// If we've got a valid start and end
 	if (StartDebugActor && EndDebugActor)
 	{
-		if (DebugActor->NavigationComponent->FindPathImmediate(StartDebugActor->GetActorLocation(), EndDebugActor->GetActorLocation(), &Path))
+		// Find a path between them
+		if (AeonixSubsystem->FindPathImmediateAgent(StartDebugActor->NavigationComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath))
+		//if (DebugActor->NavigationComponent->FindPathImmediate(StartDebugActor->GetActorLocation(), EndDebugActor->GetActorLocation(), &Path))
 		{
-			Path->DebugDraw(DebugActor->GetWorld(), DebugActor->NavigationComponent->CurrentNavVolume->GetNavData());
+			// Debug draw the path
+			CurrentDebugPath.DebugDraw(DebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(DebugActor->NavigationComponent)->GetNavData());
 		}
 	}
 }

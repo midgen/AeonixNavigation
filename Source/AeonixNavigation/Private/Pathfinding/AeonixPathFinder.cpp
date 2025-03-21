@@ -7,7 +7,7 @@
 #include <AeonixNavigation/Public/AeonixNavigation.h>
 #include <AeonixNavigation/Public/Data/AeonixData.h>
 
-int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavPathSharedPtr* Path)
+int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {
 	OpenSet.Empty();
 	ClosedSet.Empty();
@@ -164,15 +164,11 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 	}
 }
 
-void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavPathSharedPtr* oPath)
+void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath)
 {
-
 	FAeonixPathPoint pos;
 
 	TArray<FAeonixPathPoint> points;
-
-	if (!oPath || !oPath->IsValid())
-		return;
 
 	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
 	{
@@ -212,7 +208,7 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	for (int i = points.Num() - 1; i >= 0; i--)
 	{
-		oPath->Get()->GetPathPoints().Add(points[i]);
+		oPath.GetPathPoints().Add(points[i]);
 	}
 }
 

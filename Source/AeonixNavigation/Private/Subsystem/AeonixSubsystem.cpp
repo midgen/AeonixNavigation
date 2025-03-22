@@ -1,9 +1,12 @@
+
+
 #include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
 
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Util/AeonixMediator.h>
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
 #include <AeonixNavigation/Public/AeonixNavigation.h>
+#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
+#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
+#include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
+#include <AeonixNavigation/Public/Util/AeonixMediator.h>
 
 void UAeonixSubsystem::RegisterVolume(const AAeonixBoundingVolume* Volume)
 {
@@ -38,15 +41,6 @@ const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVecto
 	return nullptr;
 }
 
-// bool UAeonixSubsystem::FindPathImmediatePosition(const FVector& Start, const FVector& End, FAeonixNavigationPath& OutPath)
-// {
-// 	
-//
-//
-// 	
-// 	return false;
-// }
-
 bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
 {
 	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
@@ -59,26 +53,54 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
 
-		// Get the nav link from our volume
-		if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
-		{
-			UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
-			return false;
-		}
-	
-		if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
-		{
-			UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
-			return false;
-		}
+	// Get the nav link from our volume
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
+		return false;
+	}
 
-		OutPath.ResetForRepath();
+	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
+		return false;
+	}
+
+	OutPath.ResetForRepath();
+
+	AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+
+	int32 Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath);
+
+	OutPath.SetIsReady(true);
 	
-		AeonixPathFinder pathFinder(GetWorld(), NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+	return true;
+}
+
+bool UAeonixSubsystem::FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
+{
+	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
+
+	AeonixLink StartNavLink;
+	AeonixLink TargetNavLink;
 	
-		int32 Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath);
-	
-		OutPath.SetIsReady(true);
+	// Get the nav link from our volume
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
+		return false;
+	}
+
+	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
+		return false;
+	}
+
+	// Make sure the path isn't flagged ready
+	//OutPath.SetIsReady(false);
+
+	(new FAutoDeleteAsyncTask<FAeonixFindPathTask>(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings, StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath, NavigationComponent->PathRequestStatus))->StartBackgroundTask();
 	
 	return true;
 }
@@ -93,14 +115,6 @@ void UAeonixSubsystem::UpdateComponents()
 	for (int32 i = RegisteredNavComponents.Num() -1; i >= 0 ;)
 	{
 		UAeonixNavAgentComponent* NavComponent = RegisteredNavComponents[i];
-		
-		// // We might have some nulled nav agents due to copying actors in editor
-		// if (!NavComponent)
-		// {
-		// 	RegisteredNavComponents.RemoveAtSwap(i);
-		// 	AgentToVolumeMap.Remove(NavComponent);
-		// 	continue;
-		// }
 		
 		bool bIsInValidVolume = false;
 

@@ -1,27 +1,27 @@
 
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
 
+#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include <AeonixNavigation/Public/Data/AeonixData.h>
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
 #include <AeonixNavigation/Public/Data/AeonixNode.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/AeonixNavigation.h>
-#include <AeonixNavigation/Public/Data/AeonixData.h>
 
-int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
+int AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {
 	OpenSet.Empty();
 	ClosedSet.Empty();
 	CameFrom.Empty();
 	FScore.Empty();
 	GScore.Empty();
-	Current = AeonixLink();
-	Goal = InGoal;
-	Start = InStart;
+	CurrentLink = AeonixLink();
+	GoalLink = InGoal;
+	StartLink = Start;
 
-	OpenSet.Add(InStart);
-	CameFrom.Add(InStart, InStart);
-	GScore.Add(InStart, 0);
-	FScore.Add(InStart, HeuristicScore(InStart, InGoal)); // Distance to target
+	OpenSet.Add(Start);
+	CameFrom.Add(Start, Start);
+	GScore.Add(Start, 0);
+	FScore.Add(Start, HeuristicScore(Start, InGoal)); // Distance to target
 
 	int numIterations = 0;
 
@@ -34,33 +34,33 @@ int AeonixPathFinder::FindPath(const AeonixLink& InStart, const AeonixLink& InGo
 			if (!FScore.Contains(link) || FScore[link] < lowestScore)
 			{
 				lowestScore = FScore[link];
-				Current = link;
+				CurrentLink = link;
 			}
 		}
 
-		OpenSet.Remove(Current);
-		ClosedSet.Add(Current);
+		OpenSet.Remove(CurrentLink);
+		ClosedSet.Add(CurrentLink);
 
-		if (Current == Goal)
+		if (CurrentLink == GoalLink)
 		{
-			BuildPath(CameFrom, Current, StartPos, TargetPos, Path);
+			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
 			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
 			return 1;
 		}
 
-		const AeonixNode& currentNode = NavigationData.OctreeData.GetNode(Current);
+		const AeonixNode& currentNode = NavigationData.OctreeData.GetNode(CurrentLink);
 
 		TArray<AeonixLink> neighbours;
 
-		if (Current.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
+		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
 
-			NavigationData.OctreeData.GetLeafNeighbours(Current, neighbours);
+			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
 		}
 		else
 		{
-			NavigationData.OctreeData.GetNeighbours(Current, neighbours);
+			NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
 		}
 
 		for (const AeonixLink& neighbour : neighbours)
@@ -145,22 +145,22 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 			{
 				FVector pos;
 				NavigationData.GetLinkPosition(aNeighbour, pos);
-				Settings.DebugPoints.Add(pos);
+				//Settings.DebugPoints.Add(pos);
 			}
 		}
 
 		float t_gScore = FLT_MAX;
-		if (GScore.Contains(Current))
-			t_gScore = GScore[Current] + GetCost(Current, aNeighbour);
+		if (GScore.Contains(CurrentLink))
+			t_gScore = GScore[CurrentLink] + GetCost(CurrentLink, aNeighbour);
 		else
-			GScore.Add(Current, FLT_MAX);
+			GScore.Add(CurrentLink, FLT_MAX);
 
 		if (t_gScore >= (GScore.Contains(aNeighbour) ? GScore[aNeighbour] : FLT_MAX))
 			return;
 
-		CameFrom.Add(aNeighbour, Current);
+		CameFrom.Add(aNeighbour, CurrentLink);
 		GScore.Add(aNeighbour, t_gScore);
-		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.EstimateWeight * HeuristicScore(aNeighbour, Goal)));
+		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.EstimateWeight * HeuristicScore(aNeighbour, GoalLink)));
 	}
 }
 
@@ -200,7 +200,7 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 			points.Emplace();
 
 		points[0].Position = aTargetPos;
-		points.Emplace(aStartPos, Start.GetLayerIndex());
+		points.Emplace(aStartPos, StartLink.GetLayerIndex());
 	}
 
 	Smooth_Chaikin(points, Settings.SmoothingIterations);

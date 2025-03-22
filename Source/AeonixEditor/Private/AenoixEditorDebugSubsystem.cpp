@@ -42,12 +42,11 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	// TODO: same with nav components
 	
 
-	// If we've got a valid start and end
+	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor)
 	{
 		// Find a path between them
 		if (AeonixSubsystem->FindPathImmediateAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath))
-		//if (DebugActor->NavAgentComponent->FindPathImmediate(StartDebugActor->GetActorLocation(), EndDebugActor->GetActorLocation(), &Path))
 		{
 			// Debug draw the path
 			CurrentDebugPath.DebugDraw(DebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(DebugActor->NavAgentComponent)->GetNavData());

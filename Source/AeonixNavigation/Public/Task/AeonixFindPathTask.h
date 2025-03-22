@@ -1,7 +1,6 @@
 #pragma once
 
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <AeonixNavigation/Public/Data/AeonixTypes.h">
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
 
 #include <Runtime/Core/Public/Async/AsyncWork.h>
@@ -15,38 +14,31 @@ class FAeonixFindPathTask : public FNonAbandonableTask
 	friend class FAutoDeleteAsyncTask<FAeonixFindPathTask>;
 
 public:
-	FAeonixFindPathTask(const FAeonixData& Data, FAeonixPathFinderSettings& aSettings, UWorld* aWorld, const AeonixLink aStart, const AeonixLink aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath, FThreadSafeBool& aCompleteFlag)
+	FAeonixFindPathTask(const FAeonixData& Data, const FAeonixPathFinderSettings& aSettings, const AeonixLink aStart, const AeonixLink aGoal, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath, FThreadSafeCounter& aStatusCounter)
 		: NavigationData(Data)
-		, myWorld(aWorld)
-		, myStart(aStart)
-		, myTarget(aTarget)
-		, myStartPos(aStartPos)
-		, myTargetPos(aTargetPos)
-		, myPath(oPath)
-		, mySettings(aSettings)
-		, myCompleteFlag(aCompleteFlag)
+		, Start(aStart)
+		, Goal(aGoal)
+		, StartPos(aStartPos)
+		, TargetPos(aTargetPos)
+		, Path(oPath)
+		, Settings(aSettings)
+		, StatusCounter(aStatusCounter)
 	{
 	}
 
 protected:
 	const FAeonixData& NavigationData;
-	UWorld* myWorld;
 
-	AeonixLink myStart;
-	AeonixLink myTarget;
-	FVector myStartPos;
-	FVector myTargetPos;
-	FAeonixNavigationPath& myPath;
-
-	// TODO: const this and have the debug data elsewhere
-	FAeonixPathFinderSettings mySettings;
-
-	FThreadSafeBool& myCompleteFlag;
+	AeonixLink Start;
+	AeonixLink Goal;
+	FVector StartPos;
+	FVector TargetPos;
+	FAeonixNavigationPath& Path;
+	const FAeonixPathFinderSettings Settings;
+	FThreadSafeCounter& StatusCounter;
 
 	void DoWork();
-
-	// This next section of code needs to be here.  Not important as to why.
-
+	
 	FORCEINLINE TStatId GetStatId() const
 	{
 		RETURN_QUICK_DECLARE_CYCLE_STAT(FAeonixFindPathTask, STATGROUP_ThreadPoolAsyncTasks);

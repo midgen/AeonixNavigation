@@ -29,6 +29,8 @@ public:
 	UFUNCTION()
 	virtual bool FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
 	UFUNCTION()
+	virtual bool FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
+	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
 	virtual void UpdateComponents() override;

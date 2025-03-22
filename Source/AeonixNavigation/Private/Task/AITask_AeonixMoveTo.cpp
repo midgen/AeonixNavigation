@@ -103,8 +103,21 @@ void UAITask_AeonixMoveTo::SetContinuousGoalTracking(bool bEnable)
 
 void UAITask_AeonixMoveTo::TickTask(float DeltaTime)
 {
-	if (AsyncTaskComplete)
-		HandleAsyncPathTaskComplete();
+	UAeonixNavAgentComponent* AeonixNavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
+	if (!AeonixNavComponent)
+		return;
+
+	int32 CurrentStatus = NavComponent->PathRequestStatus.GetValue();
+	
+	switch (CurrentStatus)
+	{
+	case 0 : break; // No path request, nothing to do
+	case 1 : break; // Path request pending, waiting for response
+	case 2 : // Path request is complete
+		Result.Code = EAeonixPathfindingRequestResult::Success;
+		RequestMove(); // Path request completed
+		break;
+	}
 }
 
 void UAITask_AeonixMoveTo::FinishMoveTask(EPathFollowingResult::Type InResult)
@@ -189,11 +202,10 @@ void UAITask_AeonixMoveTo::PerformMove()
 			{
 				UE_VLOG(GetGameplayTasksComponent(), LogGameplayTasks, Error, TEXT("%s> re-Activating Finished task!"), *GetName());
 			}
-			RequestMove(); // Start the move
+			RequestMove(); // StartLink the move
 			break;
 		case EAeonixPathfindingRequestResult::Deferred: // Async...we're waiting on the task to return
 			MoveRequestID = Result.MoveId;
-			AsyncTaskComplete = false;
 			break;
 		default:
 			checkNoEntry();
@@ -329,13 +341,13 @@ void UAITask_AeonixMoveTo::RequestPathAsync()
 	if (!AeonixNavComponent)
 		return;
 
-	AsyncTaskComplete = false;
-
-	// Request the async path
-	//TODO: implement async
-	//AeonixNavComponent->FindPathAsync(NavComponent->GetAgentPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AsyncTaskComplete, &AeonixPath);
-
-	Result.Code = EAeonixPathfindingRequestResult::Deferred;
+	// Reset status to zero
+	AeonixNavComponent->PathRequestStatus.Reset();
+	
+	if (AeonixSubsystem->FindPathAsyncAgent(NavComponent, MoveRequest.GetGoalLocation(), NavComponent->GetPath()))
+	{
+		Result.Code = EAeonixPathfindingRequestResult::Deferred;
+	}
 }
 
 /* Requests the move, based on the current path */
@@ -375,14 +387,14 @@ void UAITask_AeonixMoveTo::RequestMove()
 	}
 }
 
-void UAITask_AeonixMoveTo::HandleAsyncPathTaskComplete()
-{
-	Result.Code = EAeonixPathfindingRequestResult::Success;
-	// Request the move
-	RequestMove();
-	// Flag that we've processed the task
-	AsyncTaskComplete = false;
-}
+// void UAITask_AeonixMoveTo::HandleAsyncPathTaskComplete()
+// {
+// 	Result.Code = EAeonixPathfindingRequestResult::Success;
+// 	// Request the move
+// 	RequestMove();
+// 	// Flag that we've processed the task
+// 	AsyncTaskComplete = false;
+// }
 
 void UAITask_AeonixMoveTo::ResetPaths()
 {

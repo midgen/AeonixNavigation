@@ -36,8 +36,8 @@ public:
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
 
-	//UFUNCTION(BlueprintCallable, Category="Aeonix")
-	//virtual bool FindPathAsyncAgent(UAeonixNavAgentComponent* NavAgentComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
+	UFUNCTION(BlueprintCallable, Category="Aeonix")
+	virtual bool FindPathAsyncAgent(UAeonixNavAgentComponent* NavAgentComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	virtual bool FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;

@@ -4,7 +4,6 @@
 #include "Subsystem/AeonixSubsystem.h"
 
 #include <AeonixNavigation/Public/Data/AeonixDefines.h>
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
 
 #include <Runtime/AIModule/Classes/Navigation/PathFollowingComponent.h>
 #include <Runtime/AIModule/Classes/Tasks/AITask.h>
@@ -53,8 +52,7 @@ public:
 
 protected:
 	void LogPathHelper();
-
-	FThreadSafeBool AsyncTaskComplete;
+	
 	bool bUseAsyncPathfinding;
 
 	UPROPERTY(BlueprintAssignable)
@@ -108,7 +106,8 @@ protected:
 
 	FAeonixPathfindingRequestResult Result;
 
-	UAeonixNavAgentComponent* NavComponent;
+	UPROPERTY()
+	TObjectPtr<UAeonixNavAgentComponent> NavComponent;
 
 	void CheckPathPreConditions();
 

@@ -1,11 +1,13 @@
-#include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
+#include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
 
 void FAeonixFindPathTask::DoWork()
 {
-	AeonixPathFinder PathFinder(myWorld, NavigationData, mySettings);
+	AeonixPathFinder PathFinder(NavigationData, Settings);
 
-	int Result = PathFinder.FindPath(myStart, myTarget, myStartPos, myTargetPos, myPath);
+	StatusCounter.Increment();
 
-	myCompleteFlag = true;
+	int Result = PathFinder.FindPath(Start, Goal, StartPos, TargetPos, Path);
+
+	StatusCounter.Increment();
 }

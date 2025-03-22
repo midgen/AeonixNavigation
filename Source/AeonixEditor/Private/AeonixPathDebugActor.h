@@ -15,7 +15,7 @@ enum class EAeonixPathDebugActorType : uint8
 };
 
 /**
- * 
+ *  Debug actor for testing Aeonix pathfinding, drop two into your level, set one to start and one to end
  */
 UCLASS()
 class AEONIXEDITOR_API AAeonixPathDebugActor : public AActor

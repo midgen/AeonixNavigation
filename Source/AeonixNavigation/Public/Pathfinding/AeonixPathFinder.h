@@ -1,7 +1,6 @@
 #pragma once
 
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
 
 #include "AeonixPathFinder.generated.h"
@@ -42,11 +41,9 @@ struct FAeonixPathFinderSettings
 class AEONIXNAVIGATION_API AeonixPathFinder
 {
 public:
-	AeonixPathFinder(UWorld* World, const FAeonixData& Data, FAeonixPathFinderSettings& Settings)
+	AeonixPathFinder(const FAeonixData& Data, const FAeonixPathFinderSettings& Settings)
 		: NavigationData(Data)
-		, Settings(Settings)
-		, World(World){};
-	~AeonixPathFinder(){};
+		, Settings(Settings){};
 
 	/* Performs an A* search from start to target navlink */
 	int FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
@@ -60,15 +57,13 @@ private:
 	TMap<AeonixLink, float> GScore;
 	TMap<AeonixLink, float> FScore;
 
-	AeonixLink Start;
-	AeonixLink Current;
-	AeonixLink Goal;
+	AeonixLink StartLink;
+	AeonixLink CurrentLink;
+	AeonixLink GoalLink;
 
 	const FAeonixData& NavigationData;
 
-	FAeonixPathFinderSettings& Settings;
-
-	UWorld* World;
+	const FAeonixPathFinderSettings& Settings;
 
 	/* A* heuristic calculation */
 	float HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget);

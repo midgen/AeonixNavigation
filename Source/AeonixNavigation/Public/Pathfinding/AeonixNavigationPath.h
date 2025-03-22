@@ -5,6 +5,13 @@
 struct FAeonixData;
 
 UENUM(BlueprintType)
+enum class EAeonixPathPointType : uint8
+{
+	NODE_CENTER UMETA(ToolTip="Path points are in the center of each traversed node"),
+	INTERMEDIATE UMETA(ToolTip="Path points are halfway between the center of each traversed node edge"),
+};
+
+UENUM(BlueprintType)
 enum class EAeonixPathCostType : uint8
 {
 	MANHATTAN,
@@ -31,7 +38,11 @@ struct AEONIXNAVIGATION_API FAeonixPathPoint
 	}
 
 	FVector Position; // Position of the point
-	int Layer;		// Layer that the point came from (so we can infer it's volume)
+	int Layer;			// Layer that the point came from (so we can infer it's volume)
+#if WITH_EDITOR
+	FVector NodePosition; // Position of the node that this point came from, for debug display
+#endif
+	
 };
 
 USTRUCT(BlueprintType)

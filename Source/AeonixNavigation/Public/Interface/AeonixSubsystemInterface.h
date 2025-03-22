@@ -5,7 +5,7 @@
 #include "AeonixSubsystemInterface.generated.h"
 
 class AAeonixBoundingVolume;
-class UAeonixNavigationComponent;
+class UAeonixNavAgentComponent;
 struct FAeonixNavigationPath;
 
 UINTERFACE(MinimalAPI, NotBlueprintable)
@@ -27,20 +27,20 @@ public:
 	UFUNCTION()
 	virtual void UnRegisterVolume(const AAeonixBoundingVolume* Volume) = 0;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavigationComponent* NavComponent) = 0;
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) = 0;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavigationComponent* NavComponent) = 0;
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent) = 0;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) = 0;
 
 	UFUNCTION()
-	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavigationComponent* NavigationComponent) = 0;
+	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
 
-	// UFUNCTION(BlueprintCallable, Category="Aeonix")
-	// virtual bool FindPathImmediatePosition(const FVector& Start, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
+	//UFUNCTION(BlueprintCallable, Category="Aeonix")
+	//virtual bool FindPathAsyncAgent(UAeonixNavAgentComponent* NavAgentComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
-	virtual bool FindPathImmediateAgent(UAeonixNavigationComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
+	virtual bool FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;
 
 	UFUNCTION()
 	virtual void UpdateComponents() = 0;

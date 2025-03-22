@@ -2,7 +2,7 @@
 #include <AeonixNavigation/Public/Task/AITask_AeonixMoveTo.h>
 
 #include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Component/AeonixNavigationComponent.h>
+#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
 #include <AeonixNavigation/Public/AeonixNavigation.h>
 
@@ -69,7 +69,7 @@ UAITask_AeonixMoveTo* UAITask_AeonixMoveTo::AeonixAIMoveTo(AAIController* Contro
 			MyTask->RequestAILogicLocking();
 		}
 
-		MyTask->AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+		MyTask->AeonixSubsystem = Controller->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	}
 
 	return MyTask;
@@ -83,7 +83,7 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 	bTickingTask = bUseAsyncPathfinding;
 
 	// Fail if no nav component
-	NavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
+	NavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	if (!NavComponent)
 	{
 		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent"), *MoveRequest.ToString());
@@ -93,7 +93,7 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 
 	// Use the path instance from the navcomponent
 	AeonixPath = &NavComponent->GetPath();
-	AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+	AeonixSubsystem = Controller->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 }
 
 void UAITask_AeonixMoveTo::SetContinuousGoalTracking(bool bEnable)
@@ -249,7 +249,7 @@ void UAITask_AeonixMoveTo::CheckPathPreConditions()
 	Result.Code = EAeonixPathfindingRequestResult::Failed;
 
 	// Fail if no nav component
-	NavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
+	NavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	if (!NavComponent)
 	{
 		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"), *MoveRequest.ToString());
@@ -317,12 +317,6 @@ void UAITask_AeonixMoveTo::RequestPathSynchronous()
 	{
 		Result.Code = EAeonixPathfindingRequestResult::Success;
 	}
-
-	//if (NavComponent->FindPathImmediate(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AeonixPath))
-	{
-		
-	}
-
 	return;
 }
 
@@ -331,7 +325,7 @@ void UAITask_AeonixMoveTo::RequestPathAsync()
 	Result.Code = EAeonixPathfindingRequestResult::Failed;
 
 	// Fail if no nav component
-	UAeonixNavigationComponent* AeonixNavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
+	UAeonixNavAgentComponent* AeonixNavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	if (!AeonixNavComponent)
 		return;
 
@@ -339,7 +333,7 @@ void UAITask_AeonixMoveTo::RequestPathAsync()
 
 	// Request the async path
 	//TODO: implement async
-	//AeonixNavComponent->FindPathAsync(NavComponent->GetPawnPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AsyncTaskComplete, &AeonixPath);
+	//AeonixNavComponent->FindPathAsync(NavComponent->GetAgentPosition(), MoveRequest.IsMoveToActorRequest() ? MoveRequest.GetGoalActor()->GetActorLocation() : MoveRequest.GetGoalLocation(), AsyncTaskComplete, &AeonixPath);
 
 	Result.Code = EAeonixPathfindingRequestResult::Deferred;
 }
@@ -407,7 +401,7 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 #if WITH_EDITOR
 #if ENABLE_VISUAL_LOG
 
-	// UAeonixNavigationComponent* AeonixNavComponent = Cast<UAeonixNavigationComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavigationComponent::StaticClass()));
+	// UAeonixNavAgentComponent* AeonixNavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	// if (!AeonixNavComponent)
 	// 	return;
 	//

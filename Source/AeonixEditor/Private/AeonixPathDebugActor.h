@@ -5,7 +5,7 @@
 #include "AeonixPathDebugActor.generated.h"
 
 class AAeonixBoundingVolume;
-class UAeonixNavigationComponent;
+class UAeonixNavAgentComponent;
 
 UENUM(BlueprintType)
 enum class EAeonixPathDebugActorType : uint8
@@ -27,10 +27,12 @@ public:
 	
 	virtual void PostEditMove(bool bFinished) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathDebugActorType DebugType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	TObjectPtr<UAeonixNavigationComponent> NavigationComponent;
+	TObjectPtr<UAeonixNavAgentComponent> NavAgentComponent;
 };
+

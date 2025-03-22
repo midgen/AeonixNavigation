@@ -176,7 +176,6 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		NavigationData.GetLinkPosition(aCurrent, pos.Position);
 		points.Add(pos);
 		const AeonixNode& node = NavigationData.OctreeData.GetNode(aCurrent);
-		// This is rank. I really should sort the layers out
 		if (aCurrent.GetLayerIndex() == 0)
 		{
 			if (!node.HasChildren())
@@ -206,9 +205,37 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	Smooth_Chaikin(points, Settings.SmoothingIterations);
 
+#if WITH_EDITOR
 	for (int i = points.Num() - 1; i >= 0; i--)
 	{
-		oPath.GetPathPoints().Add(points[i]);
+		points[i].NodePosition = points[i].Position;
+	}
+#endif
+
+	// For simple path points, just copy the points to the output path as is.
+	if (Settings.PathPointType == EAeonixPathPointType::NODE_CENTER)
+	{
+		for (int i = points.Num() - 1; i >= 0; i--)
+		{
+			oPath.GetPathPoints().Add(points[i]);
+		}
+	}
+	else if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
+	{
+		for (int i = points.Num() - 1; i >= 0; i--)
+		{
+			if (i == 0 || i == points.Num() - 1)
+			{
+				oPath.GetPathPoints().Add(points[i]);
+				continue;
+			}
+
+			FAeonixPathPoint newPoint = points[i];
+
+			newPoint.Position += (points[i-1].Position - points[i].Position) * 0.5f;
+			
+			oPath.GetPathPoints().Add(newPoint);
+		}
 	}
 }
 

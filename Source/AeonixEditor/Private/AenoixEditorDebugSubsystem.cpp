@@ -7,7 +7,7 @@
 
 #include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
 
-#include "Component/AeonixNavigationComponent.h"
+#include "Component/AeonixNavAgentComponent.h"
 #include "Subsystem/AeonixSubsystem.h"
 
 #include "EngineUtils.h"
@@ -29,13 +29,13 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	}
 
 	// TODO: if we're in Editor, the bounding volumes only register themselves on BeginPlay, so just force register them here for now
-	UAeonixSubsystem* AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+	UAeonixSubsystem* AeonixSubsystem = DebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	for (TActorIterator<AAeonixBoundingVolume> ActorItr(DebugActor->GetWorld()); ActorItr; ++ActorItr)
 	{
 		AeonixSubsystem->RegisterVolume(*ActorItr);
 	}
 
-	AeonixSubsystem->RegisterNavComponent(DebugActor->NavigationComponent);
+	AeonixSubsystem->RegisterNavComponent(DebugActor->NavAgentComponent);
 	
 	AeonixSubsystem->UpdateComponents();
 
@@ -46,11 +46,11 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	if (StartDebugActor && EndDebugActor)
 	{
 		// Find a path between them
-		if (AeonixSubsystem->FindPathImmediateAgent(StartDebugActor->NavigationComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath))
-		//if (DebugActor->NavigationComponent->FindPathImmediate(StartDebugActor->GetActorLocation(), EndDebugActor->GetActorLocation(), &Path))
+		if (AeonixSubsystem->FindPathImmediateAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath))
+		//if (DebugActor->NavAgentComponent->FindPathImmediate(StartDebugActor->GetActorLocation(), EndDebugActor->GetActorLocation(), &Path))
 		{
 			// Debug draw the path
-			CurrentDebugPath.DebugDraw(DebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(DebugActor->NavigationComponent)->GetNavData());
+			CurrentDebugPath.DebugDraw(DebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(DebugActor->NavAgentComponent)->GetNavData());
 		}
 	}
 }

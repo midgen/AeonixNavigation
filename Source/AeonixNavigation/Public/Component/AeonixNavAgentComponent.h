@@ -8,17 +8,18 @@
 
 #include <Runtime/Engine/Classes/Components/ActorComponent.h>
 
-#include "AeonixNavigationComponent.generated.h"
+#include "AeonixNavAgentComponent.generated.h"
 
 class AAeonixBoundingVolume;
 struct AeonixLink;
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class AEONIXNAVIGATION_API UAeonixNavigationComponent : public UActorComponent
+class AEONIXNAVIGATION_API UAeonixNavAgentComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-	UAeonixNavigationComponent(const FObjectInitializer& ObjectInitializer);
+	UAeonixNavAgentComponent(const FObjectInitializer& ObjectInitializer);
+	~UAeonixNavAgentComponent();
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
@@ -29,19 +30,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix | Debug")
 	bool bDebugPrintMortonCodes{false};
 	
-	// virtual FVector GetPawnPosition() const;
 	FAeonixNavigationPath& GetPath() { return CurrentPath; }
-	FVector GetPawnPosition() const;
-
-	//bool FindPathAsync(const FVector& aStartPosition, const FVector& aTargetPosition, FThreadSafeBool& aCompleteFlag, FAeonixNavPathSharedPtr* oNavPath);
-	//bool FindPathImmediate(const FVector& aStartPosition, const FVector& aTargetPosition, FAeonixNavPathSharedPtr* oNavPath);
-	//UFUNCTION(BlueprintCallable, Category = Aeonix)
-	//void FindPathImmediate(const FVector& aStartPosition, const FVector& aTargetPosition, TArray<FVector>& OutPathPoints);
+	FVector GetAgentPosition() const;
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+protected:
 	UPROPERTY()
 	TScriptInterface<IAeonixSubsystemInterface> AeonixSubsystem;
 

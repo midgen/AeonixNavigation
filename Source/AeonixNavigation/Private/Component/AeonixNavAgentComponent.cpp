@@ -1,5 +1,5 @@
 
-#include <AeonixNavigation/Public/Component/AeonixNavigationComponent.h>
+#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
 
 #include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
 #include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
@@ -13,16 +13,28 @@
 #include <Runtime/Engine/Classes/GameFramework/Actor.h>
 #include <Runtime/Engine/Public/DrawDebugHelpers.h>
 
-UAeonixNavigationComponent::UAeonixNavigationComponent(const FObjectInitializer& ObjectInitializer)
+UAeonixNavAgentComponent::UAeonixNavAgentComponent(const FObjectInitializer& ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UAeonixNavigationComponent::BeginPlay()
+UAeonixNavAgentComponent::~UAeonixNavAgentComponent()
+{
+	// if (!AeonixSubsystem.GetInterface())
+	// {
+	// 	UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+	// }
+	// else
+	// {
+	// 	AeonixSubsystem->UnRegisterNavComponent(this);
+	// }
+}
+
+void UAeonixNavAgentComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
+	AeonixSubsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystem.GetInterface())
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
@@ -30,11 +42,10 @@ void UAeonixNavigationComponent::BeginPlay()
 	else
 	{
 		AeonixSubsystem->RegisterNavComponent(this);
-		//CurrentNavVolume = AeonixSubsystem->GetVolumeForPosition(GetPawnPosition());
 	}
 }
 
-void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void UAeonixNavAgentComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (!AeonixSubsystem.GetInterface())
 	{
@@ -48,12 +59,12 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 	Super::EndPlay(EndPlayReason);
 }
 
-// bool UAeonixNavigationComponent::HasNavData() const
+// bool UAeonixNavAgentComponent::HasNavData() const
 // {
 // 	return CurrentNavVolume != nullptr;
 // }
 
-// AeonixLink UAeonixNavigationComponent::GetNavPosition() const
+// AeonixLink UAeonixNavAgentComponent::GetNavPosition() const
 // {
 // 	AeonixLink NavLink;
 // 	if (HasNavData())
@@ -67,14 +78,14 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 //
 // 			bool bIsValid = CurrentNavVolume->GetNavData().GetLinkPosition(NavLink, CurrentNodePosition);
 //
-// 			DrawDebugLine(GetWorld(), GetPawnPosition(), CurrentNodePosition, bIsValid ? FColor::Green : FColor::Red, false, -1.f, 0, 10.f);
-// 			DrawDebugString(GetWorld(), GetPawnPosition() + FVector(0.f, 0.f, -50.f), NavLink.ToString(), NULL, FColor::Yellow, 0.01f);
+// 			DrawDebugLine(GetWorld(), GetAgentPosition(), CurrentNodePosition, bIsValid ? FColor::Green : FColor::Red, false, -1.f, 0, 10.f);
+// 			DrawDebugString(GetWorld(), GetAgentPosition() + FVector(0.f, 0.f, -50.f), NavLink.ToString(), NULL, FColor::Yellow, 0.01f);
 // 		}
 // 	}
 // 	return NavLink;
 // }
 
-// bool UAeonixNavigationComponent::FindPathAsync(const FVector& StartPosition, const FVector& TargetPosition, FThreadSafeBool& CompleteFlag, FAeonixNavPathSharedPtr* OutNavPath)
+// bool UAeonixNavAgentComponent::FindPathAsync(const FVector& StartPosition, const FVector& TargetPosition, FThreadSafeBool& CompleteFlag, FAeonixNavPathSharedPtr* OutNavPath)
 // {
 // 	// UE_LOG(AeonixNavigation, Log, TEXT("Finding path from %s and %s"), *StartPosition.ToString(), *TargetPosition.ToString());
 // 	// AeonixLink StartNavLink;
@@ -105,7 +116,7 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 // 	return false;
 // }
 
-// bool UAeonixNavigationComponent::FindPathImmediate(const FVector& StartPosition, const FVector& TargetPosition, FAeonixNavPathSharedPtr* NavPath)
+// bool UAeonixNavAgentComponent::FindPathImmediate(const FVector& StartPosition, const FVector& TargetPosition, FAeonixNavPathSharedPtr* NavPath)
 // {
 // 	UE_LOG(AeonixNavigation, Log, TEXT("Finding path immediate from %s and %s"), *StartPosition.ToString(), *TargetPosition.ToString());
 //
@@ -154,7 +165,7 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 	// return false;
 //}
 
-// void UAeonixNavigationComponent::FindPathImmediate(const FVector& StartPosition, const FVector& TargetPosition, TArray<FVector>& OutPathPoints)
+// void UAeonixNavAgentComponent::FindPathImmediate(const FVector& StartPosition, const FVector& TargetPosition, TArray<FVector>& OutPathPoints)
 // {
 // 	AeonixSubsystem->FindPathImmediatePosition(StartPosition, TargetPosition, CurrentPath);
 // 	
@@ -166,13 +177,13 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 // 	}
 // }
 
-// void UAeonixNavigationComponent::SetCurrentNavVolume(const AAeonixBoundingVolume* Volume)
+// void UAeonixNavAgentComponent::SetCurrentNavVolume(const AAeonixBoundingVolume* Volume)
 // {
 // 	CurrentNavVolume = Volume;
 //
 // 	if (CurrentNavVolume && CurrentNavVolume->bIsReadyForNavigation)
 // 	{
-// 		FVector Location = GetPawnPosition();
+// 		FVector Location = GetAgentPosition();
 // 		if (bDebugPrintMortonCodes)
 // 		{
 // 			DebugLocalPosition(Location);
@@ -180,22 +191,22 @@ void UAeonixNavigationComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 // 	}
 // }
 
-// void UAeonixNavigationComponent::DebugLocalPosition(FVector& aPosition)
+// void UAeonixNavAgentComponent::DebugLocalPosition(FVector& aPosition)
 // {
 // 	if (HasNavData())
 // 	{
 // 		for (int i = 0; i < CurrentNavVolume->GetNavData().OctreeData.GetNumLayers() - 1; i++)
 // 		{
 // 			FIntVector Pos;
-// 			AeonixMediator::GetVolumeXYZ(GetPawnPosition(), *CurrentNavVolume, i, Pos);
+// 			AeonixMediator::GetVolumeXYZ(GetAgentPosition(), *CurrentNavVolume, i, Pos);
 // 			uint_fast64_t Code = morton3D_64_encode(Pos.X, Pos.Y, Pos.Z);
 // 			FString CodeString = FString::FromInt(Code);
-// 			DrawDebugString(GetWorld(), GetPawnPosition() + FVector(0.f, 0.f, i * 50.0f), Pos.ToString() + " - " + CodeString, NULL, FColor::White, 0.01f);
+// 			DrawDebugString(GetWorld(), GetAgentPosition() + FVector(0.f, 0.f, i * 50.0f), Pos.ToString() + " - " + CodeString, NULL, FColor::White, 0.01f);
 // 		}
 // 	}
 // }
 
-FVector UAeonixNavigationComponent::GetPawnPosition() const
+FVector UAeonixNavAgentComponent::GetAgentPosition() const
 {
 	FVector Result;
 

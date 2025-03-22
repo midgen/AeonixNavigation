@@ -24,7 +24,7 @@ struct FAeonixPathFinderSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	float UnitCost{1.0f};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	float EstimateWeight{1.0f};
+	float EstimateWeight{10.0f};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	float NodeSizeCompensation{1.0f};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
@@ -33,6 +33,8 @@ struct FAeonixPathFinderSettings
 	int32 MaxIterations{5000};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathCostType PathCostType{EAeonixPathCostType::EUCLIDEAN};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	EAeonixPathPointType PathPointType{EAeonixPathPointType::NODE_CENTER};
 	
 	TArray<FVector> DebugPoints;
 };

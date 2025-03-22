@@ -13,7 +13,7 @@
 #include "AITask_AeonixMoveTo.generated.h"
 
 class AAIController;
-class UAeonixNavigationComponent;
+class UAeonixNavAgentComponent;
 struct FAeonixNavigationPath;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FAeonixMoveTaskCompletedSignature, TEnumAsByte<EPathFollowingResult::Type>, Result, AAIController*, AIController);
@@ -108,7 +108,7 @@ protected:
 
 	FAeonixPathfindingRequestResult Result;
 
-	UAeonixNavigationComponent* NavComponent;
+	UAeonixNavAgentComponent* NavComponent;
 
 	void CheckPathPreConditions();
 

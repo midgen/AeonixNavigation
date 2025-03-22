@@ -7,10 +7,10 @@
 #include "AeonixSubsystem.generated.h"
 
 class AAeonixBoundingVolume;
-class UAeonixNavigationComponent;
+class UAeonixNavAgentComponent;
 
 UCLASS()
-class AEONIXNAVIGATION_API UAeonixSubsystem : public UEngineSubsystem, public IAeonixSubsystemInterface, public FTickableGameObject
+class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, public IAeonixSubsystemInterface
 {
 	GENERATED_BODY()
 
@@ -21,17 +21,15 @@ public:
 	UFUNCTION()
 	virtual void UnRegisterVolume(const AAeonixBoundingVolume* Volume) override;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavigationComponent* NavComponent) override;
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) override;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavigationComponent* NavComponent) override;
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent) override;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) override;
-	//UFUNCTION()
-	//virtual bool FindPathImmediatePosition(const FVector& Start, const FVector& End, FAeonixNavigationPath& OutPath) override;
 	UFUNCTION()
-	virtual bool FindPathImmediateAgent(UAeonixNavigationComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
+	virtual bool FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
 	UFUNCTION()
-	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavigationComponent* NavigationComponent) override;
+	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
 	virtual void UpdateComponents() override;
 	/* IAeonixSubsystemInterface END */
@@ -43,14 +41,16 @@ public:
 	virtual bool IsTickableInEditor() const override;
 	virtual bool IsTickableWhenPaused() const override;
 
+protected:
+	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
 	UPROPERTY()
 	TArray<const AAeonixBoundingVolume*> RegisteredVolumes{};
 
 	UPROPERTY()
-	TArray<UAeonixNavigationComponent*> RegisteredNavComponents{};
+	TArray<UAeonixNavAgentComponent*> RegisteredNavComponents{};
 
 	UPROPERTY()
-	TMap<UAeonixNavigationComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
+	TMap<UAeonixNavAgentComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
 };

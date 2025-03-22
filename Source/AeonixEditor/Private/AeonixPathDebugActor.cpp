@@ -1,33 +1,34 @@
 ﻿
-
-
-
+#include "Subsystem/AeonixSubsystem.h"
 
 #include <AeonixEditor/Private/AeonixPathDebugActor.h>
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
-#include <AeonixNavigation/Public/Component/AeonixNavigationComponent.h>
-
 #include <AeonixEditor/Private/AenoixEditorDebugSubsystem.h>
 
-static const FName NavigationComponentName(TEXT("AeonixNavigationComponent"));
+#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
+
+static const FName NavAgentComponentName(TEXT("AeonixNavAgentComponent"));
 static const FName RootComponentName(TEXT("RootComponent"));
 
 AAeonixPathDebugActor::AAeonixPathDebugActor(const FObjectInitializer& Initializer)
 	: Super(Initializer)
 	, DebugType(EAeonixPathDebugActorType::START)
-	, NavigationComponent(CreateDefaultSubobject<UAeonixNavigationComponent>(NavigationComponentName))	 
+	, NavAgentComponent(CreateDefaultSubobject<UAeonixNavAgentComponent>(NavAgentComponentName))	 
 {
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(RootComponentName));
+}
+
+void AAeonixPathDebugActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	GetWorld()->GetSubsystem<UAeonixSubsystem>()->RegisterNavComponent(NavAgentComponent);
 }
 
 void AAeonixPathDebugActor::PostEditMove(bool bFinished)
 {
 	Super::PostEditMove(bFinished);
 
-	//UAeonixSubsystem* AeonixSubsystem = GEngine->GetEngineSubsystem<UAeonixSubsystem>();
-
-	//NavigationComponent->CurrentNavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
-	
+	// Update debug shenanigans
 	GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
 }
 
@@ -35,5 +36,6 @@ void AAeonixPathDebugActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	// Update debug shenanigans
 	GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
 }

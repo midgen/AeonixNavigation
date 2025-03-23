@@ -25,20 +25,19 @@ USTRUCT(BlueprintType)
 struct AEONIXNAVIGATION_API FAeonixPathPoint
 {
 	GENERATED_BODY()
+	FAeonixPathPoint(){}
 	
-	FAeonixPathPoint()
-		: Position(FVector())
-		, Layer(-1)
-	{
-	}
 	FAeonixPathPoint(const FVector& aPosition, int aLayer)
 		: Position(aPosition)
 		, Layer(aLayer)
+		, bCullFlag(false)
+
 	{
 	}
 
-	FVector Position; // Position of the point
-	int Layer;			// Layer that the point came from (so we can infer it's volume)
+	FVector Position{}; // Position of the point
+	int Layer{-1};			// Layer that the point came from (so we can infer it's volume)
+	bool bCullFlag{false};
 #if WITH_EDITOR
 	FVector NodePosition; // Position of the node that this point came from, for debug display
 #endif

@@ -217,7 +217,9 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	{
 		for (int i = points.Num() - 1; i >= 0; i--)
 		{
-			oPath.GetPathPoints().Add(points[i]);
+
+			
+			//oPath.GetPathPoints().Add(points[i]);
 		}
 	}
 	else if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
@@ -226,15 +228,49 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		{
 			if (i == 0 || i == points.Num() - 1)
 			{
-				oPath.GetPathPoints().Add(points[i]);
+				//oPath.GetPathPoints().Add(points[i]);
 				continue;
 			}
 
-			FAeonixPathPoint newPoint = points[i];
+			//FAeonixPathPoint newPoint = points[i];
+			//newPoint.Position += (points[i-1].Position - points[i].Position) * 0.5f;
+			//oPath.GetPathPoints().Add(newPoint);
+			if (points[i].Layer == points[i-1].Layer)
+			{
+				points[i].Position += (points[i-1].Position - points[i].Position) * 0.5f;
+			}
+		}
+	}
 
-			newPoint.Position += (points[i-1].Position - points[i].Position) * 0.5f;
-			
-			oPath.GetPathPoints().Add(newPoint);
+	if (Settings.bOptimizePath)
+	{
+		FAeonixPathPoint LastPoint = points[0];
+		for (int i = 0; i < points.Num(); i++)
+		{
+			if ( i > 0 && i < points.Num() - 2)
+			{
+				FAeonixPathPoint& nextPoint = points[i + 1];
+				FAeonixPathPoint& thisPoint = points[i];
+				
+				const double angle = FMath::RadiansToDegrees(acosf(FVector::DotProduct((thisPoint.Position - LastPoint.Position).GetSafeNormal(), (nextPoint.Position - LastPoint.Position).GetSafeNormal())));
+				if (angle < ((Settings.OptimizeDotTolerance)))
+				{
+					thisPoint.bCullFlag = true;
+				}
+				else
+				{
+					LastPoint = thisPoint;
+				}
+			}
+		}
+	}
+	
+	
+	for (int i = points.Num() - 1; i >= 0; i--)
+	{
+		if (points[i].bCullFlag != true)
+		{
+			oPath.GetPathPoints().Add(points[i]);	
 		}
 	}
 }

@@ -34,7 +34,10 @@ struct FAeonixPathFinderSettings
 	EAeonixPathCostType PathCostType{EAeonixPathCostType::EUCLIDEAN};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathPointType PathPointType{EAeonixPathPointType::NODE_CENTER};
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	bool bOptimizePath{true};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	double OptimizeDotTolerance{FLT_EPSILON};
 	TArray<FVector> DebugPoints;
 };
 

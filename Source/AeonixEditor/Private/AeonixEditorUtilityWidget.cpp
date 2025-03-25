@@ -9,3 +9,8 @@ void UAeonixEditorUtilityWidget::CompleteAllPendingPathfindingTasks()
 {
 	GetWorld()->GetSubsystem<UAeonixSubsystem>()->CompleteAllPendingPathfindingTasks();
 }
+
+int32 UAeonixEditorUtilityWidget::GetNumberOfPendingPathFindTasks() const
+{
+	return GetWorld()->GetSubsystem<UAeonixSubsystem>()->GetNumberOfPendingTasks();
+}

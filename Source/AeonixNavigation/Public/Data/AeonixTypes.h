@@ -22,18 +22,9 @@ DECLARE_DYNAMIC_DELEGATE_OneParam(FAeonixPathFindRequestCompleteDelegate, EAeoni
 
 struct FAeonixPathFindRequest
 {
-	// FCriticalSection PathRequestLock;
-	// EAeonixPathFindStatus PathRequestStatus {1};
-
 	TPromise<EAeonixPathFindStatus> PathFindPromise;
 	TFuture<EAeonixPathFindStatus> PathFindFuture = PathFindPromise.GetFuture();
 	
 	FAeonixPathFindRequestCompleteDelegate OnPathFindRequestComplete{};
 
-public:
-	// void SetPathRequestStatusLocked(EAeonixPathFindStatus Status)
-	// {
-	// 	FScopeLock Lock(&PathRequestLock);
-	// 	PathRequestStatus = Status;
-	// }
 };

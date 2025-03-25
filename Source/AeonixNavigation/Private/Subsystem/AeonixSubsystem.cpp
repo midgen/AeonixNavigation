@@ -208,8 +208,13 @@ void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 	{
 		FAeonixPathFindRequest& Request = PathRequests[i];
 
-		//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Failed);
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 	}
+}
+
+size_t UAeonixSubsystem::GetNumberOfPendingTasks() const
+{
+	return PathRequests.Num();
 }
 
 bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

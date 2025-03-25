@@ -16,4 +16,7 @@ class AEONIXEDITOR_API UAeonixEditorUtilityWidget : public UEditorUtilityWidget
 
 	UFUNCTION(BlueprintCallable)
 	void CompleteAllPendingPathfindingTasks();
+
+	UFUNCTION(BlueprintCallable)
+	int32 GetNumberOfPendingPathFindTasks() const;
 };

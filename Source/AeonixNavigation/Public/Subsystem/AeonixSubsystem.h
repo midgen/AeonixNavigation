@@ -45,6 +45,7 @@ public:
 	virtual bool IsTickableWhenPaused() const override;
 
 	void CompleteAllPendingPathfindingTasks();
+	size_t GetNumberOfPendingTasks() const;
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;

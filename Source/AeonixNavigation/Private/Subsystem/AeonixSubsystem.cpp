@@ -85,9 +85,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	AeonixLink TargetNavLink;
 
 	FAeonixPathFindRequest& Request = PathRequests.Emplace_GetRef();
-	//Request.NavAgentComponent = NavigationComponent;
-	//Request.NavVolume = NavVolume;
-	//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Initialized);
 	
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
@@ -102,7 +99,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
 
@@ -111,6 +107,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	OutPath.SetIsReady(false);
 
 	// Kick off the pathfinding on the task graphs
+	// TODO: Bit more scope in this lambda than I'd like
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
 	{
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
@@ -173,33 +170,14 @@ void UAeonixSubsystem::UpdateRequests()
 	{
 		FAeonixPathFindRequest& Request = PathRequests[i];
 
+		// If our task has finished
 		if (Request.PathFindFuture.IsReady())
 		{
 			EAeonixPathFindStatus Status = Request.PathFindFuture.Get();
-			Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Complete);
+			Request.OnPathFindRequestComplete.ExecuteIfBound(Status);
 			PathRequests.RemoveAtSwap(i);
 			continue;
 		}
-		
-		// {
-		// 	FScopeLock Lock(&Request.PathRequestLock);
-		//
-		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Consumed)
-		// 	{
-		// 		PathRequests.RemoveAtSwap(i);
-		// 		continue;
-		// 	}
-		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Complete)
-		// 	{
-		// 		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Complete);
-		// 		Request.PathRequestStatus = EAeonixPathFindStatus::Consumed;
-		// 	}
-		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Failed)
-		// 	{
-		// 		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
-		// 		Request.PathRequestStatus = EAeonixPathFindStatus::Consumed;
-		// 	}
-		// }
 		i++;
 	}
 }

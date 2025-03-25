@@ -15,30 +15,43 @@ USTRUCT(BlueprintType)
 struct FAeonixPathFinderSettings
 {
 	GENERATED_BODY()
-	
+
+	/** Stores the nodes that are opened in the search, expensive, but looks cool! */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	bool bDebugOpenNodes{false};
+	/** Uses a unit cost for traversing a voxel, instead of the actual distance for pathfinding */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	bool bUseUnitCost{false};
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	/** The unit cost to apply */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix", meta=(EditCondition="bUseUnitCost"))
 	float UnitCost{1.0f};
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	float EstimateWeight{10.0f};
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	float NodeSizeCompensation{1.0f};
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	int SmoothingIterations{0};
+	
+	/** Max iterations for the A* pathfinding algorithm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	int32 MaxIterations{5000};
+	/** Heuristic algorithm to use for choosing which open nodes to prefer exploring */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	EAeonixPathCostType PathCostType{EAeonixPathCostType::EUCLIDEAN};
+	EAeonixPathHeuristicType HeuristicType{EAeonixPathHeuristicType::EUCLIDEAN};
+	/** Weighting factor to apply to the heuristic score */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	float HeuristicWeight{10.0f};
+	/** Weighting factor that will increase score for higher layer nodes (e.g. larger voxels). Can reduce iterations considerably */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	float NodeSizeHeuristic{1.0f};
+	/** The method to use for calcuting the path position for a given node */ 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathPointType PathPointType{EAeonixPathPointType::NODE_CENTER};
+	/** Apply path optmisation to prune uneccessary points */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	bool bOptimizePath{true};
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	/** Tolerance for dot product when checking if two points are aligned enough to the previous point, to be consider for trimming*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix",meta=(EditCondition="bOptimizePath"))
 	double OptimizeDotTolerance{FLT_EPSILON};
-	TArray<FVector> DebugPoints;
+	/** A crude Chaikan smoothing operation, multiplies points, not reccomended */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
+	int SmoothingIterations{0};
+	
+	mutable TArray<FVector> DebugPoints;
 };
 
 class AEONIXNAVIGATION_API AeonixPathFinder

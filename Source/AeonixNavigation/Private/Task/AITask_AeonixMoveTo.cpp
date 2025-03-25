@@ -409,41 +409,42 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 {
 #if WITH_EDITOR
 #if ENABLE_VISUAL_LOG
+	
+	UAeonixNavAgentComponent* AeonixNavAgent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
+	if (!AeonixNavAgent)
+		return;
 
-	// UAeonixNavAgentComponent* AeonixNavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
-	// if (!AeonixNavComponent)
-	// 	return;
-	//
-	// FVisualLogger& Vlog = FVisualLogger::Get();
-	// if (Vlog.IsRecording() &&
-	// 	AeonixPath.IsValid() && AeonixPath.Get()->GetPathPoints().Num())
-	// {
-	//
-	// 	FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VAeonixNavigation);
-	// 	if (Entry)
-	// 	{
-	// 		for (int i = 0; i < AeonixPath->GetPathPoints().Num(); i++)
-	// 		{
-	// 			if (i == 0 || i == AeonixPath->GetPathPoints().Num() - 1)
-	// 				continue;
-	//
-	// 			const FAeonixPathPoint& Point = AeonixPath->GetPathPoints()[i];
-	//
-	// 			float size = 0.f;
-	//
-	// 			if (Point.Layer == 0)
-	// 			{
-	// 				size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(0) * 0.25f;
-	// 			}
-	// 			else
-	// 			{
-	// 				size = AeonixNavComponent->GetCurrentVolume()->GetNavData().GetVoxelSize(Point.Layer - 1);
-	// 			}
-	//
-	// 			UE_VLOG_BOX(OwnerController->GetPawn(), VAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
-	// 		}
-	// 	}
-	// }
+	const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForAgent(AeonixNavAgent);
+	
+	FVisualLogger& Vlog = FVisualLogger::Get();
+	if (Vlog.IsRecording() && AeonixPath->GetPathPoints().Num())
+	{
+	
+		FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VAeonixNavigation);
+		if (Entry)
+		{
+			for (int i = 0; i < AeonixPath->GetPathPoints().Num(); i++)
+			{
+				if (i == 0 || i == AeonixPath->GetPathPoints().Num() - 1)
+					continue;
+	
+				const FAeonixPathPoint& Point = AeonixPath->GetPathPoints()[i];
+	
+				float size = 0.f;
+	
+				if (Point.Layer == 0)
+				{
+					size = NavVolume->GetNavData().GetVoxelSize(0) * 0.25f;
+				}
+				else
+				{
+					size = NavVolume->GetNavData().GetVoxelSize(Point.Layer - 1);
+				}
+	
+				UE_VLOG_BOX(OwnerController->GetPawn(), VAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
+			}
+		}
+	}
 #endif // ENABLE_VISUAL_LOG
 #endif // WITH_EDITOR
 }

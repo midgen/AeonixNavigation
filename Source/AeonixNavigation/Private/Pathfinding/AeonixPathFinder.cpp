@@ -55,7 +55,6 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
-
 			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
 		}
 		else
@@ -83,24 +82,24 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget)
 {
-	/* Just using manhattan distance for now */
 	float score = 0.f;
 
 	FVector startPos, endPos;
 	NavigationData.GetLinkPosition(aStart, startPos);
 	NavigationData.GetLinkPosition(aTarget, endPos);
-	switch (Settings.PathCostType)
+	switch (Settings.HeuristicType)
 	{
-	case EAeonixPathCostType::MANHATTAN:
+	case EAeonixPathHeuristicType::MANHATTAN:
 		score = FMath::Abs(endPos.X - startPos.X) + FMath::Abs(endPos.Y - startPos.Y) + FMath::Abs(endPos.Z - startPos.Z);
 		break;
-	case EAeonixPathCostType::EUCLIDEAN:
+	case EAeonixPathHeuristicType::EUCLIDEAN:
 	default:
 		score = (startPos - endPos).Size();
 		break;
 	}
 
-	score *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeCompensation);
+	// Layer size compensation, weights towards higher layers (larger voxels)
+	score *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
 
 	return score;
 }
@@ -125,7 +124,7 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 		cost = (startPos - endPos).Size();
 	}
 
-	cost *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeCompensation);
+	cost *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
 
 	return cost;
 }
@@ -145,7 +144,7 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 			{
 				FVector pos;
 				NavigationData.GetLinkPosition(aNeighbour, pos);
-				//Settings.DebugPoints.Add(pos);
+				Settings.DebugPoints.Add(pos);
 			}
 		}
 
@@ -160,7 +159,7 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 
 		CameFrom.Add(aNeighbour, CurrentLink);
 		GScore.Add(aNeighbour, t_gScore);
-		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.EstimateWeight * HeuristicScore(aNeighbour, GoalLink)));
+		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.HeuristicWeight * HeuristicScore(aNeighbour, GoalLink)));
 	}
 }
 

@@ -2,6 +2,7 @@
 
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
+#include <AeonixNavigation/Public/Data/AeonixTypes.h>
 
 #include <Runtime/Core/Public/Async/AsyncWork.h>
 #include <Runtime/Core/Public/HAL/ThreadSafeBool.h>
@@ -14,7 +15,7 @@ class FAeonixFindPathTask : public FNonAbandonableTask
 	friend class FAutoDeleteAsyncTask<FAeonixFindPathTask>;
 
 public:
-	FAeonixFindPathTask(const FAeonixData& Data, const FAeonixPathFinderSettings& aSettings, const AeonixLink aStart, const AeonixLink aGoal, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath, FThreadSafeCounter& aStatusCounter)
+	FAeonixFindPathTask(const FAeonixData& Data, const FAeonixPathFinderSettings& aSettings, const AeonixLink aStart, const AeonixLink aGoal, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath, FAeonixPathFindRequest& aRequest)
 		: NavigationData(Data)
 		, Start(aStart)
 		, Goal(aGoal)
@@ -22,7 +23,7 @@ public:
 		, TargetPos(aTargetPos)
 		, Path(oPath)
 		, Settings(aSettings)
-		, StatusCounter(aStatusCounter)
+		, Request(aRequest)
 	{
 	}
 
@@ -35,7 +36,7 @@ protected:
 	FVector TargetPos;
 	FAeonixNavigationPath& Path;
 	const FAeonixPathFinderSettings Settings;
-	FThreadSafeCounter& StatusCounter;
+	FAeonixPathFindRequest& Request;
 
 	void DoWork();
 	

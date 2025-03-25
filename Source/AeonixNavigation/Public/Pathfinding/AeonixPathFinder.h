@@ -49,7 +49,7 @@ public:
 		, Settings(Settings){};
 
 	/* Performs an A* search from start to target navlink */
-	int FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
+	bool FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
 
 private:
 	TArray<AeonixLink> OpenSet;

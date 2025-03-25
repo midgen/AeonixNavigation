@@ -13,7 +13,7 @@
  * @see UEditorSubsystem
  */
 UCLASS()
-class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem
+class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  public FTickableGameObject
 {
 	GENERATED_BODY()
 	
@@ -23,8 +23,22 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem
 	TObjectPtr<AAeonixPathDebugActor> EndDebugActor{nullptr};
 	UPROPERTY()
 	FAeonixNavigationPath CurrentDebugPath{};
+	UPROPERTY()
+	TObjectPtr<AAeonixBoundingVolume> CurrentDebugVolume{nullptr};
 
+	bool bIsPathPending{false};
+	
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void UpdateDebugActor(AAeonixPathDebugActor* DebugActor);
+
+	UFUNCTION()
+	void OnPathFindComplete(EAeonixPathFindStatus Status);
+
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+	virtual bool IsTickable() const override;
+	virtual bool IsTickableInEditor() const override;
+	virtual bool IsTickableWhenPaused() const override;
 };
+

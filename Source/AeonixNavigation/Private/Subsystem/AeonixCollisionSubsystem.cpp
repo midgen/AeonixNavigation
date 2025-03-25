@@ -10,7 +10,13 @@ bool UAeonixCollisionSubsystem::IsBlocked(const FVector& Position, const float V
 	Params.bTraceComplex = false;
 	Params.TraceTag = "AeonixLeafRasterize";
 
-	bool isBlocked = World->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
+	//bool isBlocked = GetWorld()->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
 
-	return World->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
+	return GetWorld()->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
+}
+
+bool UAeonixCollisionSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
+{
+	// All the worlds, so it works in editor
+	return true;
 }

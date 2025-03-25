@@ -50,6 +50,9 @@ public:
 
 	void TickTask(float DeltaTime) override;
 
+	UFUNCTION()
+	void OnPathFindComplete(EAeonixPathFindStatus Status);
+
 protected:
 	void LogPathHelper();
 	
@@ -115,8 +118,6 @@ protected:
 	void RequestPathAsync();
 
 	void RequestMove();
-
-	void HandleAsyncPathTaskComplete();
 
 	void ResetPaths();
 

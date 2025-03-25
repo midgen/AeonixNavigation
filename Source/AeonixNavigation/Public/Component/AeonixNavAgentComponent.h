@@ -32,7 +32,6 @@ public:
 
 	// Need to make a sane multithreading implementation, this is very crude and will have edge case crashes at present.
 	// Thread safe counter to track async path requests
-	FThreadSafeCounter PathRequestStatus {0};
 
 protected:
 	virtual void BeginPlay() override;
@@ -43,6 +42,4 @@ protected:
 	TScriptInterface<IAeonixSubsystemInterface> AeonixSubsystem;
 	
 	FAeonixNavigationPath CurrentPath{};
-
-
 };

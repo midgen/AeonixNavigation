@@ -107,16 +107,25 @@ void UAITask_AeonixMoveTo::TickTask(float DeltaTime)
 	if (!AeonixNavComponent)
 		return;
 
-	int32 CurrentStatus = NavComponent->PathRequestStatus.GetValue();
-	
-	switch (CurrentStatus)
+	// EAeonixPathFindStatus CurrentStatus = NavComponent->PathFindStatus;
+	//
+	// switch (CurrentStatus)
+	// {
+	// case EAeonixPathFindStatus::Idle : break; // No path request, nothing to do
+	// case EAeonixPathFindStatus::Initialized : break; // No path request, nothing to do
+	// case EAeonixPathFindStatus::InProgress : break; // Path request pending, waiting for response
+	// case EAeonixPathFindStatus::Complete : // Path request is complete
+	// 	Result.Code = EAeonixPathfindingRequestResult::Success;
+	// 	RequestMove(); // HAndle the new path
+	// 	break;
+	// }
+}
+
+void UAITask_AeonixMoveTo::OnPathFindComplete(EAeonixPathFindStatus Status)
+{
+	if (Status == EAeonixPathFindStatus::Complete)
 	{
-	case 0 : break; // No path request, nothing to do
-	case 1 : break; // Path request pending, waiting for response
-	case 2 : // Path request is complete
-		Result.Code = EAeonixPathfindingRequestResult::Success;
-		RequestMove(); // Path request completed
-		break;
+		RequestMove();
 	}
 }
 
@@ -341,13 +350,10 @@ void UAITask_AeonixMoveTo::RequestPathAsync()
 	if (!AeonixNavComponent)
 		return;
 
-	// Reset status to zero
-	AeonixNavComponent->PathRequestStatus.Reset();
+	FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(NavComponent, MoveRequest.GetGoalLocation(), NavComponent->GetPath());
+	PathRequestCompleteDelegate.BindDynamic(this, &UAITask_AeonixMoveTo::OnPathFindComplete);
 	
-	if (AeonixSubsystem->FindPathAsyncAgent(NavComponent, MoveRequest.GetGoalLocation(), NavComponent->GetPath()))
-	{
-		Result.Code = EAeonixPathfindingRequestResult::Deferred;
-	}
+	Result.Code = EAeonixPathfindingRequestResult::Deferred;
 }
 
 /* Requests the move, based on the current path */
@@ -386,15 +392,6 @@ void UAITask_AeonixMoveTo::RequestMove()
 		Result.MoveId = OwnerController->GetPathFollowingComponent()->RequestMoveWithImmediateFinish(EPathFollowingResult::Invalid);
 	}
 }
-
-// void UAITask_AeonixMoveTo::HandleAsyncPathTaskComplete()
-// {
-// 	Result.Code = EAeonixPathfindingRequestResult::Success;
-// 	// Request the move
-// 	RequestMove();
-// 	// Flag that we've processed the task
-// 	AsyncTaskComplete = false;
-// }
 
 void UAITask_AeonixMoveTo::ResetPaths()
 {

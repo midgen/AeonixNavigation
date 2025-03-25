@@ -7,7 +7,7 @@
 #include <AeonixNavigation/Public/Data/AeonixNode.h>
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
 
-int AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
+bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {
 	OpenSet.Empty();
 	ClosedSet.Empty();
@@ -46,7 +46,7 @@ int AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal
 			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
 			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
-			return 1;
+			return true;
 		}
 
 		const AeonixNode& currentNode = NavigationData.OctreeData.GetNode(CurrentLink);
@@ -73,12 +73,12 @@ int AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal
 		if (numIterations > Settings.MaxIterations)
 		{
 			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
-			return 0;
+			return false;
 		}
 	}
 
 	UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
-	return 0;
+	return false;
 }
 
 float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget)
@@ -212,29 +212,17 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	}
 #endif
 
-	// For simple path points, just copy the points to the output path as is.
-	if (Settings.PathPointType == EAeonixPathPointType::NODE_CENTER)
-	{
-		for (int i = points.Num() - 1; i >= 0; i--)
-		{
-
-			
-			//oPath.GetPathPoints().Add(points[i]);
-		}
-	}
-	else if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
+	// For the intermediate type, for voxels on the same layer, we use the average of the two positions, this smooths out zigzags in diagonal paths.
+	// a proper string pulling algorithm would do better, but this is quick and easy for now!
+	if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
 	{
 		for (int i = points.Num() - 1; i >= 0; i--)
 		{
 			if (i == 0 || i == points.Num() - 1)
 			{
-				//oPath.GetPathPoints().Add(points[i]);
 				continue;
 			}
-
-			//FAeonixPathPoint newPoint = points[i];
-			//newPoint.Position += (points[i-1].Position - points[i].Position) * 0.5f;
-			//oPath.GetPathPoints().Add(newPoint);
+			
 			if (points[i].Layer == points[i-1].Layer)
 			{
 				points[i].Position += (points[i-1].Position - points[i].Position) * 0.5f;
@@ -242,6 +230,8 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		}
 	}
 
+	// This is a simple optimisation that removes redundant points, if the vector between the previous valid point and this point,
+	// is within the tolerance angle of the vector from the previous valid point and the next point, we just mark it for culling
 	if (Settings.bOptimizePath)
 	{
 		FAeonixPathPoint LastPoint = points[0];
@@ -265,7 +255,7 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		}
 	}
 	
-	
+	// Now construct the final path, dropping the culled points.
 	for (int i = points.Num() - 1; i >= 0; i--)
 	{
 		if (points[i].bCullFlag != true)

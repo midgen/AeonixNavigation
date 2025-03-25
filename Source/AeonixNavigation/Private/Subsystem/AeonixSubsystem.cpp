@@ -77,32 +77,55 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	return true;
 }
 
-bool UAeonixSubsystem::FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
+FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
 {
 	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
 
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
+
+	FAeonixPathFindRequest& Request = PathRequests.Emplace_GetRef();
+	//Request.NavAgentComponent = NavigationComponent;
+	//Request.NavVolume = NavVolume;
+	//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Initialized);
 	
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
-		return false;
+		//Request (EAeonixPathFindStatus::Failed);
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return Request.OnPathFindRequestComplete;
 	}
 
 	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
-		return false;
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Failed);
+		return Request.OnPathFindRequestComplete;
 	}
 
 	// Make sure the path isn't flagged ready
-	//OutPath.SetIsReady(false);
+	OutPath.ResetForRepath();
+	OutPath.SetIsReady(false);
 
-	(new FAutoDeleteAsyncTask<FAeonixFindPathTask>(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings, StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath, NavigationComponent->PathRequestStatus))->StartBackgroundTask();
-	
-	return true;
+	// Kick off the pathfinding on the task graphs
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
+	{
+		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+			
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath))
+		{
+			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+		}
+		else
+		{
+			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		}
+	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+
+	return Request.OnPathFindRequestComplete;
 }
 
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
@@ -141,6 +164,44 @@ void UAeonixSubsystem::UpdateComponents()
 void UAeonixSubsystem::Tick(float DeltaTime)
 {
 	UpdateComponents();
+	UpdateRequests();
+}
+
+void UAeonixSubsystem::UpdateRequests()
+{
+	for (int32 i = 0; i < PathRequests.Num();)
+	{
+		FAeonixPathFindRequest& Request = PathRequests[i];
+
+		if (Request.PathFindFuture.IsReady())
+		{
+			EAeonixPathFindStatus Status = Request.PathFindFuture.Get();
+			Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Complete);
+			PathRequests.RemoveAtSwap(i);
+			continue;
+		}
+		
+		// {
+		// 	FScopeLock Lock(&Request.PathRequestLock);
+		//
+		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Consumed)
+		// 	{
+		// 		PathRequests.RemoveAtSwap(i);
+		// 		continue;
+		// 	}
+		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Complete)
+		// 	{
+		// 		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Complete);
+		// 		Request.PathRequestStatus = EAeonixPathFindStatus::Consumed;
+		// 	}
+		// 	if (Request.PathRequestStatus == EAeonixPathFindStatus::Failed)
+		// 	{
+		// 		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
+		// 		Request.PathRequestStatus = EAeonixPathFindStatus::Consumed;
+		// 	}
+		// }
+		i++;
+	}
 }
 
 TStatId UAeonixSubsystem::GetStatId() const
@@ -161,6 +222,16 @@ bool UAeonixSubsystem::IsTickableInEditor() const
 bool UAeonixSubsystem::IsTickableWhenPaused() const
 {
 	return true;
+}
+
+void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
+{
+	for (int32 i = 0; i < PathRequests.Num();)
+	{
+		FAeonixPathFindRequest& Request = PathRequests[i];
+
+		//Request.SetPathRequestStatusLocked(EAeonixPathFindStatus::Failed);
+	}
 }
 
 bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

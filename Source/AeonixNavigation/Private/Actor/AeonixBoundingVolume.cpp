@@ -34,8 +34,7 @@ bool AAeonixBoundingVolume::Generate()
 
 	if (!CollisionQueryInterface.GetInterface())
 	{
-		UAeonixCollisionSubsystem* CollisionSubsystem = GEngine->GetEngineSubsystem<UAeonixCollisionSubsystem>();
-		CollisionSubsystem->SetWorld(GetWorld());
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
 		CollisionQueryInterface = CollisionSubsystem;
 		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
 	}
@@ -148,7 +147,7 @@ void AAeonixBoundingVolume::BeginPlay()
 		AeonixSubsystemInterface->RegisterVolume(this);
 	}
 
-	CollisionQueryInterface = GEngine->GetEngineSubsystem<UAeonixCollisionSubsystem>();
+	CollisionQueryInterface = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
 	if (!CollisionQueryInterface.GetInterface())
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));

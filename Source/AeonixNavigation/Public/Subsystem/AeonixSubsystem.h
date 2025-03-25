@@ -1,6 +1,7 @@
 #pragma once
 
 #include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
+#include <AeonixNavigation/Public/Data/AeonixTypes.h>
 
 #include <Subsystems/EngineSubsystem.h>
 
@@ -29,7 +30,7 @@ public:
 	UFUNCTION()
 	virtual bool FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
 	UFUNCTION()
-	virtual bool FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
+	virtual FAeonixPathFindRequestCompleteDelegate& FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath) override;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
@@ -43,6 +44,8 @@ public:
 	virtual bool IsTickableInEditor() const override;
 	virtual bool IsTickableWhenPaused() const override;
 
+	void CompleteAllPendingPathfindingTasks();
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -55,4 +58,7 @@ private:
 
 	UPROPERTY()
 	TMap<UAeonixNavAgentComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
+
+	void UpdateRequests();
+	TArray<FAeonixPathFindRequest> PathRequests;
 };

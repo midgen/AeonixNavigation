@@ -1,14 +1,34 @@
 #pragma once
 
+#include "Actor/AeonixBoundingVolume.h"
+
 #include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
 #include <AeonixNavigation/Public/Data/AeonixTypes.h>
 
+#include <Runtime/MassEntity/Public/MassEntityTypes.h>
 #include <Subsystems/EngineSubsystem.h>
 
 #include "AeonixSubsystem.generated.h"
 
 class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
+
+USTRUCT()
+struct FAeonixBoundingVolumeHandle
+{
+	GENERATED_BODY()
+
+	FAeonixBoundingVolumeHandle(){}
+	FAeonixBoundingVolumeHandle(AAeonixBoundingVolume* Volume, FMassEntityHandle& Handle) : VolumeHandle(Volume) , EntityHandle(Handle){}
+
+	bool operator==(const FAeonixBoundingVolumeHandle& Volume ) const { return Volume.VolumeHandle == VolumeHandle; }
+	
+	UPROPERTY()
+	TObjectPtr<AAeonixBoundingVolume> VolumeHandle;
+
+	UPROPERTY()
+	FMassEntityHandle EntityHandle;
+};
 
 UCLASS()
 class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, public IAeonixSubsystemInterface
@@ -18,9 +38,9 @@ class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, pu
 public:
 	/* IAeonixSubsystemInterface BEGIN */
 	UFUNCTION()
-	virtual void RegisterVolume(const AAeonixBoundingVolume* Volume) override;
+	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) override;
 	UFUNCTION()
-	virtual void UnRegisterVolume(const AAeonixBoundingVolume* Volume) override;
+	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) override;
 	UFUNCTION()
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) override;
 	UFUNCTION()
@@ -52,7 +72,7 @@ protected:
 
 private:
 	UPROPERTY()
-	TArray<const AAeonixBoundingVolume*> RegisteredVolumes{};
+	TArray<FAeonixBoundingVolumeHandle> RegisteredVolumes{};
 
 	UPROPERTY()
 	TArray<UAeonixNavAgentComponent*> RegisteredNavComponents{};

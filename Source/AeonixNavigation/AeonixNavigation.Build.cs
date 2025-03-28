@@ -36,7 +36,10 @@ public class AeonixNavigation : ModuleRules
                 "Core",
                 "AIModule",
                 "NavigationSystem",
-                "GameplayTasks"
+                "GameplayTasks",
+                "MassEntity",
+                "MassCommon",
+                
 				// ... add other public dependencies that you statically link with here ...
 			}
             );

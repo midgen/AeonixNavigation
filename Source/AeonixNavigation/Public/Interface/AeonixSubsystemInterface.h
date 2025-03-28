@@ -25,9 +25,9 @@ class AEONIXNAVIGATION_API IAeonixSubsystemInterface
 
 public:
 	UFUNCTION()
-	virtual void RegisterVolume(const AAeonixBoundingVolume* Volume) = 0;
+	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) = 0;
 	UFUNCTION()
-	virtual void UnRegisterVolume(const AAeonixBoundingVolume* Volume) = 0;
+	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) = 0;
 	UFUNCTION()
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) = 0;
 	UFUNCTION()

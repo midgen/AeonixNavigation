@@ -1,5 +1,7 @@
 
 
+
+
 #include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
 
 #include <AeonixNavigation/Public/AeonixNavigation.h>
@@ -7,15 +9,52 @@
 #include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
 #include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
 #include <AeonixNavigation/Public/Util/AeonixMediator.h>
+#include <AeonixNavigation/Public/Mass/AeonixFragments.h>
 
-void UAeonixSubsystem::RegisterVolume(const AAeonixBoundingVolume* Volume)
+#include <MassCommon/Public/MassCommonFragments.h>
+#include <Runtime/MassEntity/Public/MassEntityManager.h>
+#include <Runtime/MassEntity/Public/MassEntitySubsystem.h>
+
+void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
 {
-	RegisteredVolumes.AddUnique(Volume);
+	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+	{
+		if (Handle.VolumeHandle == Volume)
+		{
+			return;
+		}
+	}
+
+	UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+	FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+
+	FMassArchetypeCompositionDescriptor Composition;
+	Composition.Fragments.Add<FTransformFragment>();
+	Composition.Fragments.Add<FAeonixBoundingVolumeFragment>(); 
+
+	FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
+	FMassEntityHandle Entity = EntityManager.CreateEntity(Archetype);
+	
+	RegisteredVolumes.Emplace(Volume, Entity);
+	
 }
 
-void UAeonixSubsystem::UnRegisterVolume(const AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume)
 {
-	RegisteredVolumes.RemoveSingleSwap(Volume, EAllowShrinking::No);
+	UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+	FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+	
+	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+	{
+		if (Handle.VolumeHandle == Volume)
+		{
+			EntityManager.DestroyEntity(Handle.EntityHandle);
+			RegisteredVolumes.Remove(Handle);
+			return;
+		}
+	}
+
+	UE_LOG(AeonixNavigation, Error, TEXT("Tried to remove a volume that isn't registered"))
 }
 
 void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent)
@@ -30,11 +69,11 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVector& Position)
 {
-	for (const AAeonixBoundingVolume* Volume : RegisteredVolumes)
+	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
-		if (Volume->EncompassesPoint(Position))
+		if (Handle.VolumeHandle->EncompassesPoint(Position))
 		{
-			return Volume;
+			return Handle.VolumeHandle;
 		}
 	}
 
@@ -138,11 +177,11 @@ void UAeonixSubsystem::UpdateComponents()
 		
 		bool bIsInValidVolume = false;
 
-		for (const AAeonixBoundingVolume* Volume : RegisteredVolumes)
+		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Volume->EncompassesPoint(NavComponent->GetAgentPosition()))
+			if (Handle.VolumeHandle->EncompassesPoint(NavComponent->GetAgentPosition()))
 			{
-				AgentToVolumeMap.Add(NavComponent, Volume);
+				AgentToVolumeMap.Add(NavComponent, Handle.VolumeHandle);
 				bIsInValidVolume = true;
 				break;
 			}

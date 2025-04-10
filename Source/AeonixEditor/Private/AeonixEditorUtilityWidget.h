@@ -19,4 +19,10 @@ class AEONIXEDITOR_API UAeonixEditorUtilityWidget : public UEditorUtilityWidget
 
 	UFUNCTION(BlueprintCallable)
 	int32 GetNumberOfPendingPathFindTasks() const;
+
+	UFUNCTION(BlueprintCallable)
+	int32 GetNumberOfRegisteredNavAgents() const;
+
+	UFUNCTION(BlueprintCallable)
+	int32 GetNumberOfRegisteredNavVolumes() const;
 };

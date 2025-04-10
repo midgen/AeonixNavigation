@@ -6,7 +6,17 @@
 
 #include "AeonixFragments.generated.h"
 
+class UAeonixNavAgentComponent;
 class AAeonixBoundingVolume;
+
+USTRUCT()
+struct FAeonixNavAgentFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<UAeonixNavAgentComponent> Agent;
+};
 
 USTRUCT()
 struct FAeonixBoundingVolumeFragment : public FMassFragment

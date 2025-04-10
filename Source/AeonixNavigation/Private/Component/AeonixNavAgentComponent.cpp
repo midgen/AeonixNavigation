@@ -23,7 +23,7 @@ void UAeonixNavAgentComponent::BeginPlay()
 	}
 	else
 	{
-		AeonixSubsystem->RegisterNavComponent(this);
+		AeonixSubsystem->RegisterNavComponent(this, true);
 	}
 }
 
@@ -35,7 +35,8 @@ void UAeonixNavAgentComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	else
 	{
-		AeonixSubsystem->UnRegisterNavComponent(this);
+		// No need to destroy the mass entity here, as the Mass world is being destroyed anyway
+		AeonixSubsystem->UnRegisterNavComponent(this, false);
 	}
 
 	Super::EndPlay(EndPlayReason);

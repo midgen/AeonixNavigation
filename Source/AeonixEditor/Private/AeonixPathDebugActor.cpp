@@ -20,7 +20,7 @@ void AAeonixPathDebugActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	GetWorld()->GetSubsystem<UAeonixSubsystem>()->RegisterNavComponent(NavAgentComponent);
+	GetWorld()->GetSubsystem<UAeonixSubsystem>()->RegisterNavComponent(NavAgentComponent, true);
 }
 
 void AAeonixPathDebugActor::PostEditMove(bool bFinished)

@@ -2,10 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
-#include "AeonixBlockingComponent.generated.h"
+#include <Runtime/Engine/Classes/Components/ActorComponent.h>
 
+#include "AeonixBlockingComponent.generated.h"
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class AEONIXNAVIGATION_API UAeonixBlockingComponent : public UActorComponent

@@ -1,11 +1,9 @@
 #pragma once
 
-#include "Actor/AeonixBoundingVolume.h"
-
-#include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
 #include <AeonixNavigation/Public/Data/AeonixTypes.h>
+#include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
+#include <AeonixNavigation/Public/Data/AeonixHandleTypes.h>
 
-#include <Runtime/MassEntity/Public/MassEntityTypes.h>
 #include <Subsystems/EngineSubsystem.h>
 
 #include "AeonixSubsystem.generated.h"
@@ -13,22 +11,6 @@
 class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
 
-USTRUCT()
-struct FAeonixBoundingVolumeHandle
-{
-	GENERATED_BODY()
-
-	FAeonixBoundingVolumeHandle(){}
-	FAeonixBoundingVolumeHandle(AAeonixBoundingVolume* Volume, FMassEntityHandle& Handle) : VolumeHandle(Volume) , EntityHandle(Handle){}
-
-	bool operator==(const FAeonixBoundingVolumeHandle& Volume ) const { return Volume.VolumeHandle == VolumeHandle; }
-	
-	UPROPERTY()
-	TObjectPtr<AAeonixBoundingVolume> VolumeHandle;
-
-	UPROPERTY()
-	FMassEntityHandle EntityHandle;
-};
 
 UCLASS()
 class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, public IAeonixSubsystemInterface
@@ -42,9 +24,13 @@ public:
 	UFUNCTION()
 	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) override;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) override;
+	virtual void RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent) override;
+	virtual void UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
+	UFUNCTION()
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bCreateMassEntity) override;
+	UFUNCTION()
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bDestroyMassEntity) override;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) override;
 	UFUNCTION()
@@ -66,6 +52,8 @@ public:
 
 	void CompleteAllPendingPathfindingTasks();
 	size_t GetNumberOfPendingTasks() const;
+	size_t GetNumberOfRegisteredNavAgents() const;
+	size_t GetNumberOfRegisteredNavVolumes() const;
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -75,11 +63,14 @@ private:
 	TArray<FAeonixBoundingVolumeHandle> RegisteredVolumes{};
 
 	UPROPERTY()
-	TArray<UAeonixNavAgentComponent*> RegisteredNavComponents{};
+	TArray<FAeonixNavAgentHandle> RegisteredNavAgents{};
 
 	UPROPERTY()
 	TMap<UAeonixNavAgentComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
 
 	void UpdateRequests();
+
+private:
 	TArray<FAeonixPathFindRequest> PathRequests;
 };
+

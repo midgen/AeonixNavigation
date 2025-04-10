@@ -10,6 +10,7 @@
 #include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
 #include <AeonixNavigation/Public/Util/AeonixMediator.h>
 #include <AeonixNavigation/Public/Mass/AeonixFragments.h>
+#include <AeonixNavigation/Public/Data/AeonixHandleTypes.h>
 
 #include <MassCommon/Public/MassCommonFragments.h>
 #include <Runtime/MassEntity/Public/MassEntityManager.h>
@@ -25,18 +26,7 @@ void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
 		}
 	}
 
-	UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
-	FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
-
-	FMassArchetypeCompositionDescriptor Composition;
-	Composition.Fragments.Add<FTransformFragment>();
-	Composition.Fragments.Add<FAeonixBoundingVolumeFragment>(); 
-
-	FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
-	FMassEntityHandle Entity = EntityManager.CreateEntity(Archetype);
-	
-	RegisteredVolumes.Emplace(Volume, Entity);
-	
+	RegisteredVolumes.Emplace(Volume);
 }
 
 void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume)
@@ -57,14 +47,58 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume)
 	UE_LOG(AeonixNavigation, Error, TEXT("Tried to remove a volume that isn't registered"))
 }
 
-void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent)
+void UAeonixSubsystem::RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion)
 {
-	RegisteredNavComponents.AddUnique(NavComponent);
+	
 }
 
-void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent)
+void UAeonixSubsystem::UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion)
 {
-	RegisteredNavComponents.RemoveSingleSwap(NavComponent, EAllowShrinking::No);
+	
+}
+
+void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bCreateMassEntity)
+{
+	if (RegisteredNavAgents.Contains(NavComponent))
+	{
+		return;
+	}
+
+	FMassEntityHandle Entity;
+
+	if (bCreateMassEntity)
+	{
+		UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+		FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+
+		FMassArchetypeCompositionDescriptor Composition;
+		Composition.Fragments.Add<FTransformFragment>();
+		Composition.Fragments.Add<FAeonixNavAgentFragment>(); 
+
+		FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
+		Entity = EntityManager.CreateEntity(Archetype);
+	}
+	
+	RegisteredNavAgents.Emplace(NavComponent, Entity);
+}
+
+void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bDestroyMassEntity)
+{
+	for (int i = 0; i < RegisteredNavAgents.Num(); i++)
+	{
+		FAeonixNavAgentHandle& Agent = RegisteredNavAgents[i];
+		if (Agent.NavAgentComponent == NavComponent)
+		{
+			RegisteredNavAgents.RemoveAtSwap(i, EAllowShrinking::No);
+			if (bDestroyMassEntity)
+			{
+				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+				EntityManager.DestroyEntity(Agent.EntityHandle);
+			}
+			break;
+		}
+	}
 }
 
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVector& Position)
@@ -171,25 +205,25 @@ const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNa
 
 void UAeonixSubsystem::UpdateComponents()
 {
-	for (int32 i = RegisteredNavComponents.Num() -1; i >= 0 ;)
+	for (int32 i = RegisteredNavAgents.Num() -1; i >= 0 ;)
 	{
-		UAeonixNavAgentComponent* NavComponent = RegisteredNavComponents[i];
+		FAeonixNavAgentHandle& AgentHandle = RegisteredNavAgents[i];
 		
 		bool bIsInValidVolume = false;
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle->EncompassesPoint(NavComponent->GetAgentPosition()))
+			if (Handle.VolumeHandle->EncompassesPoint(AgentHandle.NavAgentComponent->GetAgentPosition()))
 			{
-				AgentToVolumeMap.Add(NavComponent, Handle.VolumeHandle);
+				AgentToVolumeMap.Add(AgentHandle.NavAgentComponent, Handle.VolumeHandle);
 				bIsInValidVolume = true;
 				break;
 			}
 		}
 
-		if (!bIsInValidVolume && AgentToVolumeMap.Contains(NavComponent))
+		if (!bIsInValidVolume && AgentToVolumeMap.Contains(AgentHandle.NavAgentComponent))
 		{
-			AgentToVolumeMap[NavComponent] = nullptr;
+			AgentToVolumeMap[AgentHandle.NavAgentComponent] = nullptr;
 		}
 		i--;
 	}
@@ -254,6 +288,16 @@ void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 size_t UAeonixSubsystem::GetNumberOfPendingTasks() const
 {
 	return PathRequests.Num();
+}
+
+size_t UAeonixSubsystem::GetNumberOfRegisteredNavAgents() const
+{
+	return RegisteredNavAgents.Num();
+}
+
+size_t UAeonixSubsystem::GetNumberOfRegisteredNavVolumes() const
+{
+	return RegisteredVolumes.Num();
 }
 
 bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

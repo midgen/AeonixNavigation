@@ -36,7 +36,7 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 		AeonixSubsystem->RegisterVolume(*ActorItr);
 	}
 
-	AeonixSubsystem->RegisterNavComponent(DebugActor->NavAgentComponent);
+	AeonixSubsystem->RegisterNavComponent(DebugActor->NavAgentComponent, true);
 	
 	AeonixSubsystem->UpdateComponents();
 	

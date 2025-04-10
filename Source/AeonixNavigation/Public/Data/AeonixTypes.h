@@ -26,5 +26,4 @@ struct FAeonixPathFindRequest
 	TFuture<EAeonixPathFindStatus> PathFindFuture = PathFindPromise.GetFuture();
 	
 	FAeonixPathFindRequestCompleteDelegate OnPathFindRequestComplete{};
-
 };

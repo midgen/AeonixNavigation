@@ -123,6 +123,20 @@ void AAeonixBoundingVolume::ClearData()
 }
 
 
+void AAeonixBoundingVolume::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	AeonixSubsystemInterface = GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	if (!AeonixSubsystemInterface.GetInterface())
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+	}
+	else
+	{
+		AeonixSubsystemInterface->RegisterVolume(this);
+	}
+}
 
 void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 {

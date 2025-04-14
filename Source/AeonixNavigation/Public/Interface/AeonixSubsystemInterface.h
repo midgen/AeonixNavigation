@@ -11,6 +11,13 @@ class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
 struct FAeonixNavigationPath;
 
+UENUM()
+enum class EAeonixMassEntityFlag : uint8
+{
+	YES,
+	NO
+};
+
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UAeonixSubsystemInterface : public UInterface
 {
@@ -26,17 +33,17 @@ class AEONIXNAVIGATION_API IAeonixSubsystemInterface
 
 public:
 	UFUNCTION()
-	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) = 0;
+	virtual void RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bCreateMassEntity) = 0;
 	UFUNCTION()
-	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) = 0;
+	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
 	UFUNCTION()
 	virtual void RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) = 0;
 	UFUNCTION()
 	virtual void UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) = 0;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bCreateMassEntity) = 0;
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) = 0;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bDestroyMassEntity) = 0;
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) = 0;
 

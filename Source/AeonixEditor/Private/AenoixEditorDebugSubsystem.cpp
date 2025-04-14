@@ -28,17 +28,8 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	{
 		EndDebugActor = DebugActor;
 	}
-
-	// TODO: if we're in Editor, the bounding volumes only register themselves on BeginPlay, so just force register them here for now
-	UAeonixSubsystem* AeonixSubsystem = DebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
-	for (TActorIterator<AAeonixBoundingVolume> ActorItr(DebugActor->GetWorld()); ActorItr; ++ActorItr)
-	{
-		AeonixSubsystem->RegisterVolume(*ActorItr);
-	}
-
-	AeonixSubsystem->RegisterNavComponent(DebugActor->NavAgentComponent, true);
 	
-	AeonixSubsystem->UpdateComponents();
+	 UAeonixSubsystem* AeonixSubsystem = DebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	
 	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor && !bIsPathPending)
@@ -69,6 +60,21 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 
 void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 {
+	if (!StartDebugActor)
+	{
+		return;
+	}
+	
+	UAeonixSubsystem* AeonixSubsystem = StartDebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	
+	// If we've got a valid start and end target
+	if (StartDebugActor && EndDebugActor && !bIsPathPending && !CurrentDebugPath.IsReady())
+	{
+		FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
+		PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
+		bIsPathPending = true;
+	}
+	
 	if (StartDebugActor)
 	{
 		FlushPersistentDebugLines(StartDebugActor->GetWorld());
@@ -76,7 +82,6 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	
 	if (CurrentDebugPath.IsReady() && StartDebugActor)
 	{
-		UAeonixSubsystem* AeonixSubsystem = StartDebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 		CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
 	}
 }

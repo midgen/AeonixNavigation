@@ -25,6 +25,7 @@ public:
 	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	bool ShouldTickIfViewportsOnly() const override { return true; }
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void Destroyed() override;
 	//~ End AActor Interface
 	
 	//~ Begin UObject 
@@ -55,7 +56,5 @@ protected:
 	//  IAeonixDebugDrawInterface BEGIN
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;
 	void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override;
-
-
 	//  IAeonixDebugDrawInterface END
 };

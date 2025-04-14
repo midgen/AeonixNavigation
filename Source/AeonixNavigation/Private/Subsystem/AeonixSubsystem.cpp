@@ -16,7 +16,7 @@
 #include <Runtime/MassEntity/Public/MassEntityManager.h>
 #include <Runtime/MassEntity/Public/MassEntitySubsystem.h>
 
-void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag CreateMassEntity)
 {
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
@@ -26,19 +26,24 @@ void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
 		}
 	}
 
+	// TODO: Create Mass Entity
+
 	RegisteredVolumes.Emplace(Volume);
 }
 
-void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag DestroyMassEntity)
 {
-	UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
-	FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
-	
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
 		if (Handle.VolumeHandle == Volume)
 		{
-			EntityManager.DestroyEntity(Handle.EntityHandle);
+			if (DestroyMassEntity == EAeonixMassEntityFlag::YES)
+			{
+				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+				EntityManager.DestroyEntity(Handle.EntityHandle);
+			}
+			
 			RegisteredVolumes.Remove(Handle);
 			return;
 		}
@@ -57,7 +62,7 @@ void UAeonixSubsystem::UnRegisterDynamicSubregion(AAeonixDynamicSubregion* Dynam
 	
 }
 
-void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bCreateMassEntity)
+void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag CreateMassEntity)
 {
 	if (RegisteredNavAgents.Contains(NavComponent))
 	{
@@ -66,7 +71,7 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 
 	FMassEntityHandle Entity;
 
-	if (bCreateMassEntity)
+	if (CreateMassEntity == EAeonixMassEntityFlag::YES)
 	{
 		UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
 		FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
@@ -82,7 +87,7 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 	RegisteredNavAgents.Emplace(NavComponent, Entity);
 }
 
-void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bDestroyMassEntity)
+void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag DestroyMassEntity)
 {
 	for (int i = 0; i < RegisteredNavAgents.Num(); i++)
 	{
@@ -90,7 +95,7 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 		if (Agent.NavAgentComponent == NavComponent)
 		{
 			RegisteredNavAgents.RemoveAtSwap(i, EAllowShrinking::No);
-			if (bDestroyMassEntity)
+			if (DestroyMassEntity == EAeonixMassEntityFlag::YES)
 			{
 				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
 				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
@@ -152,12 +157,19 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
 {
-	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
-
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
 
 	FAeonixPathFindRequest& Request = PathRequests.Emplace_GetRef();
+	
+	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
+
+	if (!NavVolume)
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("Nav Agent Not In A Volume"));
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return Request.OnPathFindRequestComplete;
+	}
 	
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
@@ -200,6 +212,11 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
 {
+	if (!AgentToVolumeMap.Contains(NavigationComponent))
+	{
+		return nullptr;
+	}
+	
 	return AgentToVolumeMap[NavigationComponent];
 }
 

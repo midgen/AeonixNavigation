@@ -134,13 +134,26 @@ void AAeonixBoundingVolume::OnConstruction(const FTransform& Transform)
 	}
 	else
 	{
-		AeonixSubsystemInterface->RegisterVolume(this);
+		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::NO);
 	}
+}
+
+void AAeonixBoundingVolume::Destroyed()
+{
+	if (!AeonixSubsystemInterface.GetInterface())
+	{
+		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+	}
+	else
+	{
+		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::NO);
+	}
+	
+	Super::Destroyed();
 }
 
 void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 {
-	// Serialize the usual UPROPERTIES
 	Super::Serialize(Ar);
 
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
@@ -158,7 +171,7 @@ void AAeonixBoundingVolume::BeginPlay()
 	}
 	else
 	{
-		AeonixSubsystemInterface->RegisterVolume(this);
+		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::NO);
 	}
 
 	CollisionQueryInterface = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
@@ -187,7 +200,7 @@ void AAeonixBoundingVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	else
 	{
-		AeonixSubsystemInterface->UnRegisterVolume(this);
+		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::NO);
 	}
 
 	Super::EndPlay(EndPlayReason);

@@ -20,17 +20,17 @@ class AEONIXNAVIGATION_API UAeonixSubsystem : public UTickableWorldSubsystem, pu
 public:
 	/* IAeonixSubsystemInterface BEGIN */
 	UFUNCTION()
-	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) override;
+	virtual void RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bCreateMassEntity) override;
 	UFUNCTION()
-	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) override;
+	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bDestroyMassEntity) override;
 	UFUNCTION()
 	virtual void RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
 	UFUNCTION()
 	virtual void UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bCreateMassEntity) override;
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) override;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, bool bDestroyMassEntity) override;
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bDestroyMassEntity) override;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) override;
 	UFUNCTION()

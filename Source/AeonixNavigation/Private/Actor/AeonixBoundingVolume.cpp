@@ -94,7 +94,7 @@ bool AAeonixBoundingVolume::Generate()
 
 bool AAeonixBoundingVolume::HasData() const
 {
-	return NavigationData.OctreeData.GetNumLayers() > 0;	
+	return NavigationData.OctreeData.LeafNodes.Num() > 0;	
 }
 
 void AAeonixBoundingVolume::UpdateBounds()
@@ -159,6 +159,8 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
 	{
 		Ar << NavigationData.OctreeData;
+		NavigationData.UpdateGenerationParameters(GenerationParameters);
+		UpdateBounds();
 	}
 }
 

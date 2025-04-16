@@ -12,6 +12,11 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 		return false;
 	}
 
+	if (!aVolume.HasData())
+	{
+		return false;
+	}
+
 	FBox box = aVolume.GetComponentsBoundingBox(true);
 
 	FVector origin;

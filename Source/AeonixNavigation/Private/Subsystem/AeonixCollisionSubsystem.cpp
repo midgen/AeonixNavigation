@@ -10,8 +10,6 @@ bool UAeonixCollisionSubsystem::IsBlocked(const FVector& Position, const float V
 	Params.bTraceComplex = false;
 	Params.TraceTag = "AeonixLeafRasterize";
 
-	//bool isBlocked = GetWorld()->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
-
 	return GetWorld()->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
 }
 

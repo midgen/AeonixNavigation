@@ -44,7 +44,7 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 				EntityManager.DestroyEntity(Handle.EntityHandle);
 			}
 			
-			RegisteredVolumes.Remove(Handle);
+			RegisteredVolumes.RemoveSingle(Handle);
 			return;
 		}
 	}
@@ -175,7 +175,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
 	{
 		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
-		//Request (EAeonixPathFindStatus::Failed);
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
@@ -187,12 +186,20 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		return Request.OnPathFindRequestComplete;
 	}
 
+	if (TargetNavLink == StartNavLink)
+	{
+		// TODO: this should succeed
+		UE_LOG(AeonixNavigation, Error, TEXT("Trying to path from same start and end navlink"));
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return Request.OnPathFindRequestComplete;
+	}
+
 	// Make sure the path isn't flagged ready
 	OutPath.ResetForRepath();
 	OutPath.SetIsReady(false);
 
 	// Kick off the pathfinding on the task graphs
-	// TODO: Bit more scope in this lambda than I'd like
+	// TODO: Bit more scope in this lambda than I'd like, there's going to be crash potential if things get destroyed while this task is running
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
 	{
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);

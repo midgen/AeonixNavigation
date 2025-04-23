@@ -227,6 +227,17 @@ const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNa
 	return AgentToVolumeMap[NavigationComponent];
 }
 
+AAeonixBoundingVolume* UAeonixSubsystem::GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
+{
+	if (!AgentToVolumeMap.Contains(NavigationComponent))
+	{
+		return nullptr;
+	}
+
+	// debug shenanigans, this is fine
+	return const_cast<AAeonixBoundingVolume*>(AgentToVolumeMap[NavigationComponent]);
+}
+
 void UAeonixSubsystem::UpdateComponents()
 {
 	for (int32 i = RegisteredNavAgents.Num() -1; i >= 0 ;)

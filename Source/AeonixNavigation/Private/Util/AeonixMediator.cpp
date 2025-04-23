@@ -37,6 +37,7 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 		const TArray<AeonixNode>& layer = aVolume.GetNavData().OctreeData.GetLayer(layerIndex);
 		// Calculate the XYZ coordinates
 
+		// TODO: compiler probably tidies this up, but we can do better
 		FIntVector voxel;
 		GetVolumeXYZ(aPosition, aVolume, layerIndex, voxel);
 		uint_fast32_t x, y, z;

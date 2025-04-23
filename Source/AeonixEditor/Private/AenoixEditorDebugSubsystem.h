@@ -17,14 +17,14 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 {
 	GENERATED_BODY()
 	
-	UPROPERTY()
-	TObjectPtr<AAeonixPathDebugActor> StartDebugActor{nullptr};
-	UPROPERTY()
-	TObjectPtr<AAeonixPathDebugActor> EndDebugActor{nullptr};
-	UPROPERTY()
+	UPROPERTY(Transient)
+	TSoftObjectPtr<AAeonixPathDebugActor> StartDebugActor{nullptr};
+	UPROPERTY(Transient)
+	TSoftObjectPtr<AAeonixPathDebugActor> EndDebugActor{nullptr};
+	UPROPERTY(Transient)
 	FAeonixNavigationPath CurrentDebugPath{};
-	UPROPERTY()
-	TObjectPtr<AAeonixBoundingVolume> CurrentDebugVolume{nullptr};
+	UPROPERTY(Transient)
+	TSoftObjectPtr<AAeonixBoundingVolume> CurrentDebugVolume{nullptr};
 
 	bool bIsPathPending{false};
 	

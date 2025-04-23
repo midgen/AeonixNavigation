@@ -21,7 +21,6 @@ AAeonixBoundingVolume::AAeonixBoundingVolume(const FObjectInitializer& ObjectIni
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
 	BrushColor = FColor(255, 255, 255, 255);
 	bColored = true;
-	UpdateBounds();
 }
 
 // Regenerates the SVO Navigation Data
@@ -159,8 +158,6 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
 	{
 		Ar << NavigationData.OctreeData;
-		NavigationData.UpdateGenerationParameters(GenerationParameters);
-		UpdateBounds();
 	}
 }
 

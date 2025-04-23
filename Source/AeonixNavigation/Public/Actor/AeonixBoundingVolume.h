@@ -32,6 +32,7 @@ public:
 	void Serialize(FArchive& Ar) override;
 	//~ End UObject 
 
+	void UpdateBounds();
 	bool Generate();
 	bool HasData() const;
 	void ClearData();
@@ -46,12 +47,10 @@ public:
 protected:
 	FAeonixData NavigationData;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TScriptInterface<IAeonixSubsystemInterface> AeonixSubsystemInterface;
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TScriptInterface<IAeonixCollisionQueryInterface> CollisionQueryInterface;
-
-	void UpdateBounds();
 
 	//  IAeonixDebugDrawInterface BEGIN
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;

@@ -40,6 +40,8 @@ public:
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
+	virtual AAeonixBoundingVolume* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
+	UFUNCTION()
 	virtual void UpdateComponents() override;
 	/* IAeonixSubsystemInterface END */
 	
@@ -59,13 +61,13 @@ protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TArray<FAeonixBoundingVolumeHandle> RegisteredVolumes{};
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TArray<FAeonixNavAgentHandle> RegisteredNavAgents{};
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TMap<UAeonixNavAgentComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
 
 	void UpdateRequests();

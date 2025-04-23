@@ -34,9 +34,14 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor && !bIsPathPending)
 	{
-		FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
-		PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
-		bIsPathPending = true;
+		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
+		{
+			Volume->UpdateBounds();
+			FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
+			PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
+			bIsPathPending = true;
+		}
+
 	}
 }
 
@@ -70,6 +75,11 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor && !bIsPathPending && !CurrentDebugPath.IsReady())
 	{
+		// this is just needed to deal with the lifetime of things in the editor world
+		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
+		{
+			Volume->UpdateBounds();
+		}
 		FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
 		PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
 		bIsPathPending = true;

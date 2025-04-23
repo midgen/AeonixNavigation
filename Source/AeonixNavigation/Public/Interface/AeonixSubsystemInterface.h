@@ -49,6 +49,8 @@ public:
 
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
+	UFUNCTION()
+	virtual AAeonixBoundingVolume* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	virtual FAeonixPathFindRequestCompleteDelegate& FindPathAsyncAgent(UAeonixNavAgentComponent* NavAgentComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;

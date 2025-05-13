@@ -55,11 +55,11 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			FColor boxColor;
 			if (i == 0)  // First voxel (target position)
 			{
-				boxColor = FColor::Green;
+				boxColor = FColor::Yellow;
 			}
 			else if (i == myDebugVoxelInfo.Num() - 1)  // Last voxel (start position)
 			{
-				boxColor = FColor::Red;
+				boxColor = FColor::Green;
 			}
 			else  // Intermediate voxels
 			{

@@ -210,17 +210,22 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	TArray<FDebugVoxelInfo> debugVoxelInfo;
 	debugVoxelInfo.Reserve(points.Num() + 2); // Reserve space for potential start/end additions
 	
-	// Add target position (beginning of path) with its layer
-	debugVoxelInfo.Add(FDebugVoxelInfo(aTargetPos, points.Num() > 0 ? points[0].Layer : 0));
+
+	//debugVoxelInfo.Add(FDebugVoxelInfo(aTargetPos, points.Num() > 0 ? points[0].Layer : 0));
 	
 	// Add intermediate points
 	for (const FAeonixPathPoint& point : points)
 	{
 		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer));
 	}
+
+	// Add target position (beginning of path) with its layer
+	//FVector StartVoxelPos, TargetVoxelPos;
+	NavigationData.GetLinkPosition(GoalLink, debugVoxelInfo[0].Position);
+	NavigationData.GetLinkPosition(StartLink, debugVoxelInfo[debugVoxelInfo.Num() - 1].Position);
 	
 	// Add start position (end of path) with its layer
-	debugVoxelInfo.Add(FDebugVoxelInfo(aStartPos, points.Num() > 1 ? points[points.Num()-1].Layer : StartLink.GetLayerIndex()));
+	//debugVoxelInfo.Add(FDebugVoxelInfo(StartVoxelPos, points.Num() > 1 ? points[points.Num()-1].Layer : StartLink.GetLayerIndex()));
 	
 	oPath.SetDebugVoxelInfo(debugVoxelInfo);
 #endif
@@ -476,8 +481,11 @@ void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 		FAeonixPathPoint* nextPoint = validPoints[i+1];
 		
 		// Get the voxel size for the current point's layer
-		float voxelSize = NavigationData.GetVoxelSize(currentPoint->Layer);
-		float halfVoxelSize = voxelSize * 0.125f;
+		float halfVoxelSize = currentPoint->Layer == 0 ? 
+	NavigationData.GetVoxelSize(currentPoint->Layer) * 0.125f : 
+	NavigationData.GetVoxelSize(currentPoint->Layer) * 0.25f;
+		//float voxelSize = NavigationData.GetVoxelSize(currentPoint->Layer);
+		//float halfVoxelSize = voxelSize * 0.125f;
 		
 		// Create a vector pointing from previous to next point
 		FVector direction = (nextPoint->Position - prevPoint->Position).GetSafeNormal();

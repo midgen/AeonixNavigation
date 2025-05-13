@@ -62,3 +62,4 @@ SourceArt/**/*.tga
 
 # Cache files for the editor to use
 **/DerivedDataCache/*
+*.cpp~

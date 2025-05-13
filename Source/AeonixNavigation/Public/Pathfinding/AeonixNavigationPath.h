@@ -44,6 +44,22 @@ struct AEONIXNAVIGATION_API FAeonixPathPoint
 	
 };
 
+#if WITH_EDITOR
+// Structure to store debug information about the original path nodes
+struct FDebugVoxelInfo
+{
+	FVector Position; // Original position of the voxel
+	int32 Layer;     // Layer of the voxel in the octree
+
+	FDebugVoxelInfo() : Position(FVector::ZeroVector), Layer(-1) {}
+	
+	FDebugVoxelInfo(const FVector& InPosition, int32 InLayer)
+		: Position(InPosition), Layer(InLayer)
+	{
+	}
+};
+#endif
+
 USTRUCT(BlueprintType)
 struct AEONIXNAVIGATION_API FAeonixNavigationPath
 {
@@ -61,6 +77,24 @@ public:
 
 	TArray<FAeonixPathPoint>& GetPathPoints() { return myPoints; }
 
+#if WITH_EDITOR
+	// Sets the debug voxel information, to be called before any path optimizations
+	void SetDebugVoxelInfo(const TArray<FDebugVoxelInfo>& InVoxelInfo)
+	{
+		myDebugVoxelInfo = InVoxelInfo;
+	}
+	
+	// Creates debug voxel information from the current path points
+	void StoreOriginalPathForDebug()
+	{
+		myDebugVoxelInfo.Empty(myPoints.Num());
+		for (const FAeonixPathPoint& Point : myPoints)
+		{
+			myDebugVoxelInfo.Add(FDebugVoxelInfo(Point.Position, Point.Layer));
+		}
+	}
+#endif
+
 	bool IsReady() const { return myIsReady; };
 	void SetIsReady(bool aIsReady) { myIsReady = aIsReady; }
 
@@ -70,4 +104,7 @@ public:
 protected:
 	bool myIsReady;
 	TArray<FAeonixPathPoint> myPoints;
+#if WITH_EDITOR
+	TArray<FDebugVoxelInfo> myDebugVoxelInfo;
+#endif
 };

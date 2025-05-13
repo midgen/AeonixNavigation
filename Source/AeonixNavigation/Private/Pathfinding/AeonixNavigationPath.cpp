@@ -18,12 +18,11 @@ void FAeonixNavigationPath::ResetForRepath()
 
 void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 {
+	// Draw the final optimized path with blue spheres and connecting lines
 	for (int i = 0; i < myPoints.Num(); i++)
 	{
 		FAeonixPathPoint& point = myPoints[i];
 		
-		float Size = point.Layer == 0 ? Data.GetVoxelSize(point.Layer) * 0.125f : Data.GetVoxelSize(point.Layer) * 0.25f;
-
 		FColor PointColor = FColor::Blue;
 		if (i == 0)
 		{
@@ -33,19 +32,55 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 		{
 			PointColor = FColor::Red;
 		}
+		
+		// Draw sphere at the actual path point position (which may be smoothed)
 		DrawDebugSphere(World, point.Position, 30.f, 20, PointColor, true, 0.1f, 0, 2.f);
+		
+		// Draw lines connecting path points
 		if (i < myPoints.Num() - 1)
 		{
-#if WITH_EDITOR
-			if (i > 0)
-			{
-				DrawDebugBox(World, point.NodePosition, FVector(Size), point.Layer > 0 ? AeonixStatics::myLinkColors[point.Layer] : FColor::Red, true, 0.1f, 0, 2.f);	
-			}
-#endif
 			DrawDebugLine(World, point.Position, myPoints[i+1].Position, FColor::Cyan, true, 0.1f, 0, 10.f);	
 		}
-		
 	}
+	
+#if WITH_EDITOR
+	// Draw the original voxel positions from the debug array
+	if (myDebugVoxelInfo.Num() > 0)
+	{
+		for (int i = 0; i < myDebugVoxelInfo.Num(); i++)
+		{
+			const FDebugVoxelInfo& voxelInfo = myDebugVoxelInfo[i];
+			
+			// Determine color based on position in the array
+			FColor boxColor;
+			if (i == 0)  // First voxel (target position)
+			{
+				boxColor = FColor::Green;
+			}
+			else if (i == myDebugVoxelInfo.Num() - 1)  // Last voxel (start position)
+			{
+				boxColor = FColor::Red;
+			}
+			else  // Intermediate voxels
+			{
+				boxColor = voxelInfo.Layer > 0 ? AeonixStatics::myLinkColors[voxelInfo.Layer] : FColor::Red;
+			}
+			
+			float size = voxelInfo.Layer == 0 ? 
+				Data.GetVoxelSize(voxelInfo.Layer) * 0.125f : 
+				Data.GetVoxelSize(voxelInfo.Layer) * 0.25f;
+				
+			// Draw a box representing the original voxel
+			DrawDebugBox(
+				World, 
+				voxelInfo.Position, 
+				FVector(size), 
+				boxColor, 
+				true, 0.1f, 0, 2.f
+			);
+		}
+	}
+#endif
 }
 
 void FAeonixNavigationPath::CreateNavPath(FNavigationPath& aOutPath)

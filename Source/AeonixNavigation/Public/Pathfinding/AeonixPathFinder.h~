@@ -55,7 +55,7 @@ struct FAeonixPathFinderSettings
 	float StringPullingVoxelThreshold{0.16841f};
 	/** Adjust point positions within voxel bounds for smoother paths */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	bool bSmoothPositions{true};
+	bool bSmoothPositions{false};
 	/** Controls how much to adjust positions when smoothing (0.0-1.0) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix", meta=(EditCondition="bSmoothPositions", ClampMin="0.0", ClampMax="1.0"))
 	float SmoothingFactor{0.7f};

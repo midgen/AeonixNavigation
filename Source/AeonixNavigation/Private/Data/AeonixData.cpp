@@ -276,7 +276,7 @@ void FAeonixData::RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, co
 		if (aLeafIndex >= OctreeData.LeafNodes.Num() - 1)
 			OctreeData.LeafNodes.AddDefaulted(1);
 
-		if (CollisionInterface.IsBlocked(position, leafVoxelSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.Clearance))
+		if (CollisionInterface.IsBlocked(position, leafVoxelSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
 		{
 			OctreeData.LeafNodes[aLeafIndex].SetNode(i);
 
@@ -340,7 +340,7 @@ void FAeonixData::RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQuer
 				params.bFindInitialOverlaps = true;
 				params.bTraceComplex = false;
 				params.TraceTag = "AeonixRasterize";
-				if (CollisionInterface.IsBlocked(Position, GetVoxelSize(0) * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.Clearance))
+				if (CollisionInterface.IsBlocked(Position, GetVoxelSize(0) * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
 				// if (IsBlocked(Position, GetVoxelSize(0) * 0.5f))
 				{
 					// Rasterize my leaf nodes

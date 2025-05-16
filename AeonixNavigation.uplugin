@@ -23,6 +23,11 @@
 			"Name": "AeonixEditor",
 			"Type": "Editor",
 			"LoadingPhase":  "PostEngineInit"
+		},
+		{
+			"Name": "AeonixNavigationTests",
+			"Type": "Developer",
+			"LoadingPhase": "Default"
 		}
 	]
 }

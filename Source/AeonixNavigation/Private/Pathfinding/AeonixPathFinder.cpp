@@ -1,4 +1,3 @@
-#include "Kismet/GameplayStaticsTypes.h"
 
 #include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
 

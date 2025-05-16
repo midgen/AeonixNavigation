@@ -36,7 +36,7 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
 	TEnumAsByte<ECollisionChannel> CollisionChannel{ECollisionChannel::ECC_MAX};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
-	float Clearance = 0.f;
+	float AgentRadius = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
 	ESVOGenerationStrategy GenerationStrategy = ESVOGenerationStrategy::UseBaked;
 

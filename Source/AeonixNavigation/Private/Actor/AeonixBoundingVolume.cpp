@@ -39,8 +39,6 @@ bool AAeonixBoundingVolume::Generate()
 	}
 
 #if WITH_EDITOR
-	// Needed for debug rendering
-	GetWorld()->PersistentLineBatcher->SetComponentTickEnabled(false);
 
 	// If we're running the game, use the first player controller position for debugging
 	APlayerController* pc = GetWorld()->GetFirstPlayerController();

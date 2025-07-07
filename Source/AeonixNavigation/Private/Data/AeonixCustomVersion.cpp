@@ -1,5 +1,3 @@
-#pragma once
-
 #include<AeonixNavigation/Public/Data/AeonixCustomVersion.h>
 #include <Serialization/CustomVersion.h>
 

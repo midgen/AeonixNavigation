@@ -26,8 +26,18 @@
 		},
 		{
 			"Name": "AeonixNavigationTests",
-			"Type": "Developer",
+			"Type": "DeveloperTool",
 			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "MassGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "StateTree",
+			"Enabled": true
 		}
 	]
 }

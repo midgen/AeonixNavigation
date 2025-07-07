@@ -42,6 +42,14 @@ struct AEONIXNAVIGATION_API AeonixLeafNode
 
 FORCEINLINE FArchive& operator<<(FArchive& Ar, AeonixLeafNode& aAeonixLeafNode)
 {
-	Ar << aAeonixLeafNode.VoxelGrid;
+	// Cast to uint64 for serialization since FArchive doesn't support uint_fast64_t directly
+	uint64 VoxelGridValue = aAeonixLeafNode.VoxelGrid;
+	Ar << VoxelGridValue;
+	
+	if (Ar.IsLoading())
+	{
+		aAeonixLeafNode.VoxelGrid = VoxelGridValue;
+	}
+	
 	return Ar;
 }

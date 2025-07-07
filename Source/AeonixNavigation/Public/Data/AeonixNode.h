@@ -23,7 +23,15 @@ struct AEONIXNAVIGATION_API AeonixNode
 
 FORCEINLINE FArchive &operator <<(FArchive &Ar, AeonixNode& aAeonixNode)
 {
-	Ar << aAeonixNode.Code;
+	// Cast mortoncode_t (uint_fast64_t) to uint64 for serialization
+	uint64 CodeValue = aAeonixNode.Code;
+	Ar << CodeValue;
+	
+	if (Ar.IsLoading())
+	{
+		aAeonixNode.Code = CodeValue;
+	}
+	
 	Ar << aAeonixNode.Parent;
 	Ar << aAeonixNode.FirstChild;
 

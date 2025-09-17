@@ -14,8 +14,8 @@ struct FAeonixNavigationPath;
 UENUM()
 enum class EAeonixMassEntityFlag : uint8
 {
-	YES,
-	NO
+	Enabled,
+	Disabled
 };
 
 UINTERFACE(MinimalAPI, NotBlueprintable)

@@ -131,7 +131,7 @@ void AAeonixBoundingVolume::OnConstruction(const FTransform& Transform)
 	}
 	else
 	{
-		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::NO);
+		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::Disabled);
 	}
 }
 
@@ -143,7 +143,7 @@ void AAeonixBoundingVolume::Destroyed()
 	}
 	else
 	{
-		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::NO);
+		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::Disabled);
 	}
 	
 	Super::Destroyed();
@@ -168,7 +168,7 @@ void AAeonixBoundingVolume::BeginPlay()
 	}
 	else
 	{
-		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::NO);
+		AeonixSubsystemInterface->RegisterVolume(this, EAeonixMassEntityFlag::Disabled);
 	}
 
 	CollisionQueryInterface = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
@@ -197,7 +197,7 @@ void AAeonixBoundingVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	else
 	{
-		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::NO);
+		AeonixSubsystemInterface->UnRegisterVolume(this, EAeonixMassEntityFlag::Disabled);
 	}
 
 	Super::EndPlay(EndPlayReason);

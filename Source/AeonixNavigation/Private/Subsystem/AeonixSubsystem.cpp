@@ -37,7 +37,7 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 	{
 		if (Handle.VolumeHandle == Volume)
 		{
-			if (DestroyMassEntity == EAeonixMassEntityFlag::YES)
+			if (DestroyMassEntity == EAeonixMassEntityFlag::Enabled)
 			{
 				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
 				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
@@ -71,7 +71,7 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 
 	FMassEntityHandle Entity;
 
-	if (CreateMassEntity == EAeonixMassEntityFlag::YES)
+	if (CreateMassEntity == EAeonixMassEntityFlag::Enabled)
 	{
 		UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
 		FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
@@ -95,7 +95,7 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 		if (Agent.NavAgentComponent == NavComponent)
 		{
 			RegisteredNavAgents.RemoveAtSwap(i, EAllowShrinking::No);
-			if (DestroyMassEntity == EAeonixMassEntityFlag::YES)
+			if (DestroyMassEntity == EAeonixMassEntityFlag::Enabled)
 			{
 				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
 				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();

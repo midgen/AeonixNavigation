@@ -94,6 +94,19 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	{
 		CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
 	}
+
+	// Draw batch run paths using lightweight visualization
+	if (BatchRunPaths.Num() > 0 && StartDebugActor)
+	{
+		UWorld* World = StartDebugActor->GetWorld();
+		if (World)
+		{
+			for (const FAeonixNavigationPath& Path : BatchRunPaths)
+			{
+				Path.DebugDrawLite(World, FColor::Cyan, 60.0f);
+			}
+		}
+	}
 }
 
 TStatId UAenoixEditorDebugSubsystem::GetStatId() const
@@ -114,4 +127,16 @@ bool UAenoixEditorDebugSubsystem::IsTickableInEditor() const
 bool UAenoixEditorDebugSubsystem::IsTickableWhenPaused() const
 {
 	return true;
+}
+
+void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigationPath>& Paths)
+{
+	BatchRunPaths = Paths;
+	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d batch run paths for visualization"), Paths.Num());
+}
+
+void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
+{
+	BatchRunPaths.Empty();
+	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared batch run paths"));
 }

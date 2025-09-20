@@ -69,6 +69,7 @@ public:
 	void ResetForRepath();
 
 	void DebugDraw(UWorld* World, const FAeonixData& Data);
+	void DebugDrawLite(UWorld* World, const FColor& LineColor = FColor::Cyan, float LifeTime = 60.0f) const;
 
 	const TArray<FAeonixPathPoint>& GetPathPoints() const
 	{

@@ -83,6 +83,21 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 #endif
 }
 
+void FAeonixNavigationPath::DebugDrawLite(UWorld* World, const FColor& LineColor, float LifeTime) const
+{
+	if (!World || myPoints.Num() < 2)
+	{
+		return;
+	}
+
+	// Draw simple lines connecting all path points
+	for (int32 i = 0; i < myPoints.Num() - 1; i++)
+	{
+		DrawDebugLine(World, myPoints[i].Position, myPoints[i + 1].Position,
+			LineColor, false, LifeTime, 0, 2.0f);
+	}
+}
+
 void FAeonixNavigationPath::CreateNavPath(FNavigationPath& aOutPath)
 {
 	for (const FAeonixPathPoint& point : myPoints)

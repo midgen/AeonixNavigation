@@ -3,7 +3,7 @@
 class AAeonixBoundingVolume;
 struct AeonixLink;
 
-class AeonixMediator
+class AEONIXNAVIGATION_API AeonixMediator
 {
 public:
 	static bool GetLinkFromPosition(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, AeonixLink& oLink);

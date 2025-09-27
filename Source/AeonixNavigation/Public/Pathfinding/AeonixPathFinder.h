@@ -2,6 +2,7 @@
 
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
 #include <AeonixNavigation/Public/Data/AeonixLink.h>
+#include <AeonixNavigation/Public/Pathfinding/AeonixJumpPointSearch.h>
 
 #include "AeonixPathFinder.generated.h"
 
@@ -62,7 +63,13 @@ struct FAeonixPathFinderSettings
 	/** A crude Chaikan smoothing operation, multiplies points, not reccomended */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	int SmoothingIterations{0};
-	
+	/** Use Jump Point Search for exploring leaf nodes (reduces node exploration for grid-based movement) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix|Jump Point Search", meta=(Experimental))
+	bool bUseJumpPointSearch{false};
+	/** Allow diagonal movement in leaf nodes when using Jump Point Search */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix|Jump Point Search", meta=(EditCondition="bUseJumpPointSearch", Experimental))
+	bool bAllowDiagonalMovement{false};
+
 	mutable TArray<FVector> DebugPoints;
 };
 
@@ -100,6 +107,9 @@ private:
 	float GetCost(const AeonixLink& aStart, const AeonixLink& aTarget);
 
 	void ProcessLink(const AeonixLink& aNeighbour);
+
+	/* Process leaf node exploration using Jump Point Search when enabled */
+	void ProcessLeafNodeJPS(const AeonixLink& aLink);
 
 	/* Constructs the path by navigating back through our CameFrom map */
 	void BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);

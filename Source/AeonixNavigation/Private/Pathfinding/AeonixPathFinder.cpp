@@ -55,16 +55,26 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
-			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			if (Settings.bUseJumpPointSearch)
+			{
+				ProcessLeafNodeJPS(CurrentLink);
+			}
+			else
+			{
+				NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+				for (const AeonixLink& neighbour : neighbours)
+				{
+					ProcessLink(neighbour);
+				}
+			}
 		}
 		else
 		{
 			NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
-		}
-
-		for (const AeonixLink& neighbour : neighbours)
-		{
-			ProcessLink(neighbour);
+			for (const AeonixLink& neighbour : neighbours)
+			{
+				ProcessLink(neighbour);
+			}
 		}
 
 		numIterations++;
@@ -434,6 +444,56 @@ void AeonixPathFinder::Smooth_Chaikin(TArray<FAeonixPathPoint>& somePoints, int 
 		somePoints.RemoveAt(somePoints.Num() - 1);
 	}
  }
+
+void AeonixPathFinder::ProcessLeafNodeJPS(const AeonixLink& aLink)
+{
+	const AeonixNode& node = NavigationData.OctreeData.GetNode(aLink);
+
+	// Check if this node has leaf data
+	if (!node.FirstChild.IsValid())
+	{
+		return;
+	}
+
+	const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(node.FirstChild.GetNodeIndex());
+
+	// If the leaf node is completely blocked, don't process it
+	if (leafNode.IsCompletelyBlocked())
+	{
+		return;
+	}
+
+	// Get the current position within the leaf node
+	uint_fast32_t x = 0, y = 0, z = 0;
+	morton3D_64_decode(aLink.GetSubnodeIndex(), x, y, z);
+
+	// Create Jump Point Search helper with full navigation data
+	AeonixJumpPointSearch jps(NavigationData, Settings.bAllowDiagonalMovement);
+
+	// Find jump points from current position
+	TArray<AeonixLink> jumpPoints;
+	jps.FindJumpPoints(x, y, z, aLink, jumpPoints);
+
+	// Process each jump point as a neighbor
+	for (const AeonixLink& jumpPoint : jumpPoints)
+	{
+		ProcessLink(jumpPoint);
+	}
+
+	// Also check for transitions to neighboring leaf nodes that JPS might not have found
+	TArray<AeonixLink> leafNeighbours;
+	NavigationData.OctreeData.GetLeafNeighbours(aLink, leafNeighbours);
+
+	// Process leaf neighbors that are not within the current leaf node
+	for (const AeonixLink& neighbour : leafNeighbours)
+	{
+		// Only process if it's in a different leaf node or higher layer
+		if (neighbour.GetNodeIndex() != aLink.GetNodeIndex() || neighbour.GetLayerIndex() != 0)
+		{
+			ProcessLink(neighbour);
+		}
+	}
+}
 
 void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 {

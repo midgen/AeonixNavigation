@@ -85,6 +85,7 @@ protected:
 private:
 	TArray<FVector> VisualizationPoints;
 	TArray<FAeonixNavigationPath> VisualizationPaths;
+	TArray<TPair<FVector, FVector>> FailedPathVisualizationPoints;
 	AAeonixBoundingVolume* GetTargetVolume() const;
 	TArray<AAeonixBoundingVolume*> GetAllVolumes() const;
 	void InitializeSubsystemIfNeeded();

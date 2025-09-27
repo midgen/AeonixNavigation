@@ -294,6 +294,16 @@ void AAeonixBatchTestActor::ExecuteSingleTest(const FVector& Start, const FVecto
 				PathPoints.Num(), VisualizationPaths.Num());
 		}
 	}
+	else
+	{
+		// Store failed path for visualization
+		if (TestSettings.bVisualizeResults)
+		{
+			FailedPathVisualizationPoints.Add(TPair<FVector, FVector>(ActorPosition, End));
+			UE_LOG(LogTemp, VeryVerbose, TEXT("Added failed path for visualization from (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)"),
+				ActorPosition.X, ActorPosition.Y, ActorPosition.Z, End.X, End.Y, End.Z);
+		}
+	}
 }
 
 void AAeonixBatchTestActor::OnTestCompleted()
@@ -317,7 +327,8 @@ void AAeonixBatchTestActor::OnTestCompleted()
 
 void AAeonixBatchTestActor::VisualizeTestResults()
 {
-	UE_LOG(LogTemp, Log, TEXT("Visualizing %d successful paths from performance test"), VisualizationPaths.Num());
+	UE_LOG(LogTemp, Log, TEXT("Visualizing %d successful paths and %d failed paths from performance test"),
+		VisualizationPaths.Num(), FailedPathVisualizationPoints.Num());
 
 	// Push paths to debug subsystem for visualization
 	if (GEditor)
@@ -325,29 +336,11 @@ void AAeonixBatchTestActor::VisualizeTestResults()
 		UAenoixEditorDebugSubsystem* DebugSubsystem = GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>();
 		if (DebugSubsystem)
 		{
+			// Send successful paths to debug subsystem
 			DebugSubsystem->SetBatchRunPaths(VisualizationPaths);
 
-			// Still draw start/end points locally for context
-			if (GetWorld())
-			{
-				const float DebugLifetime = 120.0f;
-				for (int32 i = 0; i < VisualizationPoints.Num(); i += 2)
-				{
-					if (i + 1 < VisualizationPoints.Num())
-					{
-						FVector StartPoint = VisualizationPoints[i];
-						FVector EndPoint = VisualizationPoints[i + 1];
-
-						// Draw start point (green sphere)
-						DrawDebugSphere(GetWorld(), StartPoint, 30.0f, 12, FColor::Green, false, DebugLifetime, 0, 3.0f);
-						// Draw end point (red sphere)
-						DrawDebugSphere(GetWorld(), EndPoint, 30.0f, 12, FColor::Red, false, DebugLifetime, 0, 3.0f);
-
-						// Draw direct line between start/end for reference (thin gray line)
-						DrawDebugLine(GetWorld(), StartPoint, EndPoint, FColor(128, 128, 128, 100), false, DebugLifetime, 0, 1.0f);
-					}
-				}
-			}
+			// Send failed paths to debug subsystem
+			DebugSubsystem->SetFailedBatchRunPaths(FailedPathVisualizationPoints);
 		}
 		else
 		{
@@ -364,6 +357,7 @@ void AAeonixBatchTestActor::ClearVisualization()
 {
 	VisualizationPoints.Empty();
 	VisualizationPaths.Empty();
+	FailedPathVisualizationPoints.Empty();
 
 	// Clear paths from debug subsystem
 	if (GEditor)
@@ -372,12 +366,14 @@ void AAeonixBatchTestActor::ClearVisualization()
 		if (DebugSubsystem)
 		{
 			DebugSubsystem->ClearBatchRunPaths();
+			DebugSubsystem->ClearFailedBatchRunPaths();
 		}
 	}
 
 	if (GetWorld())
 	{
 		FlushDebugStrings(GetWorld());
+		FlushPersistentDebugLines(GetWorld());
 	}
 }
 

@@ -12,6 +12,7 @@
 #include "Subsystem/AeonixSubsystem.h"
 
 #include "EngineUtils.h"
+#include "DrawDebugHelpers.h"
 
 void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugActor)
 {
@@ -107,6 +108,24 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 			}
 		}
 	}
+
+	// Draw failed batch run paths as red lines
+	if (FailedBatchRunPaths.Num() > 0 && StartDebugActor)
+	{
+		UWorld* World = StartDebugActor->GetWorld();
+		if (World)
+		{
+			for (const FAeonixFailedPath& FailedPath : FailedBatchRunPaths)
+			{
+				// Draw thick red line from start to end for failed paths
+				DrawDebugLine(World, FailedPath.StartPoint, FailedPath.EndPoint, FColor::Red, false, 60.0f, 0, 8.0f);
+
+				// Optional: Draw spheres at endpoints for better visibility
+				DrawDebugSphere(World, FailedPath.StartPoint, 30.0f, 8, FColor::Yellow, false, 60.0f, 0, 3.0f);
+				DrawDebugSphere(World, FailedPath.EndPoint, 30.0f, 8, FColor::Red, false, 60.0f, 0, 3.0f);
+			}
+		}
+	}
 }
 
 TStatId UAenoixEditorDebugSubsystem::GetStatId() const
@@ -138,5 +157,22 @@ void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigatio
 void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
 {
 	BatchRunPaths.Empty();
+	FailedBatchRunPaths.Empty(); // Also clear failed paths
 	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared batch run paths"));
+}
+
+void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVector, FVector>>& FailedPaths)
+{
+	FailedBatchRunPaths.Empty();
+	for (const auto& Path : FailedPaths)
+	{
+		FailedBatchRunPaths.Add(FAeonixFailedPath(Path.Key, Path.Value));
+	}
+	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d failed batch run paths for visualization"), FailedPaths.Num());
+}
+
+void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
+{
+	FailedBatchRunPaths.Empty();
+	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));
 }

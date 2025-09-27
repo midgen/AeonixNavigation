@@ -1,4 +1,4 @@
-﻿
+
 #pragma once
 
 #include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
@@ -6,6 +6,22 @@
 #include <EditorSubsystem.h>
 
 #include "AenoixEditorDebugSubsystem.generated.h"
+
+USTRUCT()
+struct FAeonixFailedPath
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FVector StartPoint;
+
+	UPROPERTY()
+	FVector EndPoint;
+
+	FAeonixFailedPath() {}
+	FAeonixFailedPath(const FVector& InStart, const FVector& InEnd)
+		: StartPoint(InStart), EndPoint(InEnd) {}
+};
 
 /**
  *  A subsystem that provides debug functionality for the Aenoix Editor.
@@ -31,7 +47,11 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	// Batch run paths for visualization
 	UPROPERTY(Transient)
 	TArray<FAeonixNavigationPath> BatchRunPaths;
-	
+
+	// Failed batch run paths for visualization
+	UPROPERTY(Transient)
+	TArray<FAeonixFailedPath> FailedBatchRunPaths;
+
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void UpdateDebugActor(AAeonixPathDebugActor* DebugActor);
@@ -44,6 +64,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void ClearBatchRunPaths();
+
+	void SetFailedBatchRunPaths(const TArray<TPair<FVector, FVector>>& FailedPaths);
+
+	UFUNCTION(BlueprintCallable, Category="Aeonix")
+	void ClearFailedBatchRunPaths();
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;

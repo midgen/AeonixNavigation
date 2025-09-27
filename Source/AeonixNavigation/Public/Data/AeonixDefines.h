@@ -35,6 +35,14 @@ public:
 	static const nodeindex_t dirLeafChildOffsets[6][16];
 	static const FColor myLayerColors[];
 	static const FColor myLinkColors[];
+
+	// Jump Point Search 26-connectivity directions
+	static const FIntVector allDirs26[];  // All 26 directions (6 face + 12 edge + 8 corner)
+	static const FIntVector straightDirs[]; // 6 cardinal directions
+	static const FIntVector diagonalDirs[]; // 12 edge + 8 corner directions
+	static const int NUM_ALL_DIRS = 26;
+	static const int NUM_STRAIGHT_DIRS = 6;
+	static const int NUM_DIAGONAL_DIRS = 20;
 };
 
 UENUM(BlueprintType)

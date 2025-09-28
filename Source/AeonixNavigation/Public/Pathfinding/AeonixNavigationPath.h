@@ -15,7 +15,8 @@ UENUM(BlueprintType)
 enum class EAeonixPathHeuristicType : uint8
 {
 	MANHATTAN,
-	EUCLIDEAN
+	EUCLIDEAN,
+	VELOCITY
 };
 
 struct FNavigationPath;

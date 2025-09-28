@@ -40,9 +40,12 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	UPROPERTY(Transient)
 	FAeonixNavigationPath CurrentDebugPath{};
 	UPROPERTY(Transient)
+	FAeonixNavigationPath CachedDebugPath{};
+	UPROPERTY(Transient)
 	TSoftObjectPtr<AAeonixBoundingVolume> CurrentDebugVolume{nullptr};
 
 	bool bIsPathPending{false};
+	bool bHasValidCachedPath{false};
 
 	// Batch run paths for visualization
 	UPROPERTY(Transient)
@@ -69,6 +72,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void ClearFailedBatchRunPaths();
+
+	UFUNCTION(BlueprintCallable, Category="Aeonix")
+	void ClearCachedPath();
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;

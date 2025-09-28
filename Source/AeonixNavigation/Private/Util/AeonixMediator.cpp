@@ -55,7 +55,7 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 			if (node.Code == code)
 			{
 				// There are no child nodes, so this is our nav position
-				if (!node.FirstChild.IsValid()) // && layerIndex > 0)
+				if (!node.FirstChild.IsValid())
 				{
 					oLink.LayerIndex = layerIndex;
 					oLink.NodeIndex = j;

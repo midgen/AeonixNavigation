@@ -37,18 +37,16 @@ void FAeonixVolumeDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder
 
 	IDetailCategoryBuilder& navigationCategory = DetailBuilder.EditCategory(AeonixCategoryName);
 	
-	TSharedPtr<IPropertyHandle> debugDistanceProperty = DetailBuilder.GetProperty("myDebugDistance");
-	TSharedPtr<IPropertyHandle> showVoxelProperty = DetailBuilder.GetProperty("myShowVoxels");
-	TSharedPtr<IPropertyHandle> showVoxelLeafProperty = DetailBuilder.GetProperty("myShowLeafVoxels");
-	TSharedPtr<IPropertyHandle> showMortonCodesProperty = DetailBuilder.GetProperty("myShowMortonCodes");
-	TSharedPtr<IPropertyHandle> showNeighbourLinksProperty = DetailBuilder.GetProperty("myShowNeighbourLinks");
-	TSharedPtr<IPropertyHandle> showParentChildLinksProperty = DetailBuilder.GetProperty("myShowParentChildLinks");
-	TSharedPtr<IPropertyHandle> voxelPowerProperty = DetailBuilder.GetProperty("myVoxelPower");
-	TSharedPtr<IPropertyHandle> collisionChannelProperty = DetailBuilder.GetProperty("myCollisionChannel");
-	TSharedPtr<IPropertyHandle> clearanceProperty = DetailBuilder.GetProperty("myClearance");
-	TSharedPtr<IPropertyHandle> generationStrategyProperty = DetailBuilder.GetProperty("myGenerationStrategy");
-	TSharedPtr<IPropertyHandle> numLayersProperty = DetailBuilder.GetProperty("myNumLayers");
-	TSharedPtr<IPropertyHandle> numBytesProperty = DetailBuilder.GetProperty("myNumBytes");
+	TSharedPtr<IPropertyHandle> debugDistanceProperty = DetailBuilder.GetProperty("GenerationParameters.DebugDistance");
+	TSharedPtr<IPropertyHandle> showVoxelProperty = DetailBuilder.GetProperty("GenerationParameters.ShowVoxels");
+	TSharedPtr<IPropertyHandle> showVoxelLeafProperty = DetailBuilder.GetProperty("GenerationParameters.ShowLeafVoxels");
+	TSharedPtr<IPropertyHandle> showMortonCodesProperty = DetailBuilder.GetProperty("GenerationParameters.ShowMortonCodes");
+	TSharedPtr<IPropertyHandle> showNeighbourLinksProperty = DetailBuilder.GetProperty("GenerationParameters.ShowNeighbourLinks");
+	TSharedPtr<IPropertyHandle> showParentChildLinksProperty = DetailBuilder.GetProperty("GenerationParameters.ShowParentChildLinks");
+	TSharedPtr<IPropertyHandle> voxelPowerProperty = DetailBuilder.GetProperty("GenerationParameters.VoxelPower");
+	TSharedPtr<IPropertyHandle> collisionChannelProperty = DetailBuilder.GetProperty("GenerationParameters.CollisionChannel");
+	TSharedPtr<IPropertyHandle> agentRadiusProperty = DetailBuilder.GetProperty("GenerationParameters.AgentRadius");
+	TSharedPtr<IPropertyHandle> generationStrategyProperty = DetailBuilder.GetProperty("GenerationParameters.GenerationStrategy");
 
 	debugDistanceProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Debug Distance", "Debug Distance"));
 	showVoxelProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Debug Voxels", "Debug Voxels"));
@@ -60,17 +58,13 @@ void FAeonixVolumeDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder
 	voxelPowerProperty->SetInstanceMetaData("UIMin", TEXT("1"));
 	voxelPowerProperty->SetInstanceMetaData("UIMax", TEXT("12"));
 	collisionChannelProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Collision Channel", "Collision Channel"));
-	clearanceProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Clearance", "Clearance"));
+	agentRadiusProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Agent Radius", "Agent Radius"));
 	generationStrategyProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Generation Strategy", "Generation Strategy"));
-	numLayersProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Num Layers", "Num Layers"));
-	numBytesProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Num Bytes", "Num Bytes"));
 
 	navigationCategory.AddProperty(voxelPowerProperty);
 	navigationCategory.AddProperty(collisionChannelProperty);
-	navigationCategory.AddProperty(clearanceProperty);
+	navigationCategory.AddProperty(agentRadiusProperty);
 	navigationCategory.AddProperty(generationStrategyProperty);
-	navigationCategory.AddProperty(numLayersProperty);
-	navigationCategory.AddProperty(numBytesProperty);
 
 	const TArray< TWeakObjectPtr<UObject> >& SelectedObjects = DetailBuilder.GetSelectedObjects();
 

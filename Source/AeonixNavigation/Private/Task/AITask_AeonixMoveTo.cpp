@@ -107,18 +107,6 @@ void UAITask_AeonixMoveTo::TickTask(float DeltaTime)
 	if (!AeonixNavComponent)
 		return;
 
-	// EAeonixPathFindStatus CurrentStatus = NavComponent->PathFindStatus;
-	//
-	// switch (CurrentStatus)
-	// {
-	// case EAeonixPathFindStatus::Idle : break; // No path request, nothing to do
-	// case EAeonixPathFindStatus::Initialized : break; // No path request, nothing to do
-	// case EAeonixPathFindStatus::InProgress : break; // Path request pending, waiting for response
-	// case EAeonixPathFindStatus::Complete : // Path request is complete
-	// 	Result.Code = EAeonixPathfindingRequestResult::Success;
-	// 	RequestMove(); // HAndle the new path
-	// 	break;
-	// }
 }
 
 void UAITask_AeonixMoveTo::OnPathFindComplete(EAeonixPathFindStatus Status)

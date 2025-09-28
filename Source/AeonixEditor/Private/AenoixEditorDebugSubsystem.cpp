@@ -51,12 +51,16 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 	if (Status == EAeonixPathFindStatus::Complete)
 	{
 		CurrentDebugPath.SetIsReady(true);
+		// Cache the successfully calculated path
+		CachedDebugPath = CurrentDebugPath;
+		bHasValidCachedPath = true;
 		bIsPathPending = false;
 	}
 	else if (Status == EAeonixPathFindStatus::Failed)
 	{
 		CurrentDebugPath.SetIsReady(false);
 		bIsPathPending = false;
+		// Keep showing the cached path even if new calculation failed
 	}
 	else
 	{
@@ -91,9 +95,15 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		FlushPersistentDebugLines(StartDebugActor->GetWorld());
 	}
 	
+	// Draw the current path if ready, otherwise draw the cached path
 	if (CurrentDebugPath.IsReady() && StartDebugActor)
 	{
 		CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+	}
+	else if (bHasValidCachedPath && StartDebugActor)
+	{
+		// Show cached path while recalculating
+		CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
 	}
 
 	// Draw batch run paths using lightweight visualization
@@ -147,6 +157,13 @@ bool UAenoixEditorDebugSubsystem::IsTickableWhenPaused() const
 {
 	return true;
 }
+
+void UAenoixEditorDebugSubsystem::ClearCachedPath()
+{
+	bHasValidCachedPath = false;
+	CachedDebugPath.ResetForRepath();
+}
+
 
 void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigationPath>& Paths)
 {

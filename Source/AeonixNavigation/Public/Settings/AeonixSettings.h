@@ -14,12 +14,4 @@ class AEONIXNAVIGATION_API UAeonixSettings : public UObject
 {
 	GENERATED_BODY()
 
-	// UPROPERTY(Config, EditAnywhere, Category="Aeonix")
-	// TObjectPtr<UDataAsset> BoundingVolumeEntityConfig{nullptr};
-	//
-	// UPROPERTY(Config, EditAnywhere, Category="Aeonix")
-	// TObjectPtr<UDataAsset> SphereColliderEntityConfig{nullptr};
-	//
-	// UPROPERTY(Config, EditAnywhere, Category="Aeonix")
-	// TObjectPtr<UDataAsset> BoxColliderEntityConfig{nullptr};
 };

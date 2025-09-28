@@ -109,9 +109,59 @@ float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLin
 	}
 
 	// Layer size compensation, weights towards higher layers (larger voxels)
+	// Higher layer index = larger voxel = should have lower score to be preferred
 	score *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
 
 	return score;
+}
+
+float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent)
+{
+	// Calculate base heuristic using Euclidean distance as fallback
+	float baseScore = 0.0f;
+	FVector startPos, targetPos;
+	NavigationData.GetLinkPosition(aStart, startPos);
+	NavigationData.GetLinkPosition(aTarget, targetPos);
+	baseScore = (startPos - targetPos).Size();
+
+	// Calculate velocity bias component
+	float velocityPenalty = 0.0f;
+	if (aParent.IsValid() && !(aParent == aStart))
+	{
+		// Get direction from parent to current node (incoming direction)
+		FVector incomingDirection = GetDirectionVector(aParent, aStart);
+
+		// Get direction from current node to target (desired direction)
+		FVector outgoingDirection = GetDirectionVector(aStart, aTarget);
+
+		// Calculate alignment using dot product (-1 to 1, where 1 = same direction)
+		float alignment = FVector::DotProduct(incomingDirection, outgoingDirection);
+
+		// Convert alignment to penalty (0 = same direction, 2 = opposite direction)
+		float directionPenalty = (1.0f - alignment);
+
+		// Apply velocity bias to the penalty
+		velocityPenalty = directionPenalty * Settings.VelocityBias * baseScore;
+	}
+
+	// Combine base score with velocity penalty
+	float finalScore = baseScore + velocityPenalty;
+
+	// Apply layer size compensation
+	// Higher layer index = larger voxel = should have lower score to be preferred
+	finalScore *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
+
+	return finalScore;
+}
+
+FVector AeonixPathFinder::GetDirectionVector(const AeonixLink& aStart, const AeonixLink& aTarget)
+{
+	FVector startPos, targetPos;
+	NavigationData.GetLinkPosition(aStart, startPos);
+	NavigationData.GetLinkPosition(aTarget, targetPos);
+
+	FVector direction = targetPos - startPos;
+	return direction.GetSafeNormal();
 }
 
 float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTarget)
@@ -134,6 +184,8 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 		cost = (startPos - endPos).Size();
 	}
 
+	// Apply layer size compensation to cost as well
+	// Higher layer index = larger voxel = should have lower cost to be preferred
 	cost *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
 
 	return cost;
@@ -169,7 +221,20 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 
 		CameFrom.Add(aNeighbour, CurrentLink);
 		GScore.Add(aNeighbour, t_gScore);
-		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.HeuristicWeight * HeuristicScore(aNeighbour, GoalLink)));
+
+		float heuristicScore = 0.0f;
+		if (Settings.HeuristicType == EAeonixPathHeuristicType::VELOCITY && CameFrom.Contains(CurrentLink) && !(CurrentLink == CameFrom[CurrentLink]))
+		{
+			// Use velocity heuristic with parent information
+			heuristicScore = HeuristicScore(aNeighbour, GoalLink, CameFrom[CurrentLink]);
+		}
+		else
+		{
+			// Use standard heuristic
+			heuristicScore = HeuristicScore(aNeighbour, GoalLink);
+		}
+
+		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.HeuristicWeight * heuristicScore));
 	}
 }
 
@@ -220,22 +285,16 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	debugVoxelInfo.Reserve(points.Num() + 2); // Reserve space for potential start/end additions
 	
 
-	//debugVoxelInfo.Add(FDebugVoxelInfo(aTargetPos, points.Num() > 0 ? points[0].Layer : 0));
-	
 	// Add intermediate points
 	for (const FAeonixPathPoint& point : points)
 	{
 		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer));
 	}
 
-	// Add target position (beginning of path) with its layer
-	//FVector StartVoxelPos, TargetVoxelPos;
+	// Set actual voxel positions for debug visualization
 	NavigationData.GetLinkPosition(GoalLink, debugVoxelInfo[0].Position);
 	NavigationData.GetLinkPosition(StartLink, debugVoxelInfo[debugVoxelInfo.Num() - 1].Position);
-	
-	// Add start position (end of path) with its layer
-	//debugVoxelInfo.Add(FDebugVoxelInfo(StartVoxelPos, points.Num() > 1 ? points[points.Num()-1].Layer : StartLink.GetLayerIndex()));
-	
+
 	oPath.SetDebugVoxelInfo(debugVoxelInfo);
 #endif
 
@@ -543,8 +602,6 @@ void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 		float halfVoxelSize = currentPoint->Layer == 0 ? 
 	NavigationData.GetVoxelSize(currentPoint->Layer) * 0.125f : 
 	NavigationData.GetVoxelSize(currentPoint->Layer) * 0.25f;
-		//float voxelSize = NavigationData.GetVoxelSize(currentPoint->Layer);
-		//float halfVoxelSize = voxelSize * 0.125f;
 		
 		// Create a vector pointing from previous to next point
 		FVector direction = (nextPoint->Position - prevPoint->Position).GetSafeNormal();

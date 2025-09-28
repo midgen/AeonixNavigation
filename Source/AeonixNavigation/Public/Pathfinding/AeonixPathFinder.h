@@ -36,6 +36,9 @@ struct FAeonixPathFinderSettings
 	/** Weighting factor to apply to the heuristic score */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	float HeuristicWeight{10.0f};
+	/** Controls how much the velocity heuristic favors maintaining direction (0.0-1.0) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix", meta=(EditCondition="HeuristicType==EAeonixPathHeuristicType::VELOCITY", ClampMin="0.0", ClampMax="1.0"))
+	float VelocityBias{0.5f};
 	/** Weighting factor that will increase score for higher layer nodes (e.g. larger voxels). Can reduce iterations considerably */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	float NodeSizeHeuristic{1.0f};
@@ -103,8 +106,14 @@ private:
 	/* A* heuristic calculation */
 	float HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget);
 
+	/* A* heuristic calculation with velocity consideration */
+	float HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent);
+
 	/* Distance between two links */
 	float GetCost(const AeonixLink& aStart, const AeonixLink& aTarget);
+
+	/* Calculate normalized direction vector between two links */
+	FVector GetDirectionVector(const AeonixLink& aStart, const AeonixLink& aTarget);
 
 	void ProcessLink(const AeonixLink& aNeighbour);
 

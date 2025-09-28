@@ -52,8 +52,7 @@ protected:
 	UPROPERTY(Transient)
 	TScriptInterface<IAeonixCollisionQueryInterface> CollisionQueryInterface;
 
-	//  IAeonixDebugDrawInterface BEGIN
+	// IAeonixDebugDrawInterface
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;
 	void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override;
-	//  IAeonixDebugDrawInterface END
 };

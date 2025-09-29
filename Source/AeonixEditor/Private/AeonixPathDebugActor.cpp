@@ -42,3 +42,31 @@ void AAeonixPathDebugActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
 	}
 }
+
+void AAeonixPathDebugActor::BeginDestroy()
+{
+	// Notify debug subsystem to clear references to this actor
+	if (GEditor && GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>())
+	{
+		GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->ClearDebugActor(this);
+	}
+
+	// Unregister nav component from subsystem
+	if (NavAgentComponent && GetWorld() && GetWorld()->GetSubsystem<UAeonixSubsystem>())
+	{
+		GetWorld()->GetSubsystem<UAeonixSubsystem>()->UnRegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Disabled);
+	}
+
+	Super::BeginDestroy();
+}
+
+void AAeonixPathDebugActor::Destroyed()
+{
+	// Additional safety cleanup
+	if (GEditor && GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>())
+	{
+		GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->ClearDebugActor(this);
+	}
+
+	Super::Destroyed();
+}

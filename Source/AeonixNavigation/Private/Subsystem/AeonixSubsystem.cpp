@@ -240,13 +240,14 @@ AAeonixBoundingVolume* UAeonixSubsystem::GetMutableVolumeForAgent(const UAeonixN
 
 void UAeonixSubsystem::UpdateComponents()
 {
-	for (int32 i = RegisteredNavAgents.Num() -1; i >= 0 ;)
+	for (int32 i = RegisteredNavAgents.Num() -1; i >= 0; i--)
 	{
 		FAeonixNavAgentHandle& AgentHandle = RegisteredNavAgents[i];
 
-		// TODO: crash fix here, needs proper cleanup
-		if (!AgentHandle.NavAgentComponent)
+		// Clean up null NavAgentComponent entries
+		if (!AgentHandle.NavAgentComponent || !IsValid(AgentHandle.NavAgentComponent))
 		{
+			RegisteredNavAgents.RemoveAtSwap(i, EAllowShrinking::No);
 			continue;
 		}
 		

@@ -20,7 +20,7 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	{
 		return;
 	}
-	
+
 	if (DebugActor->DebugType == EAeonixPathDebugActorType::START)
 	{
 		StartDebugActor = DebugActor;
@@ -29,6 +29,9 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	{
 		EndDebugActor = DebugActor;
 	}
+
+	// Flag that we need to redraw due to actor change
+	bNeedsRedraw = true;
 	
 	 UAeonixSubsystem* AeonixSubsystem = DebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	
@@ -55,6 +58,8 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 		CachedDebugPath = CurrentDebugPath;
 		bHasValidCachedPath = true;
 		bIsPathPending = false;
+		// Flag that we need to redraw the new path
+		bNeedsRedraw = true;
 	}
 	else if (Status == EAeonixPathFindStatus::Failed)
 	{
@@ -70,15 +75,16 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 
 void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 {
-	if (!StartDebugActor)
+	// Validate StartDebugActor before use
+	if (!StartDebugActor.IsValid() || !IsValid(StartDebugActor.Get()))
 	{
 		return;
 	}
-	
+
 	UAeonixSubsystem* AeonixSubsystem = StartDebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	
 	// If we've got a valid start and end target
-	if (StartDebugActor && EndDebugActor && !bIsPathPending && !CurrentDebugPath.IsReady())
+	if (StartDebugActor.IsValid() && EndDebugActor.IsValid() && !bIsPathPending && !CurrentDebugPath.IsReady())
 	{
 		// this is just needed to deal with the lifetime of things in the editor world
 		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
@@ -90,25 +96,36 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		bIsPathPending = true;
 	}
 	
-	if (StartDebugActor)
+	if (StartDebugActor.IsValid())
 	{
 		// Note: Removed FlushPersistentDebugLines to allow octree debug visualization to persist
 		// Path debug lines now use non-persistent durations instead
 	}
 	
-	// Draw the current path if ready, otherwise draw the cached path
-	if (CurrentDebugPath.IsReady() && StartDebugActor)
+	// Only draw when we need to redraw (not every frame)
+	if (bNeedsRedraw && StartDebugActor.IsValid())
 	{
-		CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
-	}
-	else if (bHasValidCachedPath && StartDebugActor)
-	{
-		// Show cached path while recalculating
-		CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+		// Clear previous path debug lines before drawing new ones
+		// Note: This will clear all persistent debug lines but octree debug is redrawn during generation
+		FlushPersistentDebugLines(StartDebugActor->GetWorld());
+
+		// Draw the current path if ready, otherwise draw the cached path
+		if (CurrentDebugPath.IsReady())
+		{
+			CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+		}
+		else if (bHasValidCachedPath)
+		{
+			// Show cached path while recalculating
+			CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+		}
+
+		// Reset flag after drawing
+		bNeedsRedraw = false;
 	}
 
 	// Draw batch run paths using lightweight visualization
-	if (BatchRunPaths.Num() > 0 && StartDebugActor)
+	if (BatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
 	{
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
@@ -121,7 +138,7 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	}
 
 	// Draw failed batch run paths as red lines
-	if (FailedBatchRunPaths.Num() > 0 && StartDebugActor)
+	if (FailedBatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
 	{
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
@@ -157,6 +174,31 @@ bool UAenoixEditorDebugSubsystem::IsTickableInEditor() const
 bool UAenoixEditorDebugSubsystem::IsTickableWhenPaused() const
 {
 	return true;
+}
+
+void UAenoixEditorDebugSubsystem::ClearDebugActor(AAeonixPathDebugActor* ActorToRemove)
+{
+	if (!ActorToRemove)
+	{
+		return;
+	}
+
+	// Clear references to the actor being removed
+	if (StartDebugActor.Get() == ActorToRemove)
+	{
+		StartDebugActor = nullptr;
+		// Clear any ongoing pathfinding when start actor is removed
+		bIsPathPending = false;
+		CurrentDebugPath.ResetForRepath();
+	}
+
+	if (EndDebugActor.Get() == ActorToRemove)
+	{
+		EndDebugActor = nullptr;
+		// Clear any ongoing pathfinding when end actor is removed
+		bIsPathPending = false;
+		CurrentDebugPath.ResetForRepath();
+	}
 }
 
 void UAenoixEditorDebugSubsystem::ClearCachedPath()

@@ -46,6 +46,7 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 
 	bool bIsPathPending{false};
 	bool bHasValidCachedPath{false};
+	bool bNeedsRedraw{true};
 
 	// Batch run paths for visualization
 	UPROPERTY(Transient)
@@ -58,6 +59,9 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void UpdateDebugActor(AAeonixPathDebugActor* DebugActor);
+
+	UFUNCTION(BlueprintCallable, Category="Aeonix")
+	void ClearDebugActor(AAeonixPathDebugActor* ActorToRemove);
 
 	UFUNCTION()
 	void OnPathFindComplete(EAeonixPathFindStatus Status);

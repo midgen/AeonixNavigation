@@ -34,12 +34,12 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 		}
 		
 		// Draw sphere at the actual path point position (which may be smoothed)
-		DrawDebugSphere(World, point.Position, 30.f, 20, PointColor, false, 0.f, 0, 2.f);
+		DrawDebugSphere(World, point.Position, 30.f, 20, PointColor, true, -1.f, 0, 2.f);
 		
 		// Draw lines connecting path points
 		if (i < myPoints.Num() - 1)
 		{
-			DrawDebugLine(World, point.Position, myPoints[i+1].Position, FColor::Cyan, false, 0.f, 0, 10.f);	
+			DrawDebugLine(World, point.Position, myPoints[i+1].Position, FColor::Cyan, true, -1.f, 0, 10.f);	
 		}
 	}
 	
@@ -76,7 +76,7 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 				voxelInfo.Position,
 				FVector(size),
 				boxColor,
-				false, 0.f, 0, 2.f
+				true, -1.f, 0, 2.f
 			);
 		}
 	}

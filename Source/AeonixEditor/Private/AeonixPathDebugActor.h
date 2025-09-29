@@ -28,6 +28,8 @@ public:
 	virtual void PostEditMove(bool bFinished) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void BeginDestroy() override;
+	virtual void Destroyed() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathDebugActorType DebugType;

@@ -243,6 +243,12 @@ void UAeonixSubsystem::UpdateComponents()
 	for (int32 i = RegisteredNavAgents.Num() -1; i >= 0 ;)
 	{
 		FAeonixNavAgentHandle& AgentHandle = RegisteredNavAgents[i];
+
+		// TODO: crash fix here, needs proper cleanup
+		if (!AgentHandle.NavAgentComponent)
+		{
+			continue;
+		}
 		
 		bool bIsInValidVolume = false;
 

@@ -92,7 +92,8 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	
 	if (StartDebugActor)
 	{
-		FlushPersistentDebugLines(StartDebugActor->GetWorld());
+		// Note: Removed FlushPersistentDebugLines to allow octree debug visualization to persist
+		// Path debug lines now use non-persistent durations instead
 	}
 	
 	// Draw the current path if ready, otherwise draw the cached path

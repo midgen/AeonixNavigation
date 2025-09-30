@@ -59,27 +59,22 @@ void UAeonixPathFollowingComponent::FollowPathSegment(float DeltaTime)
 	const uint64 CurrentFrameNumber = GFrameCounter;
 	if (CurrentFrameNumber == LastProcessedFrameNumber)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowing: Skipping duplicate FollowPathSegment call in same frame"));
 		return;
 	}
 	LastProcessedFrameNumber = CurrentFrameNumber;
 
 	if (!bInitializationComplete)
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("AeonixPathFollowing: Not initialized yet"));
 		return;
 	}
 
 	if (!CurrentAeonixPath)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowing: CurrentAeonixPath is null"));
 		return;
 	}
 
 	if (!CurrentAeonixPath->IsReady())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowing: CurrentAeonixPath is not ready (has %d points)"),
-			CurrentAeonixPath->GetPathPoints().Num());
 		return;
 	}
 
@@ -135,15 +130,11 @@ void UAeonixPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 			{
 				CurrentAeonixPath = &NavAgent->GetPath();
 				bInitializationComplete = true;
-				UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowing: Path reference updated on move start, path has %d points, ready: %s"),
-				CurrentAeonixPath->GetPathPoints().Num(),
-				CurrentAeonixPath->IsReady() ? TEXT("YES") : TEXT("NO"));
 			}
 		}
 	}
 
 	CurrentWaypointIndex = SegmentStartIndex;
-	UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowing: SetMoveSegment called with index %d"), SegmentStartIndex);
 }
 
 bool UAeonixPathFollowingComponent::HasReached(const FVector& TestPoint, float AcceptanceRadiusOverride, bool bExactSpot) const
@@ -158,7 +149,6 @@ void UAeonixPathFollowingComponent::FollowAeonixPath()
 {
 	if (!CurrentAeonixPath || !CurrentAeonixPath->IsReady())
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("AeonixPathFollowing: No path or path not ready"));
 		return;
 	}
 
@@ -180,26 +170,20 @@ void UAeonixPathFollowingComponent::FollowAeonixPath()
 	}
 	if (!OwnerPawn)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowing: No pawn found"));
 		return;
 	}
 
 	const FVector CurrentLocation = OwnerPawn->GetActorLocation();
 	const FVector TargetLocation = GetTargetLocation();
 
-	UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowing: Following path - Current: %s, Target: %s, Waypoint: %d"),
-		*CurrentLocation.ToString(), *TargetLocation.ToString(), CurrentWaypointIndex);
-
 	// Check if we've reached the current waypoint
 	if (HasReached(CurrentLocation))
 	{
-		UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowing: Reached waypoint %d, advancing"), CurrentWaypointIndex);
 		AdvanceToNextWaypoint();
 
 		// Check if we've completed the path
 		if (!IsValidWaypointIndex(CurrentWaypointIndex))
 		{
-			UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowing: Path completed! Stopping movement."));
 
 			// Stop the pawn's movement immediately
 			if (UPawnMovementComponent* PawnMovement = OwnerPawn->GetMovementComponent())
@@ -351,9 +335,6 @@ void UAeonixPathFollowingComponent::TryInitializeNavigation()
 
 	InitializationRetryCount++;
 
-	UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowingComponent: Initialization attempt %d/%d"),
-		InitializationRetryCount, MAX_INITIALIZATION_RETRIES);
-
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
@@ -384,26 +365,12 @@ void UAeonixPathFollowingComponent::TryInitializeNavigation()
 		if (IsValidForNavigation())
 		{
 			bInitializationComplete = true;
-			UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowingComponent: Successfully initialized navigation on %s"),
-				*Owner->GetName());
 			return;
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowingComponent: NavAgent found but not in volume yet (attempt %d)"),
-				InitializationRetryCount);
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowingComponent: No NavAgent component found on %s (attempt %d)"),
-			*Owner->GetName(), InitializationRetryCount);
 	}
 
 	if (InitializationRetryCount >= MAX_INITIALIZATION_RETRIES)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AeonixPathFollowingComponent: Proceeding without NavAgent after %d attempts"),
-			MAX_INITIALIZATION_RETRIES);
 		bInitializationComplete = true; // Proceed anyway - path will be set when move starts
 	}
 }
@@ -456,8 +423,6 @@ bool UAeonixPathFollowingComponent::IsValidForNavigation() const
 		{
 			// Test if the subsystem can find a volume for this agent
 			// This is a simplified check - the real validation happens in the subsystem
-			UE_LOG(LogTemp, Log, TEXT("AeonixPathFollowingComponent: Testing navigation validity at location %s"),
-				*TestLocation.ToString());
 			return true; // For now, assume it's valid if we have the components
 		}
 	}

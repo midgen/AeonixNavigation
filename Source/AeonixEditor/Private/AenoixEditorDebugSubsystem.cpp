@@ -124,35 +124,37 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		bNeedsRedraw = false;
 	}
 
-	// Draw batch run paths using lightweight visualization
-	if (BatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
+	// Draw batch run paths only when they change (not every frame)
+	if (bBatchPathsNeedRedraw && BatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
 	{
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
 		{
 			for (const FAeonixNavigationPath& Path : BatchRunPaths)
 			{
-				Path.DebugDrawLite(World, FColor::Cyan, 60.0f);
+				Path.DebugDrawLite(World, FColor::Cyan, -1.0f); // Use persistent lines
 			}
 		}
+		bBatchPathsNeedRedraw = false;
 	}
 
-	// Draw failed batch run paths as red lines
-	if (FailedBatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
+	// Draw failed batch run paths only when they change (not every frame)
+	if (bFailedPathsNeedRedraw && FailedBatchRunPaths.Num() > 0 && StartDebugActor.IsValid())
 	{
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
 		{
 			for (const FAeonixFailedPath& FailedPath : FailedBatchRunPaths)
 			{
-				// Draw thick red line from start to end for failed paths
-				DrawDebugLine(World, FailedPath.StartPoint, FailedPath.EndPoint, FColor::Red, false, 60.0f, 0, 8.0f);
+				// Draw thick red line from start to end for failed paths (persistent)
+				DrawDebugLine(World, FailedPath.StartPoint, FailedPath.EndPoint, FColor::Red, true, -1.0f, 0, 8.0f);
 
-				// Optional: Draw spheres at endpoints for better visibility
-				DrawDebugSphere(World, FailedPath.StartPoint, 30.0f, 8, FColor::Yellow, false, 60.0f, 0, 3.0f);
-				DrawDebugSphere(World, FailedPath.EndPoint, 30.0f, 8, FColor::Red, false, 60.0f, 0, 3.0f);
+				// Optional: Draw spheres at endpoints for better visibility (persistent)
+				DrawDebugSphere(World, FailedPath.StartPoint, 30.0f, 8, FColor::Yellow, true, -1.0f, 0, 3.0f);
+				DrawDebugSphere(World, FailedPath.EndPoint, 30.0f, 8, FColor::Red, true, -1.0f, 0, 3.0f);
 			}
 		}
+		bFailedPathsNeedRedraw = false;
 	}
 }
 
@@ -211,6 +213,7 @@ void UAenoixEditorDebugSubsystem::ClearCachedPath()
 void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigationPath>& Paths)
 {
 	BatchRunPaths = Paths;
+	bBatchPathsNeedRedraw = true;
 	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d batch run paths for visualization"), Paths.Num());
 }
 
@@ -218,6 +221,8 @@ void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
 {
 	BatchRunPaths.Empty();
 	FailedBatchRunPaths.Empty(); // Also clear failed paths
+	bBatchPathsNeedRedraw = false;
+	bFailedPathsNeedRedraw = false;
 	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared batch run paths"));
 }
 
@@ -228,11 +233,13 @@ void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVec
 	{
 		FailedBatchRunPaths.Add(FAeonixFailedPath(Path.Key, Path.Value));
 	}
+	bFailedPathsNeedRedraw = true;
 	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d failed batch run paths for visualization"), FailedPaths.Num());
 }
 
 void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
 {
 	FailedBatchRunPaths.Empty();
+	bFailedPathsNeedRedraw = false;
 	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));
 }

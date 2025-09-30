@@ -92,11 +92,14 @@ void FAeonixNavigationPath::DebugDrawLite(UWorld* World, const FColor& LineColor
 		return;
 	}
 
+	// Use persistent lines when LifeTime is -1
+	bool bPersistent = (LifeTime < 0.0f);
+
 	// Draw simple lines connecting all path points
 	for (int32 i = 0; i < myPoints.Num() - 1; i++)
 	{
 		DrawDebugLine(World, myPoints[i].Position, myPoints[i + 1].Position,
-			LineColor, false, LifeTime, 0, 2.0f);
+			LineColor, bPersistent, LifeTime, 0, 2.0f);
 	}
 }
 

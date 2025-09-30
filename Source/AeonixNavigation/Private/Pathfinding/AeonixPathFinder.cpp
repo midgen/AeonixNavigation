@@ -21,7 +21,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	OpenSet.Add(Start);
 	CameFrom.Add(Start, Start);
 	GScore.Add(Start, 0);
-	FScore.Add(Start, HeuristicScore(Start, InGoal)); // Distance to target
+	FScore.Add(Start, CalculateHeuristic(Start, InGoal)); // Distance to target
 
 	int numIterations = 0;
 
@@ -90,43 +90,23 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	return false;
 }
 
-float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget)
+float AeonixPathFinder::CalculateHeuristic(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent)
 {
-	float score = 0.f;
+	float totalScore = 0.0f;
 
-	FVector startPos, endPos;
-	NavigationData.GetLinkPosition(aStart, startPos);
-	NavigationData.GetLinkPosition(aTarget, endPos);
-	switch (Settings.HeuristicType)
-	{
-	case EAeonixPathHeuristicType::MANHATTAN:
-		score = FMath::Abs(endPos.X - startPos.X) + FMath::Abs(endPos.Y - startPos.Y) + FMath::Abs(endPos.Z - startPos.Z);
-		break;
-	case EAeonixPathHeuristicType::EUCLIDEAN:
-	default:
-		score = (startPos - endPos).Size();
-		break;
-	}
-
-	// Layer size compensation, weights towards higher layers (larger voxels)
-	// Higher layer index = larger voxel = should have lower score to be preferred
-	score *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
-
-	return score;
-}
-
-float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent)
-{
-	// Calculate base heuristic using Euclidean distance as fallback
-	float baseScore = 0.0f;
 	FVector startPos, targetPos;
 	NavigationData.GetLinkPosition(aStart, startPos);
 	NavigationData.GetLinkPosition(aTarget, targetPos);
-	baseScore = (startPos - targetPos).Size();
 
-	// Calculate velocity bias component
-	float velocityPenalty = 0.0f;
-	if (aParent.IsValid() && !(aParent == aStart))
+	// 1. Euclidean distance component
+	if (Settings.HeuristicSettings.EuclideanWeight > 0.0f)
+	{
+		float euclideanDistance = (startPos - targetPos).Size();
+		totalScore += euclideanDistance * Settings.HeuristicSettings.EuclideanWeight;
+	}
+
+	// 2. Velocity component (requires valid parent)
+	if (Settings.HeuristicSettings.VelocityWeight > 0.0f && aParent.IsValid() && !(aParent == aStart))
 	{
 		// Get direction from parent to current node (incoming direction)
 		FVector incomingDirection = GetDirectionVector(aParent, aStart);
@@ -140,19 +120,26 @@ float AeonixPathFinder::HeuristicScore(const AeonixLink& aStart, const AeonixLin
 		// Convert alignment to penalty (0 = same direction, 2 = opposite direction)
 		float directionPenalty = (1.0f - alignment);
 
-		// Apply velocity bias to the penalty
-		velocityPenalty = directionPenalty * Settings.VelocityBias * baseScore;
+		// Apply velocity bias and weight
+		float baseDistance = (startPos - targetPos).Size();
+		float velocityPenalty = directionPenalty * Settings.HeuristicSettings.VelocityBias * baseDistance;
+		totalScore += velocityPenalty * Settings.HeuristicSettings.VelocityWeight;
 	}
 
-	// Combine base score with velocity penalty
-	float finalScore = baseScore + velocityPenalty;
+	// 3. Node size component (applies to all components)
+	if (Settings.HeuristicSettings.NodeSizeWeight > 0.0f)
+	{
+		// Higher layer index = larger voxel = should have lower score to be preferred
+		float nodeSizeMultiplier = (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.HeuristicSettings.NodeSizeWeight);
+		totalScore *= nodeSizeMultiplier;
+	}
 
-	// Apply layer size compensation
-	// Higher layer index = larger voxel = should have lower score to be preferred
-	finalScore *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
+	// Apply global weight
+	totalScore *= Settings.HeuristicSettings.GlobalWeight;
 
-	return finalScore;
+	return totalScore;
 }
+
 
 FVector AeonixPathFinder::GetDirectionVector(const AeonixLink& aStart, const AeonixLink& aTarget)
 {
@@ -183,10 +170,6 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 		NavigationData.GetLinkPosition(aTarget, endPos);
 		cost = (startPos - endPos).Size();
 	}
-
-	// Apply layer size compensation to cost as well
-	// Higher layer index = larger voxel = should have lower cost to be preferred
-	cost *= (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.NodeSizeHeuristic);
 
 	return cost;
 }
@@ -222,19 +205,11 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		CameFrom.Add(aNeighbour, CurrentLink);
 		GScore.Add(aNeighbour, t_gScore);
 
-		float heuristicScore = 0.0f;
-		if (Settings.HeuristicType == EAeonixPathHeuristicType::VELOCITY && CameFrom.Contains(CurrentLink) && !(CurrentLink == CameFrom[CurrentLink]))
-		{
-			// Use velocity heuristic with parent information
-			heuristicScore = HeuristicScore(aNeighbour, GoalLink, CameFrom[CurrentLink]);
-		}
-		else
-		{
-			// Use standard heuristic
-			heuristicScore = HeuristicScore(aNeighbour, GoalLink);
-		}
+		// Calculate heuristic using unified function with parent information when available
+		AeonixLink parentLink = CameFrom.Contains(CurrentLink) ? CameFrom[CurrentLink] : AeonixLink();
+		float heuristicScore = CalculateHeuristic(aNeighbour, GoalLink, parentLink);
 
-		FScore.Add(aNeighbour, GScore[aNeighbour] + (Settings.HeuristicWeight * heuristicScore));
+		FScore.Add(aNeighbour, GScore[aNeighbour] + heuristicScore);
 	}
 }
 

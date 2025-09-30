@@ -30,6 +30,13 @@ public:
 	const FAeonixNavigationPath& GetPath() const  { return CurrentPath; }
 	FVector GetAgentPosition() const;
 
+	// Debug rendering for the current path
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bEnablePathDebugRendering = false;
+
+	UFUNCTION(BlueprintCallable, Category = "Debug")
+	void RegisterPathForDebugRendering();
+
 	// Need to make a sane multithreading implementation, this is very crude and will have edge case crashes at present.
 	// Thread safe counter to track async path requests
 

@@ -113,6 +113,12 @@ void UAITask_AeonixMoveTo::OnPathFindComplete(EAeonixPathFindStatus Status)
 {
 	if (Status == EAeonixPathFindStatus::Complete)
 	{
+		// Register path for debug rendering if enabled
+		if (NavComponent)
+		{
+			NavComponent->RegisterPathForDebugRendering();
+		}
+
 		RequestMove();
 	}
 }

@@ -60,3 +60,12 @@ FVector UAeonixNavAgentComponent::GetAgentPosition() const
 
 	return Result;
 }
+
+void UAeonixNavAgentComponent::RegisterPathForDebugRendering()
+{
+	if (bEnablePathDebugRendering && CurrentPath.GetPathPoints().Num() > 0)
+	{
+		UE_LOG(AeonixNavigation, Log, TEXT("NavAgent: Registering path with %d points for debug rendering"), CurrentPath.GetPathPoints().Num());
+		CurrentPath.DebugDrawLite(GetWorld(), FColor::Green, 10.0f);
+	}
+}

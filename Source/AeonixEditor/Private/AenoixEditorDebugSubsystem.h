@@ -47,6 +47,8 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	bool bIsPathPending{false};
 	bool bHasValidCachedPath{false};
 	bool bNeedsRedraw{true};
+	bool bBatchPathsNeedRedraw{false};
+	bool bFailedPathsNeedRedraw{false};
 
 	// Batch run paths for visualization
 	UPROPERTY(Transient)

@@ -13,6 +13,32 @@ struct FAeonixNavigationPath;
 struct AeonixLink;
 
 USTRUCT(BlueprintType)
+struct FAeonixHeuristicSettings
+{
+	GENERATED_BODY()
+
+	/** Weight factor for euclidean distance heuristic (distance to goal) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))
+	float EuclideanWeight{1.0f};
+
+	/** Weight factor for velocity heuristic (favors maintaining direction) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))
+	float VelocityWeight{0.0f};
+
+	/** Controls how much the velocity heuristic favors maintaining direction (0.0-1.0) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(EditCondition="VelocityWeight > 0.0", ClampMin="0.0", ClampMax="1.0"))
+	float VelocityBias{0.5f};
+
+	/** Weight factor that increases score for higher layer nodes (e.g. larger voxels). Can reduce iterations considerably */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))
+	float NodeSizeWeight{1.0f};
+
+	/** Global multiplier applied to the final combined heuristic score */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))
+	float GlobalWeight{10.0f};
+};
+
+USTRUCT(BlueprintType)
 struct FAeonixPathFinderSettings
 {
 	GENERATED_BODY()
@@ -30,18 +56,9 @@ struct FAeonixPathFinderSettings
 	/** Max iterations for the A* pathfinding algorithm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	int32 MaxIterations{5000};
-	/** Heuristic algorithm to use for choosing which open nodes to prefer exploring */
+	/** Heuristic calculation settings for pathfinding algorithm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	EAeonixPathHeuristicType HeuristicType{EAeonixPathHeuristicType::EUCLIDEAN};
-	/** Weighting factor to apply to the heuristic score */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	float HeuristicWeight{10.0f};
-	/** Controls how much the velocity heuristic favors maintaining direction (0.0-1.0) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix", meta=(EditCondition="HeuristicType==EAeonixPathHeuristicType::VELOCITY", ClampMin="0.0", ClampMax="1.0"))
-	float VelocityBias{0.5f};
-	/** Weighting factor that will increase score for higher layer nodes (e.g. larger voxels). Can reduce iterations considerably */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
-	float NodeSizeHeuristic{1.0f};
+	FAeonixHeuristicSettings HeuristicSettings;
 	/** The method to use for calcuting the path position for a given node */ 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	EAeonixPathPointType PathPointType{EAeonixPathPointType::NODE_CENTER};
@@ -103,11 +120,8 @@ private:
 
 	const FAeonixPathFinderSettings& Settings;
 
-	/* A* heuristic calculation */
-	float HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget);
-
-	/* A* heuristic calculation with velocity consideration */
-	float HeuristicScore(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent);
+	/* Unified A* heuristic calculation combining euclidean, velocity, and node size components */
+	float CalculateHeuristic(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent = AeonixLink());
 
 	/* Distance between two links */
 	float GetCost(const AeonixLink& aStart, const AeonixLink& aTarget);

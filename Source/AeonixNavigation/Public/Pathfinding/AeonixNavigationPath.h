@@ -14,7 +14,6 @@ enum class EAeonixPathPointType : uint8
 UENUM(BlueprintType)
 enum class EAeonixPathHeuristicType : uint8
 {
-	MANHATTAN,
 	EUCLIDEAN,
 	VELOCITY
 };

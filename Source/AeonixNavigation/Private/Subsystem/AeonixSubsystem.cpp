@@ -151,6 +151,7 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath);
 
 	OutPath.SetIsReady(true);
+	UE_LOG(AeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 
 	return Result;
 }
@@ -203,13 +204,16 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
 	{
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
-			
+
 		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath))
 		{
+			OutPath.SetIsReady(true);
+			UE_LOG(AeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 		}
 		else
 		{
+			OutPath.SetIsReady(false);
 			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		}
 	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);

@@ -17,12 +17,10 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 		return false;
 	}
 
-	FBox box = aVolume.GetComponentsBoundingBox(true);
-
-	FVector origin;
-	FVector extent;
-
-	box.GetCenterAndExtents(origin, extent);
+	// Use cached bounds from NavigationData instead of recalculating GetComponentsBoundingBox
+	const FAeonixGenerationParameters& Params = aVolume.GetNavData().GetParams();
+	const FVector& origin = Params.Origin;
+	const FVector& extent = Params.Extents;
 	// The z-order origin of the volume (where code == 0)
 	FVector zOrigin = origin - extent;
 	// The local position of the point in volume space
@@ -112,12 +110,10 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 
 void AeonixMediator::GetVolumeXYZ(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, const int aLayer, FIntVector& oXYZ)
 {
-	FBox box = aVolume.GetComponentsBoundingBox(true);
-
-	FVector origin;
-	FVector extent;
-
-	box.GetCenterAndExtents(origin, extent);
+	// Use cached bounds from NavigationData instead of recalculating GetComponentsBoundingBox
+	const FAeonixGenerationParameters& Params = aVolume.GetNavData().GetParams();
+	const FVector& origin = Params.Origin;
+	const FVector& extent = Params.Extents;
 	// The z-order origin of the volume (where code == 0)
 	FVector zOrigin = origin - extent;
 	// The local position of the point in volume space

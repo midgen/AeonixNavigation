@@ -57,7 +57,7 @@ void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& 
 	// Now traverse down, adding neighbour links
 	for (int i = OctreeData.NumLayers - 2; i >= 0; i--)
 	{
-		BuildNeighbourLinks(i);
+		BuildNeighbourLinks(i, DebugInterface);
 	}
 }
 
@@ -142,7 +142,7 @@ bool FAeonixData::GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodei
 	return false;
 }
 
-void FAeonixData::BuildNeighbourLinks(layerindex_t aLayer)
+void FAeonixData::BuildNeighbourLinks(layerindex_t aLayer, const IAeonixDebugDrawInterface& DebugInterface)
 {
 	TArray<AeonixNode>& layer = OctreeData.GetLayer(aLayer);
 	layerindex_t searchLayer = aLayer;
@@ -166,7 +166,7 @@ void FAeonixData::BuildNeighbourLinks(layerindex_t aLayer)
 
 			backtrackIndex = index;
 
-			while (!FindLinkInDirection(searchLayer, index, d, linkToUpdate, nodePos) && aLayer < OctreeData.Layers.Num() - 2)
+			while (!FindLinkInDirection(searchLayer, index, d, linkToUpdate, nodePos, DebugInterface) && aLayer < OctreeData.Layers.Num() - 2)
 			{
 				AeonixLink& parent = OctreeData.GetLayer(searchLayer)[index].Parent;
 				if (parent.IsValid())
@@ -186,7 +186,7 @@ void FAeonixData::BuildNeighbourLinks(layerindex_t aLayer)
 	}
 }
 
-bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNodeIndex, uint8 aDir, AeonixLink& oLinkToUpdate, FVector& aStartPosForDebug)
+bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNodeIndex, uint8 aDir, AeonixLink& oLinkToUpdate, FVector& aStartPosForDebug, const IAeonixDebugDrawInterface& DebugInterface)
 {
 	int32 maxCoord = GetNumNodesPerSide(aLayer);
 	AeonixNode& node = OctreeData.GetLayer(aLayer)[aNodeIndex];
@@ -210,7 +210,7 @@ bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNo
 			FVector startPos, endPos;
 			GetNodePosition(aLayer, node.Code, startPos);
 			endPos = startPos + (FVector(AeonixStatics::dirs[aDir]) * 100.f);
-			// DrawDebugLine(GetWorld(), aStartPosForDebug, endPos, FColor::Red, true, -1.f, 0, .0f);
+			DebugInterface.AeonixDrawDebugLine(aStartPosForDebug, endPos, FColor::Red, 0.0f);
 		}
 		return true;
 	}
@@ -246,7 +246,7 @@ bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNo
 			{
 				FVector endPos;
 				GetNodePosition(aLayer, thisCode, endPos);
-				// DrawDebugLine(GetWorld(), aStartPosForDebug, endPos, AeonixStatics::myLinkColors[aLayer], true, -1.f, 0, .0f);
+				DebugInterface.AeonixDrawDebugLine(aStartPosForDebug, endPos, AeonixStatics::myLinkColors[aLayer], 0.0f);
 			}
 			return true;
 		}
@@ -397,8 +397,7 @@ void FAeonixData::RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQuer
 						GetNodePosition(aLayer - 1, node.Code << 3, endPos);
 						if (IsInDebugRange(startPos))
 						{
-							// TODO: DEBUG
-							// DrawDebugDirectionalArrow(GetWorld(), startPos, endPos, 0.f, AeonixStatics::myLinkColors[aLayer], true);
+							DebugInterface.AeonixDrawDebugDirectionalArrow(startPos, endPos, AeonixStatics::myLinkColors[aLayer], 0.0f);
 						}
 					}
 				}

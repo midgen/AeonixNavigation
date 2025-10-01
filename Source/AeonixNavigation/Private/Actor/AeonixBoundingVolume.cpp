@@ -113,6 +113,16 @@ void AAeonixBoundingVolume::AeonixDrawDebugBox(const FVector& Position, const fl
 	DrawDebugBox(GetWorld(), Position, FVector(Size), FQuat::Identity, Color, true, -1.f, 0, .0f);
 }
 
+void AAeonixBoundingVolume::AeonixDrawDebugLine(const FVector& Start, const FVector& End, const FColor& Color, float Thickness) const
+{
+	DrawDebugLine(GetWorld(), Start, End, Color, true, -1.f, 0, Thickness);
+}
+
+void AAeonixBoundingVolume::AeonixDrawDebugDirectionalArrow(const FVector& Start, const FVector& End, const FColor& Color, float ArrowSize) const
+{
+	DrawDebugDirectionalArrow(GetWorld(), Start, End, ArrowSize, Color, true, -1.f, 0, 0.0f);
+}
+
 void AAeonixBoundingVolume::ClearData()
 {
 	NavigationData.ResetForGeneration();

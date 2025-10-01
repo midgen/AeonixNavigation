@@ -45,8 +45,8 @@ private:
 	bool IsAnyMemberBlocked(layerindex_t aLayer, mortoncode_t aCode) const;
 	bool GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodeindex_t& oIndex) const;
 
-	void BuildNeighbourLinks(layerindex_t aLayer);
-	bool FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNodeIndex, uint8 aDir, AeonixLink& oLinkToUpdate, FVector& aStartPosForDebug);
+	void BuildNeighbourLinks(layerindex_t aLayer, const IAeonixDebugDrawInterface& DebugInterface);
+	bool FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNodeIndex, uint8 aDir, AeonixLink& oLinkToUpdate, FVector& aStartPosForDebug, const IAeonixDebugDrawInterface& DebugInterface);
 
 	void RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
 	void RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);

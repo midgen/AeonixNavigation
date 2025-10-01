@@ -22,6 +22,8 @@ class FMockDebugDrawInterface : public IAeonixDebugDrawInterface
 public:
     virtual void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override {}
     virtual void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override {}
+    virtual void AeonixDrawDebugLine(const FVector& Start, const FVector& End, const FColor& Color, float Thickness = 0.0f) const override {}
+    virtual void AeonixDrawDebugDirectionalArrow(const FVector& Start, const FVector& End, const FColor& Color, float ArrowSize = 0.0f) const override {}
 };
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAeonixNavigation_GenerateDataTest, "AeonixNavigation.GenerateData.Basic", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

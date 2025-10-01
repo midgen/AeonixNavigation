@@ -55,4 +55,6 @@ protected:
 	// IAeonixDebugDrawInterface
 	void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override;
 	void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override;
+	void AeonixDrawDebugLine(const FVector& Start, const FVector& End, const FColor& Color, float Thickness = 0.0f) const override;
+	void AeonixDrawDebugDirectionalArrow(const FVector& Start, const FVector& End, const FColor& Color, float ArrowSize = 0.0f) const override;
 };

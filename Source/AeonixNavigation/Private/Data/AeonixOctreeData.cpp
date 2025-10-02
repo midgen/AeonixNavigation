@@ -52,6 +52,13 @@ void FAeonixOctreeData::GetLeafNeighbours(const AeonixLink& aLink, TArray<Aeonix
 		else // the neighbours is out of bounds, we need to find our neighbour
 		{
 			const AeonixLink& neighbourLink = node.myNeighbours[i];
+
+			// Check if the neighbor link is valid first
+			if (!neighbourLink.IsValid())
+			{
+				continue; // Skip invalid neighbors
+			}
+
 			const AeonixNode& neighbourNode = GetNode(neighbourLink);
 
 			// If the neighbour layer 0 has no leaf nodes, just return it
@@ -70,20 +77,57 @@ void FAeonixOctreeData::GetLeafNeighbours(const AeonixLink& aLink, TArray<Aeonix
 			}
 			else // Otherwise, we need to find the correct subnode
 			{
+				// Calculate the correct leaf node position in the neighboring voxel
+				// The neighbor's leaf node should be directly adjacent to our current position
+				uint_fast32_t neighborX = x;
+				uint_fast32_t neighborY = y;
+				uint_fast32_t neighborZ = z;
+
+				// When we cross a boundary, we need to wrap to the opposite side of the neighbor voxel
+				// But we maintain the other coordinates to stay aligned
 				if (sX < 0)
-					sX = 3;
+				{
+					neighborX = 3; // Enter from the positive X side (right)
+				}
 				else if (sX > 3)
-					sX = 0;
-				else if (sY < 0)
-					sY = 3;
+				{
+					neighborX = 0; // Enter from the negative X side (left)
+				}
+				else
+				{
+					// X didn't cross boundary, so keep the same X coordinate
+					neighborX = sX;
+				}
+
+				if (sY < 0)
+				{
+					neighborY = 3; // Enter from the positive Y side
+				}
 				else if (sY > 3)
-					sY = 0;
-				else if (sZ < 0)
-					sZ = 3;
+				{
+					neighborY = 0; // Enter from the negative Y side
+				}
+				else
+				{
+					// Y didn't cross boundary, so keep the same Y coordinate
+					neighborY = sY;
+				}
+
+				if (sZ < 0)
+				{
+					neighborZ = 3; // Enter from the positive Z side
+				}
 				else if (sZ > 3)
-					sZ = 0;
-				//
-				mortoncode_t subNodeCode = morton3D_64_encode(sX, sY, sZ);
+				{
+					neighborZ = 0; // Enter from the negative Z side
+				}
+				else
+				{
+					// Z didn't cross boundary, so keep the same Z coordinate
+					neighborZ = sZ;
+				}
+
+				mortoncode_t subNodeCode = morton3D_64_encode(neighborX, neighborY, neighborZ);
 
 				// Only return the neighbour if it isn't blocked!
 				if (!leafNode.GetNode(subNodeCode))

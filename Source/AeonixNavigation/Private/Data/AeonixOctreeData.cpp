@@ -130,7 +130,7 @@ void FAeonixOctreeData::GetNeighbours(const AeonixLink& aLink, TArray<AeonixLink
 			// If the node as no children, it's clear, so add to neighbours and continue
 			if (!thisNode.HasChildren())
 			{
-				oNeighbours.Add(neighbourLink);
+				oNeighbours.Add(thisLink);
 				continue;
 			}
 

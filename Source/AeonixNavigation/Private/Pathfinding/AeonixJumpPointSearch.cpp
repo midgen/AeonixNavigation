@@ -147,6 +147,18 @@ bool AeonixJumpPointSearch::Jump(uint_fast32_t& x, uint_fast32_t& y, uint_fast32
 			return false;  // Hit obstacle
 		}
 
+		// For diagonal moves, check that intermediate cardinal positions are clear to prevent corner-cutting
+		if (FMath::Abs(dir.X) + FMath::Abs(dir.Y) + FMath::Abs(dir.Z) > 1)
+		{
+			// Check each cardinal component of the diagonal move
+			if (dir.X != 0 && !IsValidPosition(static_cast<int32>(x) + dir.X, y, z, currentNodeLink))
+				return false;
+			if (dir.Y != 0 && !IsValidPosition(x, static_cast<int32>(y) + dir.Y, z, currentNodeLink))
+				return false;
+			if (dir.Z != 0 && !IsValidPosition(x, y, static_cast<int32>(z) + dir.Z, currentNodeLink))
+				return false;
+		}
+
 		// If we changed nodes, that's also a potential jump point (transition point)
 		bool changedNodes = (newNodeLink.GetNodeIndex() != currentNodeLink.GetNodeIndex());
 

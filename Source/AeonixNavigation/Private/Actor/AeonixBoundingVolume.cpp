@@ -52,6 +52,7 @@ bool AAeonixBoundingVolume::Generate()
 		NavigationData.SetDebugPosition(GetWorld()->ViewLocationsRenderedLastFrame[0]);
 	}
 
+	UE_LOG(AeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::GenerateData (before octree generation)"));
 	FlushPersistentDebugLines(GetWorld());
 
 	// Setup timing
@@ -85,6 +86,9 @@ bool AAeonixBoundingVolume::Generate()
 	UE_LOG(AeonixNavigation, Display, TEXT("Total Leaf Nodes : %d"), NavigationData.OctreeData.LeafNodes.Num());
 	UE_LOG(AeonixNavigation, Display, TEXT("Total Size (bytes): %d"), TotalBytes);
 #endif
+
+	// Mark volume as ready for navigation after successful generation
+	bIsReadyForNavigation = true;
 
 	return true;
 }
@@ -126,6 +130,7 @@ void AAeonixBoundingVolume::AeonixDrawDebugDirectionalArrow(const FVector& Start
 void AAeonixBoundingVolume::ClearData()
 {
 	NavigationData.ResetForGeneration();
+	UE_LOG(AeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::ClearData"));
 	FlushPersistentDebugLines(GetWorld());
 }
 
@@ -166,6 +171,13 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
 	{
 		Ar << NavigationData.OctreeData;
+
+		// Mark as ready if we successfully loaded baked data
+		if (Ar.IsLoading() && NavigationData.OctreeData.LeafNodes.Num() > 0)
+		{
+			bIsReadyForNavigation = true;
+			UE_LOG(AeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes, marked ready for navigation"), NavigationData.OctreeData.LeafNodes.Num());
+		}
 	}
 }
 

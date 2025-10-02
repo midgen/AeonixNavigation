@@ -51,5 +51,5 @@ private:
 	void RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
 	void RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
 
-	void FirstPassRasterise(UWorld& World);
+	void FirstPassRasterise(const IAeonixCollisionQueryInterface& CollisionInterface);
 };

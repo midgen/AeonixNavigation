@@ -18,39 +18,64 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 {
 	if (!DebugActor)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("UpdateDebugActor called with null DebugActor"));
 		return;
 	}
 
 	if (DebugActor->DebugType == EAeonixPathDebugActorType::START)
 	{
 		StartDebugActor = DebugActor;
+		UE_LOG(LogTemp, Log, TEXT("Updated START debug actor at %s"), *DebugActor->GetActorLocation().ToString());
 	}
 	else
 	{
 		EndDebugActor = DebugActor;
+		UE_LOG(LogTemp, Log, TEXT("Updated END debug actor at %s"), *DebugActor->GetActorLocation().ToString());
 	}
 
 	// Flag that we need to redraw due to actor change
 	bNeedsRedraw = true;
-	
+
 	 UAeonixSubsystem* AeonixSubsystem = DebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
-	
+
 	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor && !bIsPathPending)
 	{
+		UE_LOG(LogTemp, Log, TEXT("Both START and END actors set, attempting pathfinding..."));
 		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
 		{
 			// Don't attempt pathfinding if the volume isn't ready (prevents hangs during asset loading)
 			if (!Volume->bIsReadyForNavigation)
 			{
+				UE_LOG(LogTemp, Warning, TEXT("Volume not ready for navigation - skipping pathfinding"));
 				return;
 			}
 			Volume->UpdateBounds();
+			UE_LOG(LogTemp, Log, TEXT("Requesting pathfind from %s to %s"), *StartDebugActor->GetActorLocation().ToString(), *EndDebugActor->GetActorLocation().ToString());
 			FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
 			PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
 			bIsPathPending = true;
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to get volume for agent"));
+		}
 
+	}
+	else
+	{
+		if (!StartDebugActor)
+		{
+			UE_LOG(LogTemp, Log, TEXT("No START actor set yet"));
+		}
+		if (!EndDebugActor)
+		{
+			UE_LOG(LogTemp, Log, TEXT("No END actor set yet"));
+		}
+		if (bIsPathPending)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Path already pending"));
+		}
 	}
 }
 
@@ -65,16 +90,18 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 		bIsPathPending = false;
 		// Flag that we need to redraw the new path
 		bNeedsRedraw = true;
+		UE_LOG(LogTemp, Log, TEXT("Pathfinding COMPLETE - path ready to draw with %d waypoints"), CurrentDebugPath.GetPathPoints().Num());
 	}
 	else if (Status == EAeonixPathFindStatus::Failed)
 	{
 		CurrentDebugPath.SetIsReady(false);
 		bIsPathPending = false;
 		// Keep showing the cached path even if new calculation failed
+		UE_LOG(LogTemp, Warning, TEXT("Pathfinding FAILED"));
 	}
 	else
 	{
-		UE_LOG(AeonixEditor, Error, TEXT("Unhandled state"));
+		UE_LOG(AeonixEditor, Error, TEXT("Unhandled pathfinding state"));
 	}
 }
 
@@ -111,7 +138,7 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		// Note: Removed FlushPersistentDebugLines to allow octree debug visualization to persist
 		// Path debug lines now use non-persistent durations instead
 	}
-	
+
 	// Only draw when we need to redraw (not every frame)
 	if (bNeedsRedraw && StartDebugActor.IsValid())
 	{

@@ -372,6 +372,7 @@ void AAeonixBatchTestActor::ClearVisualization()
 
 	if (GetWorld())
 	{
+		UE_LOG(LogTemp, Log, TEXT("FlushPersistentDebugLines called from AAeonixBatchTestActor (clearing batch test visualization)"));
 		FlushDebugStrings(GetWorld());
 		FlushPersistentDebugLines(GetWorld());
 	}

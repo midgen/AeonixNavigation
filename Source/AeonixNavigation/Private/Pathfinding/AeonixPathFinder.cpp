@@ -162,6 +162,31 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 		NavigationData.GetLinkPosition(aStart, startPos);
 		NavigationData.GetLinkPosition(aTarget, endPos);
 		cost = (startPos - endPos).Size();
+
+		// Validate distance for leaf-to-leaf transitions
+		if (aStart.GetLayerIndex() == 0 && aTarget.GetLayerIndex() == 0)
+		{
+			// Both are leaf nodes - check if they're navigating between what should be adjacent nodes
+			if (startNode.FirstChild.IsValid() && endNode.FirstChild.IsValid())
+			{
+				// Calculate the expected maximum distance for adjacent leaf voxels
+				// Leaf voxel size is 1/4 of the layer 0 voxel size
+				float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
+				// Maximum distance would be diagonal between adjacent leaf voxels
+				// sqrt(3) * voxelSize for diagonal, but add some tolerance
+				float maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
+
+				if (cost > maxExpectedDistance)
+				{
+					UE_LOG(AeonixNavigation, Error, TEXT("WARNING: Pathfinder attempting to navigate between distant leaf nodes! Distance: %.2f, Max Expected: %.2f"),
+						cost, maxExpectedDistance);
+					UE_LOG(AeonixNavigation, Error, TEXT("  Start Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
+						*startPos.ToString(), aStart.GetLayerIndex(), aStart.GetNodeIndex(), aStart.GetSubnodeIndex());
+					UE_LOG(AeonixNavigation, Error, TEXT("  End Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
+						*endPos.ToString(), aTarget.GetLayerIndex(), aTarget.GetNodeIndex(), aTarget.GetSubnodeIndex());
+				}
+			}
+		}
 	}
 
 	return cost;

@@ -49,29 +49,52 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 	// Draw the original voxel positions from the debug array
 	if (myDebugVoxelInfo.Num() > 0)
 	{
-		for (int i = 0; i < myDebugVoxelInfo.Num(); i++)
+		// Cache the array size to avoid issues if array changes during iteration
+		const int32 NumVoxels = myDebugVoxelInfo.Num();
+
+		for (int32 i = 0; i < NumVoxels; i++)
 		{
+			// Bounds check to prevent crashes
+			if (!myDebugVoxelInfo.IsValidIndex(i))
+			{
+				UE_LOG(AeonixNavigation, Warning, TEXT("DebugDraw: Invalid index %d for debug voxel info array of size %d"), i, myDebugVoxelInfo.Num());
+				break;
+			}
+
 			const FDebugVoxelInfo& voxelInfo = myDebugVoxelInfo[i];
-			
+
 			// Determine color based on position in the array
 			FColor boxColor;
 			if (i == 0)  // First voxel (target position)
 			{
 				boxColor = FColor::Yellow;
 			}
-			else if (i == myDebugVoxelInfo.Num() - 1)  // Last voxel (start position)
+			else if (i == NumVoxels - 1)  // Last voxel (start position)
 			{
 				boxColor = FColor::Green;
 			}
 			else  // Intermediate voxels
 			{
-				boxColor = voxelInfo.Layer > 0 ? AeonixStatics::myLinkColors[voxelInfo.Layer] : FColor::Red;
+				// Validate layer index before using it (myLinkColors has 8 elements)
+				if (voxelInfo.Layer >= 0 && voxelInfo.Layer < 8)
+				{
+					boxColor = voxelInfo.Layer > 0 ? AeonixStatics::myLinkColors[voxelInfo.Layer] : FColor::Red;
+				}
+				else
+				{
+					boxColor = FColor::Red; // Default to red for invalid layers
+				}
 			}
-			
-			float size = voxelInfo.Layer == 0 ? 
-				Data.GetVoxelSize(voxelInfo.Layer) * 0.125f : 
-				Data.GetVoxelSize(voxelInfo.Layer) * 0.25f;
-				
+
+			// Calculate size with bounds checking on layer
+			float size = 50.0f; // Default size
+			if (voxelInfo.Layer >= 0)
+			{
+				size = voxelInfo.Layer == 0 ?
+					Data.GetVoxelSize(voxelInfo.Layer) * 0.125f :
+					Data.GetVoxelSize(voxelInfo.Layer) * 0.25f;
+			}
+
 			// Draw a box representing the original voxel
 			DrawDebugBox(
 				World,

@@ -36,7 +36,7 @@ const FAeonixGenerationParameters& FAeonixData::GetParams() const
 
 void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
-	FirstPassRasterise(World);
+	FirstPassRasterise(CollisionInterface);
 
 	// Allocate the leaf node data
 	OctreeData.LeafNodes.Empty();
@@ -428,7 +428,7 @@ void FAeonixData::RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQuer
 	}
 }
 
-void FAeonixData::FirstPassRasterise(UWorld& World)
+void FAeonixData::FirstPassRasterise(const IAeonixCollisionQueryInterface& CollisionInterface)
 {
 	// Add the first layer of blocking
 	OctreeData.BlockedIndices.Emplace();
@@ -438,11 +438,10 @@ void FAeonixData::FirstPassRasterise(UWorld& World)
 	{
 		FVector Position;
 		GetNodePosition(1, i, Position);
-		FCollisionQueryParams Params;
-		Params.bFindInitialOverlaps = true;
-		Params.bTraceComplex = false;
-		Params.TraceTag = "AeonixFirstPassRasterize";
-		if (World.OverlapBlockingTestByChannel(Position, FQuat::Identity, GenerationParameters.CollisionChannel, FCollisionShape::MakeBox(FVector(GetVoxelSize(1) * 0.5f)), Params))
+		float VoxelSize = GetVoxelSize(1);
+
+		// Use the collision interface instead of direct world query
+		if (CollisionInterface.IsBlocked(Position, VoxelSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
 		{
 			OctreeData.BlockedIndices[0].Add(i);
 		}

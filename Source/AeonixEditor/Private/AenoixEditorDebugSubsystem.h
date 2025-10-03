@@ -58,6 +58,9 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	UPROPERTY(Transient)
 	TArray<FAeonixFailedPath> FailedBatchRunPaths;
 
+	// Mutex to protect path data. Prevent writing to path while debug drawing it!
+	FCriticalSection PathMutex;
+
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void UpdateDebugActor(AAeonixPathDebugActor* DebugActor);

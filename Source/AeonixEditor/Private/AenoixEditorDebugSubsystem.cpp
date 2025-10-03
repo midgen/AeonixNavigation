@@ -81,6 +81,8 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 
 void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Status)
 {
+	FScopeLock Lock(&PathMutex);
+
 	if (Status == EAeonixPathFindStatus::Complete)
 	{
 		CurrentDebugPath.SetIsReady(true);
@@ -146,15 +148,20 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		// Note: This will clear all persistent debug lines but octree debug is redrawn during generation
 		FlushPersistentDebugLines(StartDebugActor->GetWorld());
 
-		// Draw the current path if ready, otherwise draw the cached path
-		if (CurrentDebugPath.IsReady())
+		// Lock mutex to safely read path data while async pathfinding may be writing
 		{
-			CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
-		}
-		else if (bHasValidCachedPath)
-		{
-			// Show cached path while recalculating
-			CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+			FScopeLock Lock(&PathMutex);
+
+			// Draw the current path if ready, otherwise draw the cached path
+			if (CurrentDebugPath.IsReady())
+			{
+				CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+			}
+			else if (bHasValidCachedPath)
+			{
+				// Show cached path while recalculating
+				CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+			}
 		}
 
 		// Reset flag after drawing
@@ -167,6 +174,7 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
 		{
+			FScopeLock Lock(&PathMutex);
 			for (const FAeonixNavigationPath& Path : BatchRunPaths)
 			{
 				Path.DebugDrawLite(World, FColor::Cyan, -1.0f); // Use persistent lines
@@ -181,6 +189,7 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
 		{
+			FScopeLock Lock(&PathMutex);
 			for (const FAeonixFailedPath& FailedPath : FailedBatchRunPaths)
 			{
 				// Draw thick red line from start to end for failed paths (persistent)
@@ -249,6 +258,7 @@ void UAenoixEditorDebugSubsystem::ClearCachedPath()
 
 void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigationPath>& Paths)
 {
+	FScopeLock Lock(&PathMutex);
 	BatchRunPaths = Paths;
 	bBatchPathsNeedRedraw = true;
 	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d batch run paths for visualization"), Paths.Num());
@@ -256,6 +266,7 @@ void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigatio
 
 void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
 {
+	FScopeLock Lock(&PathMutex);
 	BatchRunPaths.Empty();
 	FailedBatchRunPaths.Empty(); // Also clear failed paths
 	bBatchPathsNeedRedraw = false;
@@ -265,6 +276,7 @@ void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
 
 void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVector, FVector>>& FailedPaths)
 {
+	FScopeLock Lock(&PathMutex);
 	FailedBatchRunPaths.Empty();
 	for (const auto& Path : FailedPaths)
 	{
@@ -276,6 +288,7 @@ void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVec
 
 void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
 {
+	FScopeLock Lock(&PathMutex);
 	FailedBatchRunPaths.Empty();
 	bFailedPathsNeedRedraw = false;
 	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));

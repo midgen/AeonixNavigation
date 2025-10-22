@@ -19,7 +19,7 @@ void UAeonixNavAgentComponent::BeginPlay()
 	AeonixSubsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystem.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{
@@ -31,7 +31,7 @@ void UAeonixNavAgentComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (!AeonixSubsystem.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{
@@ -65,7 +65,7 @@ void UAeonixNavAgentComponent::RegisterPathForDebugRendering()
 {
 	if (bEnablePathDebugRendering && CurrentPath.GetPathPoints().Num() > 0)
 	{
-		UE_LOG(AeonixNavigation, Log, TEXT("NavAgent: Registering path with %d points for debug rendering"), CurrentPath.GetPathPoints().Num());
+		UE_LOG(LogAeonixNavigation, Log, TEXT("NavAgent: Registering path with %d points for debug rendering"), CurrentPath.GetPathPoints().Num());
 		CurrentPath.DebugDrawLite(GetWorld(), FColor::Green, 10.0f);
 	}
 }

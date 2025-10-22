@@ -35,7 +35,7 @@ bool AAeonixBoundingVolume::Generate()
 	{
 		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
 		CollisionQueryInterface = CollisionSubsystem;
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
 	}
 
 #if WITH_EDITOR
@@ -52,7 +52,7 @@ bool AAeonixBoundingVolume::Generate()
 		NavigationData.SetDebugPosition(GetWorld()->ViewLocationsRenderedLastFrame[0]);
 	}
 
-	UE_LOG(AeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::GenerateData (before octree generation)"));
+	UE_LOG(LogAeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::GenerateData (before octree generation)"));
 	FlushPersistentDebugLines(GetWorld());
 
 	// Setup timing
@@ -81,10 +81,10 @@ bool AAeonixBoundingVolume::Generate()
 	int32 TotalBytes = sizeof(AeonixNode) * TotalNodes;
 	TotalBytes += sizeof(AeonixLeafNode) * NavigationData.OctreeData.LeafNodes.Num();
 
-	UE_LOG(AeonixNavigation, Display, TEXT("Generation Time : %d"), BuildTime);
-	UE_LOG(AeonixNavigation, Display, TEXT("Total Layers-Nodes : %d-%d"), NavigationData.OctreeData.GetNumLayers(), TotalNodes);
-	UE_LOG(AeonixNavigation, Display, TEXT("Total Leaf Nodes : %d"), NavigationData.OctreeData.LeafNodes.Num());
-	UE_LOG(AeonixNavigation, Display, TEXT("Total Size (bytes): %d"), TotalBytes);
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Generation Time : %d"), BuildTime);
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Total Layers-Nodes : %d-%d"), NavigationData.OctreeData.GetNumLayers(), TotalNodes);
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Total Leaf Nodes : %d"), NavigationData.OctreeData.LeafNodes.Num());
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Total Size (bytes): %d"), TotalBytes);
 #endif
 
 	// Mark volume as ready for navigation after successful generation
@@ -130,7 +130,7 @@ void AAeonixBoundingVolume::AeonixDrawDebugDirectionalArrow(const FVector& Start
 void AAeonixBoundingVolume::ClearData()
 {
 	NavigationData.ResetForGeneration();
-	UE_LOG(AeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::ClearData"));
+	UE_LOG(LogAeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::ClearData"));
 	FlushPersistentDebugLines(GetWorld());
 }
 
@@ -142,7 +142,7 @@ void AAeonixBoundingVolume::OnConstruction(const FTransform& Transform)
 	AeonixSubsystemInterface = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystemInterface.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{
@@ -154,7 +154,7 @@ void AAeonixBoundingVolume::Destroyed()
 {
 	if (!AeonixSubsystemInterface.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{
@@ -176,7 +176,7 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 		if (Ar.IsLoading() && NavigationData.OctreeData.LeafNodes.Num() > 0)
 		{
 			bIsReadyForNavigation = true;
-			UE_LOG(AeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes, marked ready for navigation"), NavigationData.OctreeData.LeafNodes.Num());
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes, marked ready for navigation"), NavigationData.OctreeData.LeafNodes.Num());
 		}
 	}
 }
@@ -186,7 +186,7 @@ void AAeonixBoundingVolume::BeginPlay()
 	AeonixSubsystemInterface = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystemInterface.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{
@@ -196,7 +196,7 @@ void AAeonixBoundingVolume::BeginPlay()
 	CollisionQueryInterface = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
 	if (!CollisionQueryInterface.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
 	}
 
 	if (!bIsReadyForNavigation && GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::GenerateOnBeginPlay)
@@ -215,7 +215,7 @@ void AAeonixBoundingVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (!AeonixSubsystemInterface.GetInterface())
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid AeonixInterface found"));
 	}
 	else
 	{

@@ -1,11 +1,9 @@
 #pragma once
 
-#include <Runtime/Core/Public/Modules/ModuleManager.h>
+#include "Modules/ModuleManager.h"
 
-#if WITH_EDITOR
-DECLARE_LOG_CATEGORY_EXTERN(AeonixNavigation, Log, All);
-DECLARE_LOG_CATEGORY_EXTERN(VAeonixNavigation, Log, All);
-#endif
+AEONIXNAVIGATION_API DECLARE_LOG_CATEGORY_EXTERN(LogAeonixNavigation, Log, All);
+AEONIXNAVIGATION_API DECLARE_LOG_CATEGORY_EXTERN(VLogAeonixNavigation, Log, All);
 
 class FAeonixNavigationModule : public IModuleInterface
 {

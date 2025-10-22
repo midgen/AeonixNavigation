@@ -44,7 +44,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 		if (CurrentLink == GoalLink)
 		{
 			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
-			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
+			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
 			return true;
 		}
@@ -74,12 +74,12 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (numIterations > Settings.MaxIterations)
 		{
-			UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
+			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
 			return false;
 		}
 	}
 
-	UE_LOG(AeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
 	return false;
 }
 
@@ -178,11 +178,11 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 
 				if (cost > maxExpectedDistance)
 				{
-					UE_LOG(AeonixNavigation, Error, TEXT("WARNING: Pathfinder attempting to navigate between distant leaf nodes! Distance: %.2f, Max Expected: %.2f"),
+					UE_LOG(LogAeonixNavigation, Error, TEXT("WARNING: Pathfinder attempting to navigate between distant leaf nodes! Distance: %.2f, Max Expected: %.2f"),
 						cost, maxExpectedDistance);
-					UE_LOG(AeonixNavigation, Error, TEXT("  Start Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
+					UE_LOG(LogAeonixNavigation, Error, TEXT("  Start Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
 						*startPos.ToString(), aStart.GetLayerIndex(), aStart.GetNodeIndex(), aStart.GetSubnodeIndex());
-					UE_LOG(AeonixNavigation, Error, TEXT("  End Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
+					UE_LOG(LogAeonixNavigation, Error, TEXT("  End Position: %s (Layer: %d, Node: %d, Subnode: %d)"),
 						*endPos.ToString(), aTarget.GetLayerIndex(), aTarget.GetNodeIndex(), aTarget.GetSubnodeIndex());
 				}
 			}
@@ -475,7 +475,7 @@ void AeonixPathFinder::StringPullPath(TArray<FAeonixPathPoint>& pathPoints)
 	}
 	
 	// Debug output
-	UE_LOG(AeonixNavigation, Log, TEXT("String pulling: Original points: %d, Kept points: %d"), 
+	UE_LOG(LogAeonixNavigation, Log, TEXT("String pulling: Original points: %d, Kept points: %d"), 
 	       pathPoints.Num(), 
 	       pathPoints.Num() - pathPoints.FilterByPredicate([](const FAeonixPathPoint& Point){ return Point.bCullFlag; }).Num());
 }

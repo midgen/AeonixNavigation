@@ -86,8 +86,8 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 	NavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	if (!NavComponent)
 	{
-		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent"), *MoveRequest.ToString());
-		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the AIController"));
+		UE_VLOG(this, VLogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent"), *MoveRequest.ToString());
+		UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the AIController"));
 		return;
 	}
 
@@ -259,7 +259,7 @@ void UAITask_AeonixMoveTo::SetObservedPath(FNavPathSharedPtr InPath)
 
 void UAITask_AeonixMoveTo::CheckPathPreConditions()
 {
-	UE_VLOG(this, VAeonixNavigation, Log, TEXT("AeonixMoveTo: %s"), *MoveRequest.ToString());
+	UE_VLOG(this, VLogAeonixNavigation, Log, TEXT("AeonixMoveTo: %s"), *MoveRequest.ToString());
 
 	Result.Code = EAeonixPathfindingRequestResult::Failed;
 
@@ -267,22 +267,22 @@ void UAITask_AeonixMoveTo::CheckPathPreConditions()
 	NavComponent = Cast<UAeonixNavAgentComponent>(GetOwnerActor()->GetComponentByClass(UAeonixNavAgentComponent::StaticClass()));
 	if (!NavComponent)
 	{
-		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"), *MoveRequest.ToString());
-		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"));
+		UE_VLOG(this, VLogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"), *MoveRequest.ToString());
+		UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing AeonixNavComponent on the pawn"));
 		return;
 	}
 
 	if (MoveRequest.IsValid() == false)
 	{
-		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due MoveRequest not being valid. Most probably desired Goal Actor not longer exists"), *MoveRequest.ToString());
-		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due MoveRequest not being valid. Most probably desired Goal Actor not longer exists"));
+		UE_VLOG(this, VLogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due MoveRequest not being valid. Most probably desired Goal Actor not longer exists"), *MoveRequest.ToString());
+		UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due MoveRequest not being valid. Most probably desired Goal Actor not longer exists"));
 		return;
 	}
 
 	if (OwnerController->GetPathFollowingComponent() == nullptr)
 	{
-		UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing PathFollowingComponent"));
-		UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing PathFollowingComponent"));
+		UE_VLOG(this, VLogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing PathFollowingComponent"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixMoveTo request failed due missing PathFollowingComponent"));
 		return;
 	}
 
@@ -293,8 +293,8 @@ void UAITask_AeonixMoveTo::CheckPathPreConditions()
 	{
 		if (MoveRequest.GetGoalLocation().ContainsNaN() || FAISystem::IsValidLocation(MoveRequest.GetGoalLocation()) == false)
 		{
-			UE_VLOG(this, VAeonixNavigation, Error, TEXT("AeonixMoveTo: Destination is not valid! Goal(%s)"), TEXT_AI_LOCATION(MoveRequest.GetGoalLocation()));
-			UE_LOG(AeonixNavigation, Error, TEXT("AeonixMoveTo: Destination is not valid! Goal(%s)"), TEXT_AI_LOCATION(MoveRequest.GetGoalLocation()));
+			UE_VLOG(this, VLogAeonixNavigation, Error, TEXT("AeonixMoveTo: Destination is not valid! Goal(%s)"), TEXT_AI_LOCATION(MoveRequest.GetGoalLocation()));
+			UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixMoveTo: Destination is not valid! Goal(%s)"), TEXT_AI_LOCATION(MoveRequest.GetGoalLocation()));
 			bCanRequestMove = false;
 		}
 
@@ -307,8 +307,8 @@ void UAITask_AeonixMoveTo::CheckPathPreConditions()
 
 	if (bAlreadyAtGoal)
 	{
-		UE_VLOG(this, VAeonixNavigation, Log, TEXT("AeonixMoveTo: already at goal!"));
-		UE_LOG(AeonixNavigation, Log, TEXT("AeonixMoveTo: already at goal!"));
+		UE_VLOG(this, VLogAeonixNavigation, Log, TEXT("AeonixMoveTo: already at goal!"));
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixMoveTo: already at goal!"));
 		Result.MoveId = OwnerController->GetPathFollowingComponent()->RequestMoveWithImmediateFinish(EPathFollowingResult::Success);
 		Result.Code = EAeonixPathfindingRequestResult::AlreadyAtGoal;
 	}
@@ -325,8 +325,8 @@ void UAITask_AeonixMoveTo::RequestPathSynchronous()
 {
 	Result.Code = EAeonixPathfindingRequestResult::Failed;
 
-	UE_VLOG(this, VAeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
-	UE_LOG(AeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
+	UE_VLOG(this, VLogAeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixMoveTo: Requesting Synchronous pathfinding!"));
 	
 	if (AeonixSubsystem->FindPathImmediateAgent(NavComponent, MoveRequest.GetGoalLocation(), NavComponent->GetPath()))
 	{
@@ -375,8 +375,8 @@ void UAITask_AeonixMoveTo::RequestMove()
 
 	if (RequestId.IsValid())
 	{
-		UE_VLOG(this, VAeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
-		UE_LOG(AeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
+		UE_VLOG(this, VLogAeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
 		Result.MoveId = RequestId;
 		Result.Code = EAeonixPathfindingRequestResult::Success;
 	}
@@ -414,7 +414,7 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 	if (Vlog.IsRecording() && AeonixPath->GetPathPoints().Num())
 	{
 	
-		FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VAeonixNavigation);
+		FVisualLogEntry* Entry = FVisualLogger::GetEntryToWrite(OwnerController->GetPawn(), VLogAeonixNavigation);
 		if (Entry)
 		{
 			for (int i = 0; i < AeonixPath->GetPathPoints().Num(); i++)
@@ -435,7 +435,7 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 					size = NavVolume->GetNavData().GetVoxelSize(Point.Layer - 1);
 				}
 	
-				UE_VLOG_BOX(OwnerController->GetPawn(), VAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
+				UE_VLOG_BOX(OwnerController->GetPawn(), VLogAeonixNavigation, Verbose, FBox(Point.Position + FVector(size * 0.5f), Point.Position - FVector(size * 0.5f)), FColor::Black, TEXT_EMPTY);
 			}
 		}
 	}

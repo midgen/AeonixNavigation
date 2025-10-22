@@ -15,11 +15,11 @@ UAeonixPathFollowingComponent::UAeonixPathFollowingComponent()
 	: CurrentWaypointIndex(0)
 	, LastVelocity(FVector::ZeroVector)
 	, CurrentAeonixPath(nullptr)
+	, bProcessingMovementThisFrame(false)
+	, LastProcessedFrameNumber(0)
 	, bInitializationComplete(false)
 	, InitializationRetryTimer(0.0f)
 	, InitializationRetryCount(0)
-	, bProcessingMovementThisFrame(false)
-	, LastProcessedFrameNumber(0)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }

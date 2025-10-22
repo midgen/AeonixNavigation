@@ -57,7 +57,7 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			// Bounds check to prevent crashes
 			if (!myDebugVoxelInfo.IsValidIndex(i))
 			{
-				UE_LOG(AeonixNavigation, Warning, TEXT("DebugDraw: Invalid index %d for debug voxel info array of size %d"), i, myDebugVoxelInfo.Num());
+				UE_LOG(LogAeonixNavigation, Warning, TEXT("DebugDraw: Invalid index %d for debug voxel info array of size %d"), i, myDebugVoxelInfo.Num());
 				break;
 			}
 

@@ -2,12 +2,10 @@
 
 #include <AeonixNavigation/Public/AeonixNavigation.h>
 
-#if WITH_EDITOR
+DEFINE_LOG_CATEGORY(LogAeonixNavigation);
+DEFINE_LOG_CATEGORY(VLogAeonixNavigation);
 
-DEFINE_LOG_CATEGORY(AeonixNavigation);
-DEFINE_LOG_CATEGORY(VAeonixNavigation);
 
-#endif
 
 #define LOCTEXT_NAMESPACE "FAeonixNavigationModule"
 

@@ -49,7 +49,7 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 		}
 	}
 
-	UE_LOG(AeonixNavigation, Error, TEXT("Tried to remove a volume that isn't registered"))
+	UE_LOG(LogAeonixNavigation, Error, TEXT("Tried to remove a volume that isn't registered"))
 }
 
 void UAeonixSubsystem::RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion)
@@ -134,13 +134,13 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		return false;
 	}
 
 	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		return false;
 	}
 
@@ -151,7 +151,7 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath);
 
 	OutPath.SetIsReady(true);
-	UE_LOG(AeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 
 	return Result;
 }
@@ -167,7 +167,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 	if (!NavVolume)
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("Nav Agent Not In A Volume"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Nav Agent Not In A Volume"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
@@ -175,14 +175,14 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
 
 	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
 	{
-		UE_LOG(AeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
@@ -190,7 +190,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	if (TargetNavLink == StartNavLink)
 	{
 		// TODO: this should succeed
-		UE_LOG(AeonixNavigation, Error, TEXT("Trying to path from same start and end navlink"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Trying to path from same start and end navlink"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
@@ -208,7 +208,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath))
 		{
 			OutPath.SetIsReady(true);
-			UE_LOG(AeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 		}
 		else

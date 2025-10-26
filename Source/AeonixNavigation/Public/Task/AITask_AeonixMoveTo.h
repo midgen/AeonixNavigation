@@ -3,11 +3,11 @@
 
 #include "Subsystem/AeonixSubsystem.h"
 
-#include <AeonixNavigation/Public/Data/AeonixDefines.h>
+#include "Data/AeonixDefines.h"
 
-#include <Runtime/AIModule/Classes/Navigation/PathFollowingComponent.h>
-#include <Runtime/AIModule/Classes/Tasks/AITask.h>
-#include <Runtime/Core/Public/HAL/ThreadSafeBool.h>
+#include "Navigation/PathFollowingComponent.h"
+#include "Tasks/AITask.h"
+#include "HAL/ThreadSafeBool.h"
 
 #include "AITask_AeonixMoveTo.generated.h"
 

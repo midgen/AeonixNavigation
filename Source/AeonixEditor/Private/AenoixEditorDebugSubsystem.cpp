@@ -2,12 +2,12 @@
 
 
 
-#include <AeonixEditor/Private/AenoixEditorDebugSubsystem.h>
-#include <AeonixEditor/Private/AeonixPathDebugActor.h>
+#include "AenoixEditorDebugSubsystem.h"
+#include "AeonixPathDebugActor.h"
 
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
-#include <AeonixEditor/AeonixEditor.h>
+#include "Actor/AeonixBoundingVolume.h"
+#include "Component/AeonixNavAgentComponent.h"
+#include "AeonixEditor/AeonixEditor.h"
 
 #include "Subsystem/AeonixSubsystem.h"
 

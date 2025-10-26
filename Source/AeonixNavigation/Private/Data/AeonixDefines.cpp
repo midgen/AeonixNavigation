@@ -1,4 +1,4 @@
-#include <AeonixNavigation/Public/Data/AeonixDefines.h>
+#include "Data/AeonixDefines.h"
 
 const FIntVector AeonixStatics::dirs[] = {
 	FIntVector(1, 0, 0),

@@ -1,9 +1,9 @@
 ﻿
-#include <AeonixEditor/Private/AeonixPathDebugActor.h>
+#include "AeonixPathDebugActor.h"
 
-#include <AeonixEditor/Private/AenoixEditorDebugSubsystem.h>
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
+#include "AenoixEditorDebugSubsystem.h"
+#include "Component/AeonixNavAgentComponent.h"
+#include "Subsystem/AeonixSubsystem.h"
 
 static const FName NavAgentComponentName(TEXT("AeonixNavAgentComponent"));
 static const FName RootComponentName(TEXT("RootComponent"));

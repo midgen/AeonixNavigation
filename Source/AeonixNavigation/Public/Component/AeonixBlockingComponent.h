@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Runtime/Engine/Classes/Components/ActorComponent.h>
+#include "Components/ActorComponent.h"
 
 #include "AeonixBlockingComponent.generated.h"
 

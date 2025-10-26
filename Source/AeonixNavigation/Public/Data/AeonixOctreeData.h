@@ -1,7 +1,7 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixLeafNode.h>
-#include <AeonixNavigation/Public/Data/AeonixNode.h>
+#include "Data/AeonixLeafNode.h"
+#include "Data/AeonixNode.h"
 
 #include "AeonixOctreeData.generated.h"
 

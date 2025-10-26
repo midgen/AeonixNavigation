@@ -1,7 +1,7 @@
 // Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
-#include <AeonixEditor/Private/AeonixVolumeDetails.h>
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
+#include "AeonixVolumeDetails.h"
+#include "Actor/AeonixBoundingVolume.h"
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"

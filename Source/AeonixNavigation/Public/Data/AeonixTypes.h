@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Runtime/Core/Public/HAL/ThreadSafeCounter.h>
+#include "HAL/ThreadSafeCounter.h"
 
 #include "AeonixTypes.generated.h"
 

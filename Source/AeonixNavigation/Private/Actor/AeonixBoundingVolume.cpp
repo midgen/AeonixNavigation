@@ -1,15 +1,15 @@
 
 
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
-#include <AeonixNavigation/Public/Subsystem/AeonixCollisionSubsystem.h>
-#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include "Actor/AeonixBoundingVolume.h"
+#include "Subsystem/AeonixSubsystem.h"
+#include "Subsystem/AeonixCollisionSubsystem.h"
+#include "AeonixNavigation.h"
 
-#include <Runtime/Engine/Classes/Components/BrushComponent.h>
-#include <Runtime/Engine/Classes/Components/LineBatchComponent.h>
-#include <Runtime/Engine/Classes/Engine/CollisionProfile.h>
-#include <Runtime/Engine/Classes/GameFramework/PlayerController.h>
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
+#include "Components/BrushComponent.h"
+#include "Components/LineBatchComponent.h"
+#include "Engine/CollisionProfile.h"
+#include "GameFramework/PlayerController.h"
+#include "DrawDebugHelpers.h"
 
 #include <chrono>
 

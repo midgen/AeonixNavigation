@@ -1,10 +1,10 @@
-#include <AeonixNavigation/Public/Data/AeonixData.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <Engine/World.h>
-#include <Engine/EngineTypes.h>
-#include <Misc/AutomationTest.h>
+#include "Data/AeonixData.h"
+#include "Pathfinding/AeonixPathFinder.h"
+#include "Pathfinding/AeonixNavigationPath.h"
+#include "Data/AeonixLink.h"
+#include "Engine/World.h"
+#include "Engine/EngineTypes.h"
+#include "Misc/AutomationTest.h"
 #include "../Public/AeonixNavigationTestMocks.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAeonixNavigation_ObstacleNavigationTest,

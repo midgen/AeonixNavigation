@@ -1,9 +1,9 @@
-#include <AeonixNavigation/Public/Data/AeonixData.h>
-#include <Engine/World.h>
-#include <Engine/EngineTypes.h>
-#include <AeonixNavigation/Public/Interface/AeonixCollisionQueryInterface.h>
-#include <AeonixNavigation/Public/Interface/AeonixDebugDrawInterface.h>
-#include <Misc/AutomationTest.h>
+#include "Data/AeonixData.h"
+#include "Engine/World.h"
+#include "Engine/EngineTypes.h"
+#include "Interface/AeonixCollisionQueryInterface.h"
+#include "Interface/AeonixDebugDrawInterface.h"
+#include "Misc/AutomationTest.h"
 
 // Mock implementation of IAeonixCollisionQueryInterface
 class FMockCollisionQueryInterface : public IAeonixCollisionQueryInterface

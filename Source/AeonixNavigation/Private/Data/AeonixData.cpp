@@ -1,7 +1,7 @@
-#include <AeonixNavigation/Public/Data/AeonixData.h>
-#include <AeonixNavigation/Public/Data/AeonixGenerationParameters.h>
-#include <AeonixNavigation/Public/Interface/AeonixCollisionQueryInterface.h>
-#include <AeonixNavigation/Public/Interface/AeonixDebugDrawInterface.h>
+#include "Data/AeonixData.h"
+#include "Data/AeonixGenerationParameters.h"
+#include "Interface/AeonixCollisionQueryInterface.h"
+#include "Interface/AeonixDebugDrawInterface.h"
 
 void FAeonixData::SetExtents(const FVector& Origin, const FVector& Extents)
 {

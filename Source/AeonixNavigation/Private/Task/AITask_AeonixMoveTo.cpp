@@ -1,17 +1,17 @@
 
-#include <AeonixNavigation/Public/Task/AITask_AeonixMoveTo.h>
+#include "Task/AITask_AeonixMoveTo.h"
 
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include "Actor/AeonixBoundingVolume.h"
+#include "Component/AeonixNavAgentComponent.h"
+#include "Pathfinding/AeonixNavigationPath.h"
+#include "AeonixNavigation.h"
 
-#include <Runtime/AIModule/Classes/AIController.h>
-#include <Runtime/AIModule/Classes/AIResources.h>
-#include <Runtime/AIModule/Classes/AISystem.h>
-#include <Runtime/Engine/Public/TimerManager.h>
-#include <Runtime/Engine/Public/VisualLogger/VisualLogger.h>
-#include <Runtime/GameplayTasks/Classes/GameplayTasksComponent.h>
+#include "AIController.h"
+#include "AIResources.h"
+#include "AISystem.h"
+#include "TimerManager.h"
+#include "VisualLogger/VisualLogger.h"
+#include "GameplayTasksComponent.h"
 
 UAITask_AeonixMoveTo::UAITask_AeonixMoveTo(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

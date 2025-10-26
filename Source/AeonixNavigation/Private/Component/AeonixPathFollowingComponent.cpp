@@ -5,11 +5,11 @@
 #include "Component/AeonixFlyingMovementComponent.h"
 #include "Pathfinding/AeonixNavigationPath.h"
 #include "Subsystem/AeonixSubsystem.h"
-#include <GameFramework/Pawn.h>
-#include <GameFramework/PawnMovementComponent.h>
-#include <Components/StaticMeshComponent.h>
-#include <Engine/Engine.h>
-#include <DrawDebugHelpers.h>
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PawnMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine.h"
+#include "DrawDebugHelpers.h"
 
 UAeonixPathFollowingComponent::UAeonixPathFollowingComponent()
 	: CurrentWaypointIndex(0)

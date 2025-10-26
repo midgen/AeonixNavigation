@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Runtime/MassEntity/Public/MassEntityTypes.h>
+#include "MassEntityTypes.h"
 
 #include "AeonixFragments.generated.h"
 

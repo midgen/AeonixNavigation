@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <GameFramework/PawnMovementComponent.h>
-#include <CoreMinimal.h>
+#include "GameFramework/PawnMovementComponent.h"
+#include "CoreMinimal.h"
 #include "AeonixFlyingMovementComponent.generated.h"
 
 USTRUCT(BlueprintType)

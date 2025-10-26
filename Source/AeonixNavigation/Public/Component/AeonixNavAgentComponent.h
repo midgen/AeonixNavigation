@@ -1,10 +1,10 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
+#include "Pathfinding/AeonixPathFinder.h"
+#include "Pathfinding/AeonixNavigationPath.h"
+#include "Interface/AeonixSubsystemInterface.h"
 
-#include <Runtime/Engine/Classes/Components/ActorComponent.h>
+#include "Components/ActorComponent.h"
 
 #include "AeonixNavAgentComponent.generated.h"
 

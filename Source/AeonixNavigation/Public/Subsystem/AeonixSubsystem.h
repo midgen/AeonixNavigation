@@ -1,10 +1,10 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
-#include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
-#include <AeonixNavigation/Public/Data/AeonixHandleTypes.h>
+#include "Data/AeonixTypes.h"
+#include "Interface/AeonixSubsystemInterface.h"
+#include "Data/AeonixHandleTypes.h"
 
-#include <Subsystems/EngineSubsystem.h>
+#include "Subsystems/EngineSubsystem.h"
 
 #include "AeonixSubsystem.generated.h"
 

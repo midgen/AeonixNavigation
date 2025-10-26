@@ -1,7 +1,7 @@
 #include "AeonixEditor/AeonixEditor.h"
 #include "AeonixEditor/Private/AeonixVolumeDetails.h"
 
-#include <Editor/PropertyEditor/Public/PropertyEditorModule.h>
+#include "PropertyEditorModule.h"
 
 IMPLEMENT_GAME_MODULE(FAeonixEditorModule, AeonixEditor);
 

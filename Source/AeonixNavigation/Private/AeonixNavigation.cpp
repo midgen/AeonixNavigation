@@ -1,6 +1,6 @@
 // Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
-#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include "AeonixNavigation.h"
 
 DEFINE_LOG_CATEGORY(LogAeonixNavigation);
 DEFINE_LOG_CATEGORY(VLogAeonixNavigation);

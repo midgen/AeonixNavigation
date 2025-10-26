@@ -1,11 +1,11 @@
 
-#include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
+#include "Pathfinding/AeonixPathFinder.h"
 
-#include <AeonixNavigation/Public/AeonixNavigation.h>
-#include <AeonixNavigation/Public/Data/AeonixData.h>
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <AeonixNavigation/Public/Data/AeonixNode.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
+#include "AeonixNavigation.h"
+#include "Data/AeonixData.h"
+#include "Data/AeonixLink.h"
+#include "Data/AeonixNode.h"
+#include "Pathfinding/AeonixNavigationPath.h"
 
 bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {

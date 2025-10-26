@@ -1,7 +1,7 @@
-#include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
+#include "Task/AeonixFindPathTask.h"
 
-#include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
+#include "Pathfinding/AeonixPathFinder.h"
+#include "Data/AeonixTypes.h"
 
 void FAeonixFindPathTask::DoWork()
 {

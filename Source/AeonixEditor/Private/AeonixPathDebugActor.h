@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <Runtime/Engine/Classes/GameFramework/Actor.h>
+#include "GameFramework/Actor.h"
 
 #include "AeonixPathDebugActor.generated.h"
 

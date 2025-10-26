@@ -1,10 +1,10 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Interface/AeonixCollisionQueryInterface.h>
-#include <AeonixNavigation/Public/Interface/AeonixDebugDrawInterface.h>
-#include <Engine/EngineTypes.h>
-#include <Math/Vector.h>
-#include <Containers/Array.h>
+#include "Interface/AeonixCollisionQueryInterface.h"
+#include "Interface/AeonixDebugDrawInterface.h"
+#include "Engine/EngineTypes.h"
+#include "Math/Vector.h"
+#include "Containers/Array.h"
 
 // Mock debug draw interface for logging and tracking voxel visualization
 class FTestDebugDrawInterface : public IAeonixDebugDrawInterface

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <AeonixNavigation/Private/Library/libmorton/morton.h>
-#include <AeonixNavigation/Public/Data/AeonixDefines.h>
+#include "AeonixNavigation/Private/Library/libmorton/morton.h"
+#include "Data/AeonixDefines.h"
 
 struct AEONIXNAVIGATION_API AeonixLeafNode
 {

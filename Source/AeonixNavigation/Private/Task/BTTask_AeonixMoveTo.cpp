@@ -1,16 +1,16 @@
 
-#include <AeonixNavigation/Public/Task/BTTask_AeonixMoveTo.h>
-#include <AeonixNavigation/Public/Task/AITask_AeonixMoveTo.h>
+#include "Task/BTTask_AeonixMoveTo.h"
+#include "Task/AITask_AeonixMoveTo.h"
 
-#include <Runtime/AIModule/Classes/AIController.h>
-#include <Runtime/AIModule/Classes/AISystem.h>
-#include <Runtime/AIModule/Classes/BehaviorTree/Blackboard/BlackboardKeyType_Object.h>
-#include <Runtime/AIModule/Classes/BehaviorTree/Blackboard/BlackboardKeyType_Vector.h>
-#include <Runtime/AIModule/Classes/BehaviorTree/BlackboardComponent.h>
-#include <Runtime/AIModule/Classes/Navigation/PathFollowingComponent.h>
+#include "AIController.h"
+#include "AISystem.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "Navigation/PathFollowingComponent.h"
 
-#include <Runtime/Engine/Classes/GameFramework/Actor.h>
-#include <Runtime/Engine/Public/VisualLogger/VisualLogger.h>
+#include "GameFramework/Actor.h"
+#include "VisualLogger/VisualLogger.h"
 
 UBTTask_AeonixMoveTo::UBTTask_AeonixMoveTo(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

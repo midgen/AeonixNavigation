@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Misc/Guid.h>
+#include "Misc/Guid.h"
 
 // Custom serialization version for assets/classes in the Aeonix module
 struct AEONIXNAVIGATION_API FAeonixCustomVersion

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Runtime/CoreUObject/Public/UObject/ObjectMacros.h>
+#include "UObject/ObjectMacros.h"
 
 #include "AeonixGenerationParameters.generated.h"
 

@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
+#include "Pathfinding/AeonixNavigationPath.h"
 
-#include <EditorSubsystem.h>
+#include "EditorSubsystem.h"
 
 #include "AenoixEditorDebugSubsystem.generated.h"
 

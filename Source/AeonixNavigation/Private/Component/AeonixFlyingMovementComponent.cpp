@@ -1,10 +1,10 @@
 // Copyright 2024 Chris Ashworth
 
 #include "Component/AeonixFlyingMovementComponent.h"
-#include <GameFramework/Pawn.h>
-#include <Components/StaticMeshComponent.h>
-#include <Engine/Engine.h>
-#include <DrawDebugHelpers.h>
+#include "GameFramework/Pawn.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine.h"
+#include "DrawDebugHelpers.h"
 
 UAeonixFlyingMovementComponent::UAeonixFlyingMovementComponent()
 {

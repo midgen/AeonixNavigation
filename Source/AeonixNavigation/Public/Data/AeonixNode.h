@@ -1,7 +1,7 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <AeonixNavigation/Public/Data/AeonixDefines.h>
+#include "Data/AeonixLink.h"
+#include "Data/AeonixDefines.h"
 
 struct AEONIXNAVIGATION_API AeonixNode
 {

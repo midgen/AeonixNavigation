@@ -6,7 +6,7 @@
 #include "Subsystem/AeonixSubsystem.h"
 #include "Component/AeonixNavAgentComponent.h"
 #include "DrawDebugHelpers.h"
-#include <StateTreeModule/Public/StateTreeExecutionContext.h>
+#include "StateTreeExecutionContext.h"
 
 EStateTreeRunStatus FStateTreeTask_AeonixMoveTo::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {

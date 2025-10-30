@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <Navigation/PathFollowingComponent.h>
-#include <CoreMinimal.h>
+#include "Navigation/PathFollowingComponent.h"
+#include "CoreMinimal.h"
 #include "AeonixPathFollowingComponent.generated.h"
 
 struct FAeonixNavigationPath;

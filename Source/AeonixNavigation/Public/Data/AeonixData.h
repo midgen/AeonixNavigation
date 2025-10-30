@@ -1,7 +1,7 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixOctreeData.h>
-#include <AeonixNavigation/Public/Data/AeonixGenerationParameters.h>
+#include "Data/AeonixOctreeData.h"
+#include "Data/AeonixGenerationParameters.h"
 
 #include "AeonixData.generated.h"
 

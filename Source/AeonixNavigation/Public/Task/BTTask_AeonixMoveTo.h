@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Runtime/AIModule/Classes/BehaviorTree/Tasks/BTTask_BlackboardBase.h>
+#include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 
 #include "BTTask_AeonixMoveTo.generated.h"
 

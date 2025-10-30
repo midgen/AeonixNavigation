@@ -1,7 +1,7 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
+#include "Pathfinding/AeonixNavigationPath.h"
+#include "Data/AeonixLink.h"
 
 #include "AeonixPathFinder.generated.h"
 

@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include <AeonixNavigation/Public/Interface/AeonixCollisionQueryInterface.h>
+#include "Interface/AeonixCollisionQueryInterface.h"
 
-#include <Subsystems/WorldSubsystem.h>
+#include "Subsystems/WorldSubsystem.h"
 
 #include "AeonixCollisionSubsystem.generated.h"
 

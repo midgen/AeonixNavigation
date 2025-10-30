@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Runtime/AIModule/Classes/AITypes.h>
+#include "AITypes.h"
 
 typedef uint8 layerindex_t;
 typedef int32 nodeindex_t;

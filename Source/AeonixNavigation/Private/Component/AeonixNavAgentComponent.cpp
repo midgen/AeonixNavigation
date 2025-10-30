@@ -1,11 +1,11 @@
 
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
+#include "Component/AeonixNavAgentComponent.h"
 
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
-#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include "Subsystem/AeonixSubsystem.h"
+#include "AeonixNavigation.h"
 
-#include <Runtime/Engine/Classes/GameFramework/Actor.h>
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
+#include "GameFramework/Actor.h"
+#include "DrawDebugHelpers.h"
 
 UAeonixNavAgentComponent::UAeonixNavAgentComponent(const FObjectInitializer& ObjectInitializer)
 {

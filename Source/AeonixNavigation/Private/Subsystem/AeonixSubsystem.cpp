@@ -40,10 +40,17 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 			if (DestroyMassEntity == EAeonixMassEntityFlag::Enabled)
 			{
 				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
-				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
-				EntityManager.DestroyEntity(Handle.EntityHandle);
+				if (MassEntitySubsystem)
+				{
+					FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+					EntityManager.DestroyEntity(Handle.EntityHandle);
+				}
+				else
+				{
+					UE_LOG(LogAeonixNavigation, Warning, TEXT("MassEntitySubsystem not available, skipping entity destruction"));
+				}
 			}
-			
+
 			RegisteredVolumes.RemoveSingle(Handle);
 			return;
 		}
@@ -74,16 +81,23 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 	if (CreateMassEntity == EAeonixMassEntityFlag::Enabled)
 	{
 		UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
-		FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+		if (MassEntitySubsystem)
+		{
+			FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
 
-		FMassArchetypeCompositionDescriptor Composition;
-		Composition.Fragments.Add<FTransformFragment>();
-		Composition.Fragments.Add<FAeonixNavAgentFragment>(); 
+			FMassArchetypeCompositionDescriptor Composition;
+			Composition.Fragments.Add<FTransformFragment>();
+			Composition.Fragments.Add<FAeonixNavAgentFragment>();
 
-		FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
-		Entity = EntityManager.CreateEntity(Archetype);
+			FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
+			Entity = EntityManager.CreateEntity(Archetype);
+		}
+		else
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("MassEntitySubsystem not available, skipping mass entity creation"));
+		}
 	}
-	
+
 	RegisteredNavAgents.Emplace(NavComponent, Entity);
 }
 
@@ -98,8 +112,15 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 			if (DestroyMassEntity == EAeonixMassEntityFlag::Enabled)
 			{
 				UMassEntitySubsystem* MassEntitySubsystem = GetWorld()->GetSubsystem<UMassEntitySubsystem>();
-				FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
-				EntityManager.DestroyEntity(Agent.EntityHandle);
+				if (MassEntitySubsystem)
+				{
+					FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
+					EntityManager.DestroyEntity(Agent.EntityHandle);
+				}
+				else
+				{
+					UE_LOG(LogAeonixNavigation, Warning, TEXT("MassEntitySubsystem not available, skipping entity destruction"));
+				}
 			}
 			break;
 		}

@@ -80,10 +80,17 @@ void AAeonixBatchTestActor::OnConstruction(const FTransform& Transform)
 
 	RandomStream.Initialize(TestSettings.RandomSeed);
 
-	// Always register the nav component in OnConstruction (like the debug actor)
-	if (GetWorld() && NavAgentComponent)
+	// Skip registration during cooking/commandlet execution to avoid crashes
+	UWorld* World = GetWorld();
+	if (!World || World->WorldType == EWorldType::Inactive || IsRunningCommandlet())
 	{
-		UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
+		return;
+	}
+
+	// Always register the nav component in OnConstruction (like the debug actor)
+	if (NavAgentComponent)
+	{
+		UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>();
 		if (Subsystem)
 		{
 			Subsystem->RegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Enabled);

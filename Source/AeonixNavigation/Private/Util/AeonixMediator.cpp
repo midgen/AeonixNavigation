@@ -1,8 +1,8 @@
-#include <AeonixNavigation/Public/Util/AeonixMediator.h>
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
+#include "Util/AeonixMediator.h"
+#include "Data/AeonixLink.h"
+#include "Actor/AeonixBoundingVolume.h"
 
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
+#include "DrawDebugHelpers.h"
 
 bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, AeonixLink& oLink)
 {

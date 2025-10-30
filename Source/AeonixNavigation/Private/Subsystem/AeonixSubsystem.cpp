@@ -2,19 +2,19 @@
 
 
 
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
+#include "Subsystem/AeonixSubsystem.h"
 
-#include <AeonixNavigation/Public/AeonixNavigation.h>
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/Component/AeonixNavAgentComponent.h>
-#include <AeonixNavigation/Public/Task/AeonixFindPathTask.h>
-#include <AeonixNavigation/Public/Util/AeonixMediator.h>
-#include <AeonixNavigation/Public/Mass/AeonixFragments.h>
-#include <AeonixNavigation/Public/Data/AeonixHandleTypes.h>
+#include "AeonixNavigation.h"
+#include "Actor/AeonixBoundingVolume.h"
+#include "Component/AeonixNavAgentComponent.h"
+#include "Task/AeonixFindPathTask.h"
+#include "Util/AeonixMediator.h"
+#include "Mass/AeonixFragments.h"
+#include "Data/AeonixHandleTypes.h"
 
-#include <MassCommon/Public/MassCommonFragments.h>
-#include <Runtime/MassEntity/Public/MassEntityManager.h>
-#include <Runtime/MassEntity/Public/MassEntitySubsystem.h>
+#include "MassCommonFragments.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 
 void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag CreateMassEntity)
 {

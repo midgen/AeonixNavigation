@@ -1,8 +1,8 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
+#include "Data/AeonixTypes.h"
 
-#include <UObject/Interface.h>
+#include "UObject/Interface.h"
 
 #include "AeonixSubsystemInterface.generated.h"
 

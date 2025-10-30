@@ -1,4 +1,4 @@
-#include <AeonixNavigation/Public/Data/AeonixOctreeData.h>
+#include "Data/AeonixOctreeData.h"
 
 const AeonixNode& FAeonixOctreeData::GetNode(const AeonixLink& aLink) const
 {

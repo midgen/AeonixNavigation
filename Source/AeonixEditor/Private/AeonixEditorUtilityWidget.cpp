@@ -1,9 +1,9 @@
 ﻿// Copyright 2024 Chris Ashworth
 
 
-#include <AeonixEditor/Private/AeonixEditorUtilityWidget.h>
+#include "AeonixEditorUtilityWidget.h"
 
-#include <AeonixNavigation/Public/Subsystem/AeonixSubsystem.h>
+#include "Subsystem/AeonixSubsystem.h"
 
 void UAeonixEditorUtilityWidget::CompleteAllPendingPathfindingTasks()
 {

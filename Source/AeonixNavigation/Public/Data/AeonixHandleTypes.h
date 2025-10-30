@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <Runtime/MassEntity/Public/MassEntityTypes.h>
+#include "MassEntityHandle.h"
 
 #include "AeonixHandleTypes.generated.h"
 

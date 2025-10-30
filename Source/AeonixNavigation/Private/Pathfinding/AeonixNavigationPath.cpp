@@ -1,10 +1,10 @@
-#include <AeonixNavigation/Public/Pathfinding/AeonixNavigationPath.h>
+#include "Pathfinding/AeonixNavigationPath.h"
 
-#include <Runtime/Engine/Classes/Debug/DebugDrawService.h>
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
-#include <Runtime/NavigationSystem/Public/NavigationData.h>
-#include <AeonixNavigation/Public/Actor/AeonixBoundingVolume.h>
-#include <AeonixNavigation/Public/AeonixNavigation.h>
+#include "Debug/DebugDrawService.h"
+#include "DrawDebugHelpers.h"
+#include "NavigationData.h"
+#include "Actor/AeonixBoundingVolume.h"
+#include "AeonixNavigation.h"
 
 void FAeonixNavigationPath::AddPoint(const FAeonixPathPoint& aPoint)
 {

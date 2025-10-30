@@ -1,11 +1,11 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixLink.h>
-#include <AeonixNavigation/Public/Pathfinding/AeonixPathFinder.h>
-#include <AeonixNavigation/Public/Data/AeonixTypes.h>
+#include "Data/AeonixLink.h"
+#include "Pathfinding/AeonixPathFinder.h"
+#include "Data/AeonixTypes.h"
 
-#include <Runtime/Core/Public/Async/AsyncWork.h>
-#include <Runtime/Core/Public/HAL/ThreadSafeBool.h>
+#include "Async/AsyncWork.h"
+#include "HAL/ThreadSafeBool.h"
 
 struct FAeonixData;
 struct AeonixPathFinderSettings;

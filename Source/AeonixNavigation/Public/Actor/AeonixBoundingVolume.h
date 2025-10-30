@@ -1,10 +1,10 @@
 #pragma once
 
-#include <AeonixNavigation/Public/Data/AeonixData.h>
-#include <AeonixNavigation/Public/Interface/AeonixDebugDrawInterface.h>
-#include <AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h>
+#include "Data/AeonixData.h"
+#include "Interface/AeonixDebugDrawInterface.h"
+#include "Interface/AeonixSubsystemInterface.h"
 
-#include <Runtime/Engine/Classes/GameFramework/Volume.h>
+#include "GameFramework/Volume.h"
 
 #include "AeonixBoundingVolume.generated.h"
 

@@ -1,7 +1,7 @@
 ﻿// Copyright 2024 Chris Ashworth
 
 
-#include <AeonixNavigation/Public/Subsystem/AeonixCollisionSubsystem.h>
+#include "Subsystem/AeonixCollisionSubsystem.h"
 
 bool UAeonixCollisionSubsystem::IsBlocked(const FVector& Position, const float VoxelSize, ECollisionChannel CollisionChannel, const float AgentRadius) const
 {

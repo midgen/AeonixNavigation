@@ -14,15 +14,15 @@ class AEONIXEDITOR_API UAeonixEditorUtilityWidget : public UEditorUtilityWidget
 {
 	GENERATED_BODY()
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Aeonix")
 	void CompleteAllPendingPathfindingTasks();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Aeonix")
 	int32 GetNumberOfPendingPathFindTasks() const;
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Aeonix")
 	int32 GetNumberOfRegisteredNavAgents() const;
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Aeonix")
 	int32 GetNumberOfRegisteredNavVolumes() const;
 };

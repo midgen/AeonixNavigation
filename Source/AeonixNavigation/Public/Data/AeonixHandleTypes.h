@@ -1,10 +1,11 @@
 ﻿#pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_6
+// These types moved around in 5.6, using this to maintain compatibility across versions on main branch
+#if !defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MAJOR_VERSION < 6)
 #include "MassEntityTypes.h"
 #else 
 #include "MassEntityHandle.h"
-#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_6
+#endif //!defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MAJOR_VERSION < 6)
 
 
 #include "AeonixHandleTypes.generated.h"

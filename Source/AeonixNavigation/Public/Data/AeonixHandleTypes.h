@@ -1,6 +1,11 @@
 ﻿#pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_6
 #include "MassEntityTypes.h"
+#else // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_6
+#include "MassEntityHandle.h"
+#endif !UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_6
+
 
 #include "AeonixHandleTypes.generated.h"
 

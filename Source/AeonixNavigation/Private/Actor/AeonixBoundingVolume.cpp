@@ -11,10 +11,35 @@
 #include "Engine/CollisionProfile.h"
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
+#include "Serialization/CustomVersion.h"
 
 #include <chrono>
 
 using namespace std::chrono;
+
+// Custom version for AeonixBoundingVolume serialization
+namespace FAeonixBoundingVolumeVersion
+{
+	enum Type
+	{
+		// Before any custom version was added
+		BeforeCustomVersionWasAdded = 0,
+		// Added serialization of Origin and Extents for baked navigation data
+		SerializeGenerationBounds = 1,
+		// Added serialization of VoxelPower for baked navigation data
+		SerializeVoxelPower = 2,
+
+		// -----<new versions can be added above this line>-------------------------------------------------
+		VersionPlusOne,
+		LatestVersion = VersionPlusOne - 1
+	};
+
+	// Unique GUID for this custom version
+	const FGuid GUID(0x8A3F7E21, 0x4B5C8D92, 0xA7E13F64, 0x2C9B4D8F);
+}
+
+// Register the custom version
+FCustomVersionRegistration GRegisterAeonixBoundingVolumeVersion(FAeonixBoundingVolumeVersion::GUID, FAeonixBoundingVolumeVersion::LatestVersion, TEXT("AeonixBoundingVolumeVer"));
 
 AAeonixBoundingVolume::AAeonixBoundingVolume(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -93,6 +118,13 @@ bool AAeonixBoundingVolume::Generate()
 
 	// Mark volume as ready for navigation after successful generation
 	bIsReadyForNavigation = true;
+
+#if WITH_EDITOR
+	// Mark the actor as modified so Unreal knows to save the NavigationData
+	// (NavigationData is not a UPROPERTY, so we need to manually mark as dirty)
+	Modify();
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Actor marked as modified to ensure NavigationData is saved"));
+#endif
 
 	return true;
 }
@@ -188,15 +220,95 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 
+	// Register our custom version
+	Ar.UsingCustomVersion(FAeonixBoundingVolumeVersion::GUID);
+
+	// Log the generation strategy to help diagnose serialization issues
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Serialize called: %s, GenerationStrategy=%s"),
+		Ar.IsSaving() ? TEXT("SAVING") : TEXT("LOADING"),
+		GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked ? TEXT("UseBaked") : TEXT("GenerateOnBeginPlay"));
+
 	if (GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked)
 	{
 		Ar << NavigationData.OctreeData;
 
-		// Mark as ready if we successfully loaded baked data
-		if (Ar.IsLoading() && NavigationData.OctreeData.LeafNodes.Num() > 0)
+		// When saving, always use the latest version format
+		// When loading, check what version was saved to know what data is available
+		if (Ar.IsSaving())
 		{
-			bIsReadyForNavigation = true;
-			UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes, marked ready for navigation"), NavigationData.OctreeData.LeafNodes.Num());
+			// Always save with latest format (includes Origin, Extents, and VoxelPower)
+			// Get the actual parameters from NavigationData (where Generate() stored them)
+			const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+			FVector OriginToSave = Params.Origin;
+			FVector ExtentsToSave = Params.Extents;
+			int32 VoxelPowerToSave = Params.VoxelPower;
+
+			Ar << OriginToSave;
+			Ar << ExtentsToSave;
+			Ar << VoxelPowerToSave;
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d"),
+				NavigationData.OctreeData.LeafNodes.Num(),
+				*OriginToSave.ToCompactString(),
+				*ExtentsToSave.ToCompactString(),
+				VoxelPowerToSave);
+		}
+		else if (Ar.IsLoading())
+		{
+			const int32 AeonixVersion = Ar.CustomVer(FAeonixBoundingVolumeVersion::GUID);
+
+			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			{
+				// Version 2+: Load Origin, Extents, and VoxelPower
+				FVector LoadedOrigin;
+				FVector LoadedExtents;
+				int32 LoadedVoxelPower;
+				Ar << LoadedOrigin;
+				Ar << LoadedExtents;
+				Ar << LoadedVoxelPower;
+
+				// Restore all parameters to NavigationData
+				FAeonixGenerationParameters RestoredParams = GenerationParameters;
+				RestoredParams.Origin = LoadedOrigin;
+				RestoredParams.Extents = LoadedExtents;
+				RestoredParams.VoxelPower = LoadedVoxelPower;
+				NavigationData.UpdateGenerationParameters(RestoredParams);
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
+					NavigationData.OctreeData.LeafNodes.Num(),
+					*LoadedOrigin.ToCompactString(),
+					*LoadedExtents.ToCompactString(),
+					LoadedVoxelPower);
+			}
+			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeGenerationBounds)
+			{
+				// Version 1: Load Origin and Extents only (no VoxelPower)
+				FVector LoadedOrigin;
+				FVector LoadedExtents;
+				Ar << LoadedOrigin;
+				Ar << LoadedExtents;
+
+				// Restore Origin/Extents, use VoxelPower from actor property
+				FAeonixGenerationParameters RestoredParams = GenerationParameters;
+				RestoredParams.Origin = LoadedOrigin;
+				RestoredParams.Extents = LoadedExtents;
+				// VoxelPower comes from GenerationParameters property
+				NavigationData.UpdateGenerationParameters(RestoredParams);
+
+				UE_LOG(LogAeonixNavigation, Warning, TEXT("Baked navigation data loaded from version 1 format - %d leaf nodes with Origin/Extents but missing VoxelPower. Using VoxelPower=%d from actor property. Please regenerate navigation data."),
+					NavigationData.OctreeData.LeafNodes.Num(),
+					RestoredParams.VoxelPower);
+			}
+			else
+			{
+				// Version 0: Old format - defer bounds calculation to BeginPlay when geometry is fully initialized
+				bNeedsLegacyBoundsUpdate = true;
+				UE_LOG(LogAeonixNavigation, Warning, TEXT("Baked navigation data loaded from old format - %d leaf nodes. Bounds will be recalculated in BeginPlay. Please regenerate navigation data to fix potential rendering issues."), NavigationData.OctreeData.LeafNodes.Num());
+			}
+
+			if (NavigationData.OctreeData.LeafNodes.Num() > 0)
+			{
+				bIsReadyForNavigation = true;
+			}
 		}
 	}
 }
@@ -219,14 +331,27 @@ void AAeonixBoundingVolume::BeginPlay()
 		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
 	}
 
+	// Handle legacy baked data that needs bounds update (old format loaded in Serialize)
+	if (bNeedsLegacyBoundsUpdate)
+	{
+		UpdateBounds();
+		bNeedsLegacyBoundsUpdate = false;
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Legacy bounds update completed. Origin=%s, Extents=%s"),
+			*NavigationData.GetParams().Origin.ToCompactString(),
+			*NavigationData.GetParams().Extents.ToCompactString());
+	}
+
 	if (!bIsReadyForNavigation && GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::GenerateOnBeginPlay)
 	{
 		Generate();
 	}
-	else
+	else if (!bIsReadyForNavigation)
 	{
+		// Only update bounds if we're not using baked data (which already has serialized bounds)
 		UpdateBounds();
 	}
+	// If bIsReadyForNavigation is already true (from baked data), skip UpdateBounds()
+	// to preserve the generation-time Origin and Extents that were serialized
 
 	bIsReadyForNavigation = true;
 }

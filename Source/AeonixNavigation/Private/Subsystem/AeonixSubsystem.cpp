@@ -292,7 +292,6 @@ void UAeonixSubsystem::UpdateComponents()
 		{
 			AgentToVolumeMap[AgentHandle.NavAgentComponent] = nullptr;
 		}
-		i--;
 	}
 
 }

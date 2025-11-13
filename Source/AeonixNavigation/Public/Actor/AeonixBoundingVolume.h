@@ -44,6 +44,10 @@ public:
 
 	bool bIsReadyForNavigation{false};
 
+private:
+	// Flag to indicate that old format baked data was loaded and needs bounds update in BeginPlay
+	bool bNeedsLegacyBoundsUpdate{false};
+
 protected:
 	FAeonixData NavigationData;
 

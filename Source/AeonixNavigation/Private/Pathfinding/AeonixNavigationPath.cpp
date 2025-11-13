@@ -1,6 +1,7 @@
 #include "Pathfinding/AeonixNavigationPath.h"
 
 #include "Debug/DebugDrawService.h"
+#include "Debug/AeonixDebugDrawManager.h"
 #include "DrawDebugHelpers.h"
 #include "NavigationData.h"
 #include "Actor/AeonixBoundingVolume.h"
@@ -20,11 +21,17 @@ void FAeonixNavigationPath::ResetForRepath()
 
 void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 {
+	UAeonixDebugDrawManager* DebugManager = World->GetSubsystem<UAeonixDebugDrawManager>();
+	if (!DebugManager)
+	{
+		return;
+	}
+
 	// Draw the final optimized path with blue spheres and connecting lines
 	for (int i = 0; i < myPoints.Num(); i++)
 	{
 		FAeonixPathPoint& point = myPoints[i];
-		
+
 		FColor PointColor = FColor::Blue;
 		if (i == 0)
 		{
@@ -34,14 +41,14 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 		{
 			PointColor = FColor::Red;
 		}
-		
+
 		// Draw sphere at the actual path point position (which may be smoothed)
-		DrawDebugSphere(World, point.Position, 30.f, 20, PointColor, true, -1.f, 0, 2.f);
-		
+		DebugManager->AddSphere(point.Position, 30.f, 20, PointColor, EAeonixDebugCategory::Paths);
+
 		// Draw lines connecting path points
 		if (i < myPoints.Num() - 1)
 		{
-			DrawDebugLine(World, point.Position, myPoints[i+1].Position, FColor::Cyan, true, -1.f, 0, 10.f);	
+			DebugManager->AddLine(point.Position, myPoints[i+1].Position, FColor::Cyan, 10.f, EAeonixDebugCategory::Paths);
 		}
 	}
 	
@@ -96,13 +103,7 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			}
 
 			// Draw a box representing the original voxel
-			DrawDebugBox(
-				World,
-				voxelInfo.Position,
-				FVector(size),
-				boxColor,
-				true, -1.f, 0, 2.f
-			);
+			DebugManager->AddBox(voxelInfo.Position, FVector(size), FQuat::Identity, boxColor, EAeonixDebugCategory::Paths);
 		}
 	}
 #endif
@@ -115,14 +116,16 @@ void FAeonixNavigationPath::DebugDrawLite(UWorld* World, const FColor& LineColor
 		return;
 	}
 
-	// Use persistent lines when LifeTime is -1
-	bool bPersistent = (LifeTime < 0.0f);
+	UAeonixDebugDrawManager* DebugManager = World->GetSubsystem<UAeonixDebugDrawManager>();
+	if (!DebugManager)
+	{
+		return;
+	}
 
 	// Draw simple lines connecting all path points
 	for (int32 i = 0; i < myPoints.Num() - 1; i++)
 	{
-		DrawDebugLine(World, myPoints[i].Position, myPoints[i + 1].Position,
-			LineColor, bPersistent, LifeTime, 0, 2.0f);
+		DebugManager->AddLine(myPoints[i].Position, myPoints[i + 1].Position, LineColor, 2.0f, EAeonixDebugCategory::Paths);
 	}
 }
 

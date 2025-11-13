@@ -14,7 +14,7 @@ struct FStateTreeTask_AeonixMoveToInstanceData
 
     // Blackboard/StateTree input: goal location
     UPROPERTY(EditAnywhere, Category = Input)
-    FVector GoalLocation;
+    FVector GoalLocation = FVector::ZeroVector;
 
     // Optional: goal actor
     UPROPERTY(EditAnywhere, Category = Input)

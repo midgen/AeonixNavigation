@@ -14,7 +14,7 @@ Aeonix Navigation is a voxel-based pathfinding system for Unreal Engine, designe
 - Editor tools for debugging, visualizing and configuring navigation data
 
 ## Modules
-Aeonix Navigation is organized into several modules:
+Aeonix Navigation is organised into several modules:
 
 - **AeonixNavigation**: Core runtime module containing the main navigation logic, pathfinding algorithms, octree data structures, and public API. Source is under `Source/AeonixNavigation`.
     - `Private/`: Internal implementation (pathfinding, data, utilities, etc.)

@@ -5,6 +5,7 @@
 #include "AeonixNavigation/Public/Subsystem/AeonixSubsystem.h"
 #include "AeonixNavigation/Public/Interface/AeonixSubsystemInterface.h"
 #include "AeonixNavigation/Public/Util/AeonixMediator.h"
+#include "AeonixNavigation/Public/Debug/AeonixDebugDrawManager.h"
 #include "AenoixEditorDebugSubsystem.h"
 #include "Runtime/Engine/Classes/Engine/World.h"
 #include "Runtime/Engine/Public/DrawDebugHelpers.h"
@@ -379,9 +380,12 @@ void AAeonixBatchTestActor::ClearVisualization()
 
 	if (GetWorld())
 	{
-		UE_LOG(LogTemp, Log, TEXT("FlushPersistentDebugLines called from AAeonixBatchTestActor (clearing batch test visualization)"));
+		// Clear only test debug visualization using the debug manager (doesn't affect other systems)
+		if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+		{
+			DebugManager->Clear(EAeonixDebugCategory::Tests);
+		}
 		FlushDebugStrings(GetWorld());
-		FlushPersistentDebugLines(GetWorld());
 	}
 }
 

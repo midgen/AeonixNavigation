@@ -8,6 +8,7 @@
 #include "Actor/AeonixBoundingVolume.h"
 #include "Component/AeonixNavAgentComponent.h"
 #include "AeonixEditor/AeonixEditor.h"
+#include "Debug/AeonixDebugDrawManager.h"
 
 #include "Subsystem/AeonixSubsystem.h"
 
@@ -144,23 +145,38 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	// Only draw when we need to redraw (not every frame)
 	if (bNeedsRedraw && StartDebugActor.IsValid())
 	{
-		// Clear previous path debug lines before drawing new ones
-		// Note: This will clear all persistent debug lines but octree debug is redrawn during generation
-		FlushPersistentDebugLines(StartDebugActor->GetWorld());
+		UWorld* World = StartDebugActor->GetWorld();
+		// Skip debug drawing if world is invalid or not in a playable state (e.g., during save)
+		if (!World || !IsValid(World) || !AeonixSubsystem)
+		{
+			bNeedsRedraw = false;
+			return;
+		}
+
+		// Clear only path debug visualization using the debug manager (doesn't affect other systems)
+		if (UAeonixDebugDrawManager* DebugManager = World->GetSubsystem<UAeonixDebugDrawManager>())
+		{
+			DebugManager->Clear(EAeonixDebugCategory::Paths);
+		}
 
 		// Lock mutex to safely read path data while async pathfinding may be writing
 		{
 			FScopeLock Lock(&PathMutex);
 
-			// Draw the current path if ready, otherwise draw the cached path
-			if (CurrentDebugPath.IsReady())
+			// Get the volume and validate it before drawing
+			AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent);
+			if (Volume && IsValid(Volume))
 			{
-				CurrentDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
-			}
-			else if (bHasValidCachedPath)
-			{
-				// Show cached path while recalculating
-				CachedDebugPath.DebugDraw(StartDebugActor->GetWorld(), AeonixSubsystem->GetVolumeForAgent(StartDebugActor->NavAgentComponent)->GetNavData());
+				// Draw the current path if ready, otherwise draw the cached path
+				if (CurrentDebugPath.IsReady())
+				{
+					CurrentDebugPath.DebugDraw(World, Volume->GetNavData());
+				}
+				else if (bHasValidCachedPath)
+				{
+					// Show cached path while recalculating
+					CachedDebugPath.DebugDraw(World, Volume->GetNavData());
+				}
 			}
 		}
 
@@ -189,15 +205,18 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 		UWorld* World = StartDebugActor->GetWorld();
 		if (World)
 		{
-			FScopeLock Lock(&PathMutex);
-			for (const FAeonixFailedPath& FailedPath : FailedBatchRunPaths)
+			if (UAeonixDebugDrawManager* DebugManager = World->GetSubsystem<UAeonixDebugDrawManager>())
 			{
-				// Draw thick red line from start to end for failed paths (persistent)
-				DrawDebugLine(World, FailedPath.StartPoint, FailedPath.EndPoint, FColor::Red, true, -1.0f, 0, 8.0f);
+				FScopeLock Lock(&PathMutex);
+				for (const FAeonixFailedPath& FailedPath : FailedBatchRunPaths)
+				{
+					// Draw thick red line from start to end for failed paths
+					DebugManager->AddLine(FailedPath.StartPoint, FailedPath.EndPoint, FColor::Red, 8.0f, EAeonixDebugCategory::Tests);
 
-				// Optional: Draw spheres at endpoints for better visibility (persistent)
-				DrawDebugSphere(World, FailedPath.StartPoint, 30.0f, 8, FColor::Yellow, true, -1.0f, 0, 3.0f);
-				DrawDebugSphere(World, FailedPath.EndPoint, 30.0f, 8, FColor::Red, true, -1.0f, 0, 3.0f);
+					// Draw spheres at endpoints for better visibility
+					DebugManager->AddSphere(FailedPath.StartPoint, 30.0f, 8, FColor::Yellow, EAeonixDebugCategory::Tests);
+					DebugManager->AddSphere(FailedPath.EndPoint, 30.0f, 8, FColor::Red, EAeonixDebugCategory::Tests);
+				}
 			}
 		}
 		bFailedPathsNeedRedraw = false;

@@ -4,6 +4,7 @@
 #include "Subsystem/AeonixSubsystem.h"
 #include "Subsystem/AeonixCollisionSubsystem.h"
 #include "AeonixNavigation.h"
+#include "Debug/AeonixDebugDrawManager.h"
 
 #include "Components/BrushComponent.h"
 #include "Components/LineBatchComponent.h"
@@ -52,8 +53,11 @@ bool AAeonixBoundingVolume::Generate()
 		NavigationData.SetDebugPosition(GetWorld()->ViewLocationsRenderedLastFrame[0]);
 	}
 
-	UE_LOG(LogAeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::GenerateData (before octree generation)"));
-	FlushPersistentDebugLines(GetWorld());
+	// Clear only octree debug visualization using the debug manager (doesn't affect other systems)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
 
 	// Setup timing
 	milliseconds startMs = duration_cast<milliseconds>(
@@ -109,29 +113,45 @@ void AAeonixBoundingVolume::UpdateBounds()
 
 void AAeonixBoundingVolume::AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const
 {
-	DrawDebugString(GetWorld(), Position, String, nullptr, Color, -1, false);
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->AddString(Position, String, Color, 1.f, EAeonixDebugCategory::Octree);
+	}
 }
 
 void AAeonixBoundingVolume::AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const
 {
-	DrawDebugBox(GetWorld(), Position, FVector(Size), FQuat::Identity, Color, true, -1.f, 0, .0f);
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->AddBox(Position, FVector(Size), FQuat::Identity, Color, EAeonixDebugCategory::Octree);
+	}
 }
 
 void AAeonixBoundingVolume::AeonixDrawDebugLine(const FVector& Start, const FVector& End, const FColor& Color, float Thickness) const
 {
-	DrawDebugLine(GetWorld(), Start, End, Color, true, -1.f, 0, Thickness);
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->AddLine(Start, End, Color, Thickness, EAeonixDebugCategory::Octree);
+	}
 }
 
 void AAeonixBoundingVolume::AeonixDrawDebugDirectionalArrow(const FVector& Start, const FVector& End, const FColor& Color, float ArrowSize) const
 {
-	DrawDebugDirectionalArrow(GetWorld(), Start, End, ArrowSize, Color, true, -1.f, 0, 0.0f);
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->AddArrow(Start, End, ArrowSize, Color, 0.0f, EAeonixDebugCategory::Octree);
+	}
 }
 
 void AAeonixBoundingVolume::ClearData()
 {
 	NavigationData.ResetForGeneration();
-	UE_LOG(LogAeonixNavigation, Log, TEXT("FlushPersistentDebugLines called from AAeonixBoundingVolume::ClearData"));
-	FlushPersistentDebugLines(GetWorld());
+
+	// Clear only octree debug visualization using the debug manager (doesn't affect other systems)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
 }
 
 

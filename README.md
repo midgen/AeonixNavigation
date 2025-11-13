@@ -30,6 +30,7 @@ Aeonix Navigation is organized into several modules:
 3. Regenerate project files and build the project.
 4. Enable the plugin.
 5. Add an AeonixBoundingVolume.
+6. Experiment with two AeonixDebugActors (one start, one end)
 
 ## Main Files
 - `AeonixPathFinder.cpp/h`: Pathfinding and string pulling algorithms

@@ -61,6 +61,16 @@ FVector UAeonixNavAgentComponent::GetAgentPosition() const
 	return Result;
 }
 
+FVector UAeonixNavAgentComponent::GetPathfindingStartPosition() const
+{
+	return GetAgentPosition() + StartPointOffset;
+}
+
+FVector UAeonixNavAgentComponent::GetPathfindingEndPosition(const FVector& TargetLocation) const
+{
+	return TargetLocation + EndPointOffset;
+}
+
 void UAeonixNavAgentComponent::RegisterPathForDebugRendering()
 {
 	if (bEnablePathDebugRendering && CurrentPath.GetPathPoints().Num() > 0)

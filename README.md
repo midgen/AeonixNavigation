@@ -4,9 +4,8 @@
 3D navigation plugin for Unreal Engine
 
 Build Checks Using [Aeonix Demo](https://github.com/midgen/AeonixDemo) Project, editor, shipping, cook, tests.
-![GitHub branch status](https://img.shields.io/github/checks-status/midgen/AeonixNavigation/main?style=for-the-badge&logo=unrealengine)
 
-![GitHub last commit](https://img.shields.io/github/last-commit/midgen/AeonixNavigation?style=for-the-badge&logo=unrealengine)
+![GitHub last commit](https://img.shields.io/github/last-commit/midgen/AeonixNavigation?style=for-the-badge&logo=unrealengine)![GitHub branch status](https://img.shields.io/github/checks-status/midgen/AeonixNavigation/main?style=for-the-badge&logo=unrealengine)
 
 
 # Engine Support

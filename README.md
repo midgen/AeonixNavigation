@@ -1,8 +1,15 @@
 # Aeonix Navigation
+
+
 3D navigation plugin for Unreal Engine
 
+Build Checks Using [Aeonix Demo](https://github.com/midgen/AeonixDemo) Project, editor, shipping, cook, tests.
+
+![GitHub last commit](https://img.shields.io/github/last-commit/midgen/AeonixNavigation?style=for-the-badge&logo=unrealengine)![GitHub branch status](https://img.shields.io/github/checks-status/midgen/AeonixNavigation/main?style=for-the-badge&logo=unrealengine)
+
+
 # Engine Support
-Currently tested on a local TeamCity CI/CD against Unreal 5.5, 5.6, and 5.7 build.  You should see build status in the Pull Request details...
+Tested against Unreal Engine 5.5, 5.6, and 5.7 via TeamCity CI/CD. Build status badges above reflect the latest validation on the main branch.
 
 ## Overview
 Aeonix Navigation is a voxel-based pathfinding system for Unreal Engine, designed for efficient and flexible 3D navigation. It leverages an octree data structure for multi-resolution spatial queries and fast pathfinding.

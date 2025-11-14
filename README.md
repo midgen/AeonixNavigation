@@ -1,10 +1,13 @@
 # Aeonix Navigation
 
-[![UE 5.5](https://img.shields.io/github/status/midgen/AeonixNavigation/main?label=UE%205.5)](https://github.com/midgen/AeonixNavigation/commits/main)
-[![UE 5.6](https://img.shields.io/github/status/midgen/AeonixNavigation/main?label=UE%205.6)](https://github.com/midgen/AeonixNavigation/commits/main)
-[![UE 5.7](https://img.shields.io/github/status/midgen/AeonixNavigation/main?label=UE%205.7)](https://github.com/midgen/AeonixNavigation/commits/main)
 
 3D navigation plugin for Unreal Engine
+
+Build Checks Using [Aeonix Demo](https://github.com/midgen/AeonixDemo) Project, editor, shipping, cook, tests.
+![GitHub branch status](https://img.shields.io/github/checks-status/midgen/AeonixNavigation/main?style=for-the-badge&logo=unrealengine)
+
+![GitHub last commit](https://img.shields.io/github/last-commit/midgen/AeonixNavigation?style=for-the-badge&logo=unrealengine)
+
 
 # Engine Support
 Tested against Unreal Engine 5.5, 5.6, and 5.7 via TeamCity CI/CD. Build status badges above reflect the latest validation on the main branch.

@@ -27,6 +27,15 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 		return;
 	}
 
+	// Log path endpoints for debugging
+	if (myPoints.Num() > 0)
+	{
+		const FVector StartPoint = myPoints[0].Position;
+		const FVector EndPoint = myPoints[myPoints.Num() - 1].Position;
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixNavigationPath: Start=%s, End=%s, NumPoints=%d"),
+			*StartPoint.ToCompactString(), *EndPoint.ToCompactString(), myPoints.Num());
+	}
+
 	// Draw the final optimized path with blue spheres and connecting lines
 	for (int i = 0; i < myPoints.Num(); i++)
 	{
@@ -56,6 +65,11 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 	// Draw the original voxel positions from the debug array
 	if (myDebugVoxelInfo.Num() > 0)
 	{
+		// Log extents and parameters for debugging rendering issues
+		const FAeonixGenerationParameters& Params = Data.GetParams();
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixNavigationPath Debug Voxels: Origin=%s, Extents=%s, VoxelPower=%d"),
+			*Params.Origin.ToCompactString(), *Params.Extents.ToCompactString(), Params.VoxelPower);
+
 		// Cache the array size to avoid issues if array changes during iteration
 		const int32 NumVoxels = myDebugVoxelInfo.Num();
 
@@ -97,9 +111,17 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			float size = 50.0f; // Default size
 			if (voxelInfo.Layer >= 0)
 			{
+				const float rawVoxelSize = Data.GetVoxelSize(voxelInfo.Layer);
 				size = voxelInfo.Layer == 0 ?
-					Data.GetVoxelSize(voxelInfo.Layer) * 0.125f :
-					Data.GetVoxelSize(voxelInfo.Layer) * 0.25f;
+					rawVoxelSize * 0.125f :
+					rawVoxelSize * 0.25f;
+
+				// Log voxel size information for the first few voxels to avoid spam
+				if (i < 3)
+				{
+					UE_LOG(LogAeonixNavigation, Log, TEXT("  Voxel[%d]: Layer=%d, RawSize=%.2f, RenderSize=%.2f, Position=%s"),
+						i, voxelInfo.Layer, rawVoxelSize, size, *voxelInfo.Position.ToCompactString());
+				}
 			}
 
 			// Draw a box representing the original voxel

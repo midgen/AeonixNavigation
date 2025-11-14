@@ -153,13 +153,13 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	AeonixLink TargetNavLink;
 
 	// Get the nav link from our volume
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingStartPosition(), *NavVolume, StartNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		return false;
 	}
 
-	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingEndPosition(End), *NavVolume, TargetNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		return false;
@@ -169,7 +169,7 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 	AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
 
-	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath);
+	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
 
 	OutPath.SetIsReady(true);
 	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
@@ -194,14 +194,14 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	}
 	
 	// Get the nav link from our volume
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetAgentPosition(), *NavVolume, StartNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingStartPosition(), *NavVolume, StartNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		return Request.OnPathFindRequestComplete;
 	}
 
-	if (!AeonixMediator::GetLinkFromPosition(End, *NavVolume, TargetNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingEndPosition(End), *NavVolume, TargetNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
@@ -226,7 +226,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	{
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
 
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetAgentPosition(), End, OutPath))
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath))
 		{
 			OutPath.SetIsReady(true);
 			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());

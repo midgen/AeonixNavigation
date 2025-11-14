@@ -206,7 +206,7 @@ void FAeonixOctreeData::GetNeighbours(const AeonixLink& aLink, TArray<AeonixLink
 				for (const nodeindex_t& leafIndex : AeonixStatics::dirLeafChildOffsets[i])
 				{
 					// Each of the childnodes
-					AeonixLink link = neighbour.FirstChild;
+					AeonixLink link = thisNode.FirstChild;
 					const AeonixLeafNode& leafNode = GetLeafNode(link.NodeIndex);
 					link.SubnodeIndex = leafIndex;
 

@@ -25,10 +25,18 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
 	FAeonixPathFinderSettings PathfinderSettings;
-	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
+	FVector StartPointOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
+	FVector EndPointOffset = FVector::ZeroVector;
+
 	FAeonixNavigationPath& GetPath() { return CurrentPath; }
 	const FAeonixNavigationPath& GetPath() const  { return CurrentPath; }
 	FVector GetAgentPosition() const;
+	FVector GetPathfindingStartPosition() const;
+	FVector GetPathfindingEndPosition(const FVector& TargetLocation) const;
 
 	// Debug rendering for the current path
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")

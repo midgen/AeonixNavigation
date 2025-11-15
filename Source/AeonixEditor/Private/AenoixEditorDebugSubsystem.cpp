@@ -104,7 +104,7 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 	}
 	else
 	{
-		UE_LOG(AeonixEditor, Error, TEXT("Unhandled pathfinding state"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("Unhandled pathfinding state"));
 	}
 }
 

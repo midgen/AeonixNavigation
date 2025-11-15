@@ -5,7 +5,7 @@
 #include "UnrealEd.h"
 
 
-DECLARE_LOG_CATEGORY_EXTERN(AeonixEditor, All, All)
+DECLARE_LOG_CATEGORY_EXTERN(LogAeonixEditor, All, All)
 
 class FAeonixEditorModule : public IModuleInterface
 {

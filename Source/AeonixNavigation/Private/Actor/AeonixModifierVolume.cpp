@@ -2,6 +2,7 @@
 
 #include "Actor/AeonixModifierVolume.h"
 #include "Actor/AeonixBoundingVolume.h"
+#include "Components/BrushComponent.h"
 #include "EngineUtils.h"
 
 AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectInitializer)

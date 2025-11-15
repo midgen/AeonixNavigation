@@ -59,14 +59,14 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 	UE_LOG(LogAeonixNavigation, Error, TEXT("Tried to remove a volume that isn't registered"))
 }
 
-void UAeonixSubsystem::RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion)
+void UAeonixSubsystem::RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-	
+
 }
 
-void UAeonixSubsystem::UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion)
+void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-	
+
 }
 
 void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag CreateMassEntity)

@@ -106,6 +106,13 @@ float FAeonixData::GetVoxelSize(layerindex_t Layer) const
 
 bool FAeonixData::IsInDebugRange(const FVector& aPosition) const
 {
+	// If a debug filter box is active, use it for filtering instead of distance-based filtering
+	if (GenerationParameters.bUseDebugFilterBox)
+	{
+		return GenerationParameters.DebugFilterBox.IsInside(aPosition);
+	}
+
+	// Fall back to distance-based filtering if no filter box is active
 	return FVector::DistSquared(GenerationParameters.DebugPosition, aPosition) < GenerationParameters.DebugDistance * GenerationParameters.DebugDistance;
 }
 

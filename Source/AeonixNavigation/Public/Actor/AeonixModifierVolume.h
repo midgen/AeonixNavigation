@@ -47,7 +47,7 @@ public:
 	//~ End AActor Interface
 
 	/** Modifier types active in this volume */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix", meta = (Bitmask, BitmaskEnum = "EAeonixModifierType"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix", meta = (Bitmask, BitmaskEnum = "/Script/AeonixNavigation.EAeonixModifierType"))
 	int32 ModifierTypes = static_cast<int32>(EAeonixModifierType::DebugFilter);
 
 private:

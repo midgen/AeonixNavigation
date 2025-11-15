@@ -1,6 +1,7 @@
 // Copyright Notice
 
 #include "AeonixDebugFloodFillActor.h"
+#include "AeonixNavigation.h"
 #include "Subsystem/AeonixSubsystem.h"
 #include "Actor/AeonixBoundingVolume.h"
 #include "Data/AeonixData.h"
@@ -69,7 +70,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	UAeonixSubsystem* AeonixSubsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 	if (!AeonixSubsystem)
 	{
-		UE_LOG(LogAeonixEditor, Warning, TEXT("AeonixDebugFloodFillActor: UAeonixSubsystem not found"));
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: UAeonixSubsystem not found"));
 		return;
 	}
 
@@ -77,7 +78,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
 	if (!NavVolume || !NavVolume->HasData())
 	{
-		UE_LOG(LogAeonixEditor, Warning, TEXT("AeonixDebugFloodFillActor: No navigation volume found at actor location"));
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: No navigation volume found at actor location"));
 		return;
 	}
 
@@ -87,7 +88,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	AeonixLink StartLink;
 	if (!AeonixMediator::GetLinkFromPosition(GetActorLocation(), *NavVolume, StartLink))
 	{
-		UE_LOG(LogAeonixEditor, Warning, TEXT("AeonixDebugFloodFillActor: Failed to get link from position"));
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: Failed to get link from position"));
 		return;
 	}
 
@@ -95,7 +96,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>();
 	if (!DebugManager)
 	{
-		UE_LOG(LogAeonixEditor, Warning, TEXT("AeonixDebugFloodFillActor: UAeonixDebugDrawManager not found"));
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: UAeonixDebugDrawManager not found"));
 		return;
 	}
 
@@ -106,7 +107,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	FVector StartPos;
 	if (!NavData.GetLinkPosition(StartLink, StartPos))
 	{
-		UE_LOG(LogAeonixEditor, Warning, TEXT("AeonixDebugFloodFillActor: Failed to get start position"));
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: Failed to get start position"));
 		return;
 	}
 
@@ -222,5 +223,5 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 		DrawnSet.Add(CurrentLink);
 	}
 
-	UE_LOG(LogAeonixEditor, Log, TEXT("AeonixDebugFloodFillActor: Flood fill completed. Visited %d voxels (max depth: %d)"), VoxelsVisited, MaxDepth);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixDebugFloodFillActor: Flood fill completed. Visited %d voxels (max depth: %d)"), VoxelsVisited, MaxDepth);
 }

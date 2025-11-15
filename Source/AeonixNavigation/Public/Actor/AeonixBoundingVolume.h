@@ -37,6 +37,10 @@ public:
 	bool HasData() const;
 	void ClearData();
 
+	// Called by editor subsystem to set the debug filter box
+	void SetDebugFilterBox(const FBox& FilterBox);
+	void ClearDebugFilterBox();
+
 	const FAeonixData& GetNavData() const { return NavigationData; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")

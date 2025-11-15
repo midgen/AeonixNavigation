@@ -6,7 +6,7 @@
 #include "AeonixOctreeData.generated.h"
 
 USTRUCT()
-struct FAeonixOctreeData
+struct AEONIXNAVIGATION_API FAeonixOctreeData
 {
 	GENERATED_BODY()
 

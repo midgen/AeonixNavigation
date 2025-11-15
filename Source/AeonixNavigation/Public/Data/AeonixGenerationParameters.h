@@ -44,4 +44,6 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 	FVector Origin{FVector::ZeroVector};
 	FVector Extents{FVector::ZeroVector};
 	FVector DebugPosition{FVector::ZeroVector};
+	FBox DebugFilterBox{ForceInit};
+	bool bUseDebugFilterBox{false};
 };

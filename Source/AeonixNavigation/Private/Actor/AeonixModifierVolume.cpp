@@ -1,10 +1,10 @@
 // Copyright Chris Kang. All Rights Reserved.
 
-#include "Actor/AeonixDebugFilterVolume.h"
+#include "Actor/AeonixModifierVolume.h"
 #include "Actor/AeonixBoundingVolume.h"
 #include "EngineUtils.h"
 
-AAeonixDebugFilterVolume::AAeonixDebugFilterVolume(const FObjectInitializer& ObjectInitializer)
+AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
@@ -12,32 +12,32 @@ AAeonixDebugFilterVolume::AAeonixDebugFilterVolume(const FObjectInitializer& Obj
 	bColored = true;
 }
 
-void AAeonixDebugFilterVolume::OnConstruction(const FTransform& Transform)
+void AAeonixModifierVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	RegisterWithBoundingVolumes();
 }
 
-void AAeonixDebugFilterVolume::BeginPlay()
+void AAeonixModifierVolume::BeginPlay()
 {
 	Super::BeginPlay();
 	RegisterWithBoundingVolumes();
 }
 
-void AAeonixDebugFilterVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void AAeonixModifierVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UnregisterFromBoundingVolumes();
 	Super::EndPlay(EndPlayReason);
 }
 
-void AAeonixDebugFilterVolume::Destroyed()
+void AAeonixModifierVolume::Destroyed()
 {
 	UnregisterFromBoundingVolumes();
 	Super::Destroyed();
 }
 
 #if WITH_EDITOR
-void AAeonixDebugFilterVolume::PostEditMove(bool bFinished)
+void AAeonixModifierVolume::PostEditMove(bool bFinished)
 {
 	Super::PostEditMove(bFinished);
 
@@ -49,7 +49,7 @@ void AAeonixDebugFilterVolume::PostEditMove(bool bFinished)
 	}
 }
 
-void AAeonixDebugFilterVolume::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void AAeonixModifierVolume::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -59,7 +59,7 @@ void AAeonixDebugFilterVolume::PostEditChangeProperty(FPropertyChangedEvent& Pro
 }
 #endif
 
-void AAeonixDebugFilterVolume::RegisterWithBoundingVolumes()
+void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
@@ -69,15 +69,19 @@ void AAeonixDebugFilterVolume::RegisterWithBoundingVolumes()
 			AAeonixBoundingVolume* BoundingVolume = *It;
 			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
 			{
-				// Get the bounding box of this filter volume
-				FBox FilterBox = GetComponentsBoundingBox(true);
-				BoundingVolume->SetDebugFilterBox(FilterBox);
+				// Only apply debug filter if the DebugFilter flag is set
+				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+				{
+					// Get the bounding box of this filter volume
+					FBox FilterBox = GetComponentsBoundingBox(true);
+					BoundingVolume->SetDebugFilterBox(FilterBox);
+				}
 			}
 		}
 	}
 }
 
-void AAeonixDebugFilterVolume::UnregisterFromBoundingVolumes()
+void AAeonixModifierVolume::UnregisterFromBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
@@ -87,7 +91,11 @@ void AAeonixDebugFilterVolume::UnregisterFromBoundingVolumes()
 			AAeonixBoundingVolume* BoundingVolume = *It;
 			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
 			{
-				BoundingVolume->ClearDebugFilterBox();
+				// Only clear if we were applying the debug filter
+				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+				{
+					BoundingVolume->ClearDebugFilterBox();
+				}
 			}
 		}
 	}

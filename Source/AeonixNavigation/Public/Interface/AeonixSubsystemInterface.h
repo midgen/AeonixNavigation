@@ -6,7 +6,7 @@
 
 #include "AeonixSubsystemInterface.generated.h"
 
-class AAeonixDynamicSubregion;
+class AAeonixModifierVolume;
 class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
 struct FAeonixNavigationPath;
@@ -37,9 +37,9 @@ public:
 	UFUNCTION()
 	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
 	UFUNCTION()
-	virtual void RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) = 0;
+	virtual void RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) = 0;
 	UFUNCTION()
-	virtual void UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) = 0;
+	virtual void UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) = 0;
 	UFUNCTION()
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) = 0;
 	UFUNCTION()

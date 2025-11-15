@@ -11,7 +11,7 @@
 #include "AeonixHandleTypes.generated.h"
 
 class AAeonixBoundingVolume;
-class AAeonixDynamicSubregion;
+class AAeonixModifierVolume;
 class UAeonixNavAgentComponent;
 
 USTRUCT()
@@ -28,7 +28,7 @@ struct FAeonixBoundingVolumeHandle
 	TObjectPtr<AAeonixBoundingVolume> VolumeHandle;
 
 	UPROPERTY()
-	TArray<TObjectPtr<AAeonixDynamicSubregion>> SubRegions;
+	TArray<TObjectPtr<AAeonixModifierVolume>> ModifierVolumes;
 
 	UPROPERTY()
 	FMassEntityHandle EntityHandle;

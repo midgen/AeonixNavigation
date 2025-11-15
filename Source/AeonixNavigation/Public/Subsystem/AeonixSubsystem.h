@@ -24,9 +24,9 @@ public:
 	UFUNCTION()
 	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bDestroyMassEntity) override;
 	UFUNCTION()
-	virtual void RegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
+	virtual void RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) override;
 	UFUNCTION()
-	virtual void UnRegisterDynamicSubregion(AAeonixDynamicSubregion* DynamicSubregion) override;
+	virtual void UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) override;
 	UFUNCTION()
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) override;
 	UFUNCTION()

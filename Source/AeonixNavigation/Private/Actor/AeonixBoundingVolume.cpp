@@ -143,6 +143,20 @@ void AAeonixBoundingVolume::UpdateBounds()
 	NavigationData.SetExtents(Origin, Extent);
 }
 
+void AAeonixBoundingVolume::SetDebugFilterBox(const FBox& FilterBox)
+{
+	GenerationParameters.DebugFilterBox = FilterBox;
+	GenerationParameters.bUseDebugFilterBox = true;
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s now using debug filter box: %s"),
+		*GetName(), *FilterBox.ToString());
+}
+
+void AAeonixBoundingVolume::ClearDebugFilterBox()
+{
+	GenerationParameters.bUseDebugFilterBox = false;
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared debug filter box"), *GetName());
+}
+
 void AAeonixBoundingVolume::AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const
 {
 	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())

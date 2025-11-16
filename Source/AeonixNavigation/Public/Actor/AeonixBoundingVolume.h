@@ -55,6 +55,9 @@ public:
 	const FAeonixData& GetNavData() const { return NavigationData; }
 	FAeonixData& GetNavigationData() { return NavigationData; }
 
+	/** Get the read-write lock for thread-safe octree access */
+	FRWLock& GetOctreeDataLock() const { return OctreeDataLock; }
+
 	/** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
 	FOnNavigationRegenerated OnNavigationRegenerated;
 
@@ -66,6 +69,9 @@ public:
 private:
 	// Flag to indicate that old format baked data was loaded and needs bounds update in BeginPlay
 	bool bNeedsLegacyBoundsUpdate{false};
+
+	/** Read-write lock for thread-safe access to octree data during async pathfinding */
+	mutable FRWLock OctreeDataLock;
 
 protected:
 	FAeonixData NavigationData;

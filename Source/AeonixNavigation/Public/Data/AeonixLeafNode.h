@@ -38,6 +38,11 @@ struct AEONIXNAVIGATION_API AeonixLeafNode
 	{
 		return VoxelGrid == 0;
 	}
+
+	inline void Clear()
+	{
+		VoxelGrid = 0;
+	}
 };
 
 FORCEINLINE FArchive& operator<<(FArchive& Ar, AeonixLeafNode& aAeonixLeafNode)

@@ -14,7 +14,7 @@ enum class EAeonixModifierType : uint8
 {
 	None = 0,
 	DebugFilter = 1 << 0 UMETA(DisplayName = "Debug Filter", ToolTip = "Only leaf voxels inside this volume will be debug rendered"),
-	DynamicRegion = 1 << 1 UMETA(DisplayName = "Dynamic Region", ToolTip = "Not yet implemented"),
+	DynamicRegion = 1 << 1 UMETA(DisplayName = "Dynamic Region", ToolTip = "Voxels in this region can be updated at runtime without full regeneration"),
 	// Future modifiers can be added here
 };
 ENUM_CLASS_FLAGS(EAeonixModifierType)
@@ -23,9 +23,10 @@ ENUM_CLASS_FLAGS(EAeonixModifierType)
  * Volume that modifies Aeonix navigation behavior within its bounds.
  * Supports multiple modifier types through flags:
  * - DebugFilter: Filters leaf voxel debug rendering to only show voxels inside this volume
- * - DynamicRegion: Not yet implemented
+ * - DynamicRegion: Marks voxels for runtime updates without full regeneration
  *
- * This is a static modifier - it registers once and is assumed to not move during generation.
+ * Multiple modifier volumes can be used per bounding volume.
+ * Modifier volumes should be placed before generation for proper leaf node allocation.
  */
 UCLASS(hidecategories = (Tags, Cooking, Actor, HLOD, Mobile, LOD))
 class AEONIXNAVIGATION_API AAeonixModifierVolume : public AVolume
@@ -48,7 +49,7 @@ public:
 
 	/** Modifier types active in this volume */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix", meta = (Bitmask, BitmaskEnum = "/Script/AeonixNavigation.EAeonixModifierType"))
-	int32 ModifierTypes = static_cast<int32>(EAeonixModifierType::DebugFilter);
+	int32 ModifierTypes = static_cast<int32>(EAeonixModifierType::None);
 
 private:
 	/** Register this volume with bounding volumes it's inside */

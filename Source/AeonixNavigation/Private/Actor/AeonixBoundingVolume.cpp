@@ -129,9 +129,38 @@ bool AAeonixBoundingVolume::Generate()
 	return true;
 }
 
+void AAeonixBoundingVolume::RegenerateDynamicSubregions()
+{
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+	}
+
+	// Clear octree debug visualization (leaf voxels need to be re-rendered with updated data)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+
+	// Draw debug boxes showing which regions were regenerated
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	for (const FBox& DynamicRegion : Params.DynamicRegionBoxes)
+	{
+		DrawDebugBox(GetWorld(), DynamicRegion.GetCenter(), DynamicRegion.GetExtent(),
+			FColor::Cyan, false, 5.0f, 0, 2.0f);
+	}
+
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Regenerated %d dynamic subregion(s) for bounding volume %s"),
+		Params.DynamicRegionBoxes.Num(), *GetName());
+}
+
 bool AAeonixBoundingVolume::HasData() const
 {
-	return NavigationData.OctreeData.LeafNodes.Num() > 0;	
+	return NavigationData.OctreeData.LeafNodes.Num() > 0;
 }
 
 void AAeonixBoundingVolume::UpdateBounds()
@@ -155,6 +184,19 @@ void AAeonixBoundingVolume::ClearDebugFilterBox()
 {
 	GenerationParameters.bUseDebugFilterBox = false;
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared debug filter box"), *GetName());
+}
+
+void AAeonixBoundingVolume::AddDynamicRegion(const FBox& RegionBox)
+{
+	GenerationParameters.DynamicRegionBoxes.Add(RegionBox);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s registered dynamic region box: %s"),
+		*GetName(), *RegionBox.ToString());
+}
+
+void AAeonixBoundingVolume::ClearDynamicRegions()
+{
+	GenerationParameters.DynamicRegionBoxes.Empty();
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared dynamic regions"), *GetName());
 }
 
 void AAeonixBoundingVolume::AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const

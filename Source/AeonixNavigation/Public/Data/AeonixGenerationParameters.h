@@ -46,4 +46,7 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 	FVector DebugPosition{FVector::ZeroVector};
 	FBox DebugFilterBox{ForceInit};
 	bool bUseDebugFilterBox{false};
+
+	// Dynamic region support - voxels in these regions get pre-allocated leaf nodes for runtime updates
+	TArray<FBox> DynamicRegionBoxes;
 };

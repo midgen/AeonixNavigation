@@ -34,6 +34,7 @@ public:
 
 	void UpdateBounds();
 	bool Generate();
+	void RegenerateDynamicSubregions();
 	bool HasData() const;
 	void ClearData();
 
@@ -41,7 +42,12 @@ public:
 	void SetDebugFilterBox(const FBox& FilterBox);
 	void ClearDebugFilterBox();
 
+	// Called by modifier volumes to register dynamic regions
+	void AddDynamicRegion(const FBox& RegionBox);
+	void ClearDynamicRegions();
+
 	const FAeonixData& GetNavData() const { return NavigationData; }
+	FAeonixData& GetNavigationData() { return NavigationData; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
 	FAeonixGenerationParameters GenerationParameters;

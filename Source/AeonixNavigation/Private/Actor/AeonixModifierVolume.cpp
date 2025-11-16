@@ -70,12 +70,19 @@ void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 			AAeonixBoundingVolume* BoundingVolume = *It;
 			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
 			{
-				// Only apply debug filter if the DebugFilter flag is set
+				// Get the bounding box of this modifier volume
+				FBox ModifierBox = GetComponentsBoundingBox(true);
+
+				// Apply debug filter if the DebugFilter flag is set
 				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
 				{
-					// Get the bounding box of this filter volume
-					FBox FilterBox = GetComponentsBoundingBox(true);
-					BoundingVolume->SetDebugFilterBox(FilterBox);
+					BoundingVolume->SetDebugFilterBox(ModifierBox);
+				}
+
+				// Register as dynamic region if the DynamicRegion flag is set
+				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+				{
+					BoundingVolume->AddDynamicRegion(ModifierBox);
 				}
 			}
 		}
@@ -86,16 +93,39 @@ void AAeonixModifierVolume::UnregisterFromBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
-		// Find all bounding volumes and clear debug filter from ones we registered with
+		// When unregistering, we need to rebuild the modifier lists since we support multiple modifiers
+		// This ensures other modifier volumes remain registered
 		for (TActorIterator<AAeonixBoundingVolume> It(World); It; ++It)
 		{
 			AAeonixBoundingVolume* BoundingVolume = *It;
 			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
 			{
-				// Only clear if we were applying the debug filter
-				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+				// Clear all modifiers for this bounding volume
+				BoundingVolume->ClearDebugFilterBox();
+				BoundingVolume->ClearDynamicRegions();
+
+				// Re-register all OTHER modifier volumes
+				for (TActorIterator<AAeonixModifierVolume> ModIt(World); ModIt; ++ModIt)
 				{
-					BoundingVolume->ClearDebugFilterBox();
+					AAeonixModifierVolume* OtherModifier = *ModIt;
+					// Skip this modifier volume (the one being unregistered)
+					if (OtherModifier && OtherModifier != this &&
+						BoundingVolume->EncompassesPoint(OtherModifier->GetActorLocation()))
+					{
+						FBox ModifierBox = OtherModifier->GetComponentsBoundingBox(true);
+
+						// Re-apply debug filter if enabled
+						if (OtherModifier->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+						{
+							BoundingVolume->SetDebugFilterBox(ModifierBox);
+						}
+
+						// Re-register as dynamic region if enabled
+						if (OtherModifier->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+						{
+							BoundingVolume->AddDynamicRegion(ModifierBox);
+						}
+					}
 				}
 			}
 		}

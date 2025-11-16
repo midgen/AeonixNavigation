@@ -91,7 +91,12 @@ bool AAeonixBoundingVolume::Generate()
 #endif // WITH_EDITOR
 
 	UpdateBounds();
-	NavigationData.Generate(*GetWorld(), *CollisionQueryInterface.GetInterface(), *this);
+
+	// Acquire write lock for thread-safe octree modification
+	{
+		FWriteScopeLock WriteLock(OctreeDataLock);
+		NavigationData.Generate(*GetWorld(), *CollisionQueryInterface.GetInterface(), *this);
+	}
 
 #if WITH_EDITOR
 
@@ -156,7 +161,11 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 		DebugManager->Clear(EAeonixDebugCategory::Octree);
 	}
 
-	NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+	// Acquire write lock for thread-safe octree modification
+	{
+		FWriteScopeLock WriteLock(OctreeDataLock);
+		NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+	}
 
 	// Draw debug boxes showing which regions were regenerated
 	for (const FBox& DynamicRegion : Params.DynamicRegionBoxes)

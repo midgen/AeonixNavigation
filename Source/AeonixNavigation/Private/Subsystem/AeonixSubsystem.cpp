@@ -167,9 +167,14 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 	OutPath.ResetForRepath();
 
-	AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+	// Acquire read lock for thread-safe octree access during pathfinding
+	bool Result;
+	{
+		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
 
-	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+	}
 
 	OutPath.SetIsReady(true);
 	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
@@ -224,6 +229,9 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	// TODO: Bit more scope in this lambda than I'd like, there's going to be crash potential if things get destroyed while this task is running
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
 	{
+		// Acquire read lock for thread-safe octree access during pathfinding
+		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
 
 		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath))

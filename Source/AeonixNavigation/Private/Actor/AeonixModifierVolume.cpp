@@ -4,6 +4,7 @@
 #include "Actor/AeonixBoundingVolume.h"
 #include "Components/BrushComponent.h"
 #include "EngineUtils.h"
+#include "AeonixNavigation.h"
 
 AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -64,12 +65,18 @@ void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: RegisterWithBoundingVolumes - ModifierTypes=%d"),
+			*GetName(), ModifierTypes);
+
 		// Find all bounding volumes and register with ones we're inside
 		for (TActorIterator<AAeonixBoundingVolume> It(World); It; ++It)
 		{
 			AAeonixBoundingVolume* BoundingVolume = *It;
 			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
 			{
+				UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Inside bounding volume %s"),
+					*GetName(), *BoundingVolume->GetName());
+
 				// Get the bounding box of this modifier volume
 				FBox ModifierBox = GetComponentsBoundingBox(true);
 
@@ -77,12 +84,15 @@ void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
 				{
 					BoundingVolume->SetDebugFilterBox(ModifierBox);
+					UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Registered DebugFilter"), *GetName());
 				}
 
 				// Register as dynamic region if the DynamicRegion flag is set
 				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
 				{
 					BoundingVolume->AddDynamicRegion(ModifierBox);
+					UE_LOG(LogAeonixNavigation, Display, TEXT("ModifierVolume %s: Registered DynamicRegion with %s"),
+						*GetName(), *BoundingVolume->GetName());
 				}
 			}
 		}

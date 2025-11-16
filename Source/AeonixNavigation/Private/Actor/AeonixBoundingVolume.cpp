@@ -134,6 +134,15 @@ bool AAeonixBoundingVolume::Generate()
 
 void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 {
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions called for bounding volume %s"), *GetName());
+
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
+		return;
+	}
+
 	if (!CollisionQueryInterface.GetInterface())
 	{
 		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
@@ -150,15 +159,13 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 	NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
 
 	// Draw debug boxes showing which regions were regenerated
-	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
 	for (const FBox& DynamicRegion : Params.DynamicRegionBoxes)
 	{
 		DrawDebugBox(GetWorld(), DynamicRegion.GetCenter(), DynamicRegion.GetExtent(),
 			FColor::Cyan, false, 5.0f, 0, 2.0f);
 	}
 
-	UE_LOG(LogAeonixNavigation, Display, TEXT("Regenerated %d dynamic subregion(s) for bounding volume %s"),
-		Params.DynamicRegionBoxes.Num(), *GetName());
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s"), *GetName());
 
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);

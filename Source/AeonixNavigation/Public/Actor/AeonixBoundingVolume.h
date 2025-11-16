@@ -8,6 +8,12 @@
 
 #include "AeonixBoundingVolume.generated.h"
 
+// Forward declaration
+class AAeonixBoundingVolume;
+
+/** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenerated, AAeonixBoundingVolume*);
+
 /**
  *  AeonixVolume is a bounding volume that forms a navigable area
  */
@@ -48,6 +54,9 @@ public:
 
 	const FAeonixData& GetNavData() const { return NavigationData; }
 	FAeonixData& GetNavigationData() { return NavigationData; }
+
+	/** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
+	FOnNavigationRegenerated OnNavigationRegenerated;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")
 	FAeonixGenerationParameters GenerationParameters;

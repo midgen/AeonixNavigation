@@ -126,6 +126,9 @@ bool AAeonixBoundingVolume::Generate()
 	UE_LOG(LogAeonixNavigation, Log, TEXT("Actor marked as modified to ensure NavigationData is saved"));
 #endif
 
+	// Broadcast that navigation has been regenerated
+	OnNavigationRegenerated.Broadcast(this);
+
 	return true;
 }
 
@@ -156,6 +159,9 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 
 	UE_LOG(LogAeonixNavigation, Display, TEXT("Regenerated %d dynamic subregion(s) for bounding volume %s"),
 		Params.DynamicRegionBoxes.Num(), *GetName());
+
+	// Broadcast that navigation has been regenerated
+	OnNavigationRegenerated.Broadcast(this);
 }
 
 bool AAeonixBoundingVolume::HasData() const

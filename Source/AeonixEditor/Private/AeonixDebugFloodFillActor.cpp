@@ -10,6 +10,7 @@
 #include "Data/AeonixNode.h"
 #include "Util/AeonixMediator.h"
 #include "Debug/AeonixDebugDrawManager.h"
+#include "EngineUtils.h"
 
 AAeonixDebugFloodFillActor::AAeonixDebugFloodFillActor()
 {
@@ -26,6 +27,9 @@ AAeonixDebugFloodFillActor::AAeonixDebugFloodFillActor()
 void AAeonixDebugFloodFillActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+
+	// Bind to bounding volumes (in case they were added after this actor)
+	BindToBoundingVolumes();
 
 	// Perform the flood fill visualization
 	PerformFloodFill();
@@ -58,6 +62,66 @@ void AAeonixDebugFloodFillActor::ClearVisualization()
 	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
 	{
 		DebugManager->Clear(EAeonixDebugCategory::Tests);
+	}
+}
+
+void AAeonixDebugFloodFillActor::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Bind to bounding volume regeneration events
+	BindToBoundingVolumes();
+}
+
+void AAeonixDebugFloodFillActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Unbind from all delegates
+	UnbindFromBoundingVolumes();
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void AAeonixDebugFloodFillActor::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+{
+	if (!Volume || !bAutoUpdateOnRegeneration)
+		return;
+
+	// Only update if this actor is within the regenerated volume
+	if (Volume->EncompassesPoint(GetActorLocation()))
+	{
+		PerformFloodFill();
+	}
+}
+
+void AAeonixDebugFloodFillActor::BindToBoundingVolumes()
+{
+	if (!GetWorld())
+		return;
+
+	// Find all bounding volumes and bind to their regeneration delegates
+	for (TActorIterator<AAeonixBoundingVolume> It(GetWorld()); It; ++It)
+	{
+		AAeonixBoundingVolume* Volume = *It;
+		if (Volume)
+		{
+			Volume->OnNavigationRegenerated.AddUObject(this, &AAeonixDebugFloodFillActor::OnBoundingVolumeRegenerated);
+		}
+	}
+}
+
+void AAeonixDebugFloodFillActor::UnbindFromBoundingVolumes()
+{
+	if (!GetWorld())
+		return;
+
+	// Unbind from all bounding volumes
+	for (TActorIterator<AAeonixBoundingVolume> It(GetWorld()); It; ++It)
+	{
+		AAeonixBoundingVolume* Volume = *It;
+		if (Volume)
+		{
+			Volume->OnNavigationRegenerated.RemoveAll(this);
+		}
 	}
 }
 

@@ -2,6 +2,7 @@
 #include "Data/AeonixGenerationParameters.h"
 #include "Interface/AeonixCollisionQueryInterface.h"
 #include "Interface/AeonixDebugDrawInterface.h"
+#include "AeonixNavigation.h"
 
 void FAeonixData::SetExtents(const FVector& Origin, const FVector& Extents)
 {
@@ -63,6 +64,12 @@ void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& 
 
 void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions: Processing %d dynamic region(s)"),
+		GenerationParameters.DynamicRegionBoxes.Num());
+
+	int32 TotalNodesUpdated = 0;
+	int32 RegionIndex = 0;
+
 	// Regenerate leaf voxels within dynamic regions by re-sampling collision geometry
 	for (const FBox& DynamicRegion : GenerationParameters.DynamicRegionBoxes)
 	{
@@ -81,6 +88,11 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
 		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
 		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d: Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
+			RegionIndex, *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
+
+		int32 NodesUpdatedThisRegion = 0;
 
 		// Re-rasterize all overlapping Layer 0 nodes
 		TArray<AeonixNode>& Layer0 = OctreeData.GetLayer(0);
@@ -123,12 +135,27 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 							Node.FirstChild.SetNodeIndex(LeafIndex);
 							Node.FirstChild.SetSubnodeIndex(0);
 
+							NodesUpdatedThisRegion++;
 							break; // Found and updated this node, move to next
 						}
 					}
 				}
 			}
 		}
+
+		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d: Updated %d Layer 0 node(s)"),
+			RegionIndex, NodesUpdatedThisRegion);
+
+		TotalNodesUpdated += NodesUpdatedThisRegion;
+		RegionIndex++;
+	}
+
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d region(s)"),
+		TotalNodesUpdated, GenerationParameters.DynamicRegionBoxes.Num());
+
+	if (TotalNodesUpdated == 0 && GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
 	}
 }
 

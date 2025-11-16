@@ -57,6 +57,12 @@ public class AeonixNavigation : ModuleRules
 			}
             );
 
+        // Add editor-only dependencies
+        if (Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.Add("UnrealEd");
+        }
+
 
         DynamicallyLoadedModuleNames.AddRange(
             new string[]

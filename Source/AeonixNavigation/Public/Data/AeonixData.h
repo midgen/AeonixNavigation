@@ -27,6 +27,7 @@ public:
 	const FAeonixGenerationParameters& GetParams() const;
 	void Generate(UWorld& World, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
 	void RegenerateDynamicSubregions(const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
+	void RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface);
 
 	bool GetLinkPosition(const AeonixLink& aLink, FVector& oPosition) const;
 	bool GetNodePosition(layerindex_t aLayer, mortoncode_t aCode, FVector& oPosition) const;

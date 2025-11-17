@@ -51,6 +51,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix", meta = (Bitmask, BitmaskEnum = "/Script/AeonixNavigation.EAeonixModifierType"))
 	int32 ModifierTypes = static_cast<int32>(EAeonixModifierType::None);
 
+	/** Unique ID for this dynamic region (used for selective regeneration) */
+	UPROPERTY(SaveGame)
+	FGuid DynamicRegionId;
+
 private:
 	/** Register this volume with bounding volumes it's inside */
 	void RegisterWithBoundingVolumes();

@@ -162,21 +162,17 @@ namespace AeonixAsyncRegen
 			const FVector& LeafOrigin = Batch.LeafOrigins[i];
 			const mortoncode_t LeafIndex = Batch.LeafIndicesToProcess[i];
 
-			// Get the leaf node array index
-			// During RegenerateDynamicSubregions, we know the mapping from Layer0 node to LeafNode
-			// For now, we'll need to find it
-			// TODO: Pass this mapping in the batch data
-
 			// Rasterize this leaf with two-pass optimization
+			// LeafIndex contains the correct node array index from the batch preparation
 			const uint64 VoxelBitmask = RasterizeLeafNodeAsync(
 				LeafOrigin,
 				LeafIndex,
-				i, // Using chunk index as temp, need proper mapping
+				LeafIndex, // Fixed: Use actual node array index, not chunk loop index
 				Batch.GenParams,
 				*CollisionSubsystem);
 
 			// Store result (even if all clear - we need to update the leaf node)
-			OutResults.Emplace(LeafIndex, i, VoxelBitmask);
+			OutResults.Emplace(LeafIndex, LeafIndex, VoxelBitmask);
 		}
 	}
 

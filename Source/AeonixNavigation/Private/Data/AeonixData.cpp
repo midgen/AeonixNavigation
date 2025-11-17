@@ -71,8 +71,10 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 	int32 RegionIndex = 0;
 
 	// Regenerate leaf voxels within dynamic regions by re-sampling collision geometry
-	for (const FBox& DynamicRegion : GenerationParameters.DynamicRegionBoxes)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
 	{
+		const FGuid& RegionId = RegionPair.Key;
+		const FBox& DynamicRegion = RegionPair.Value;
 		const float VoxelSize = GetVoxelSize(0); // Layer 0 voxel size
 		const int32 NodesPerSide = GetNumNodesPerSide(0);
 		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
@@ -89,8 +91,8 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
 		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
 
-		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d: Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
-			RegionIndex, *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
+		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d (ID: %s): Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
+			RegionIndex, *RegionId.ToString(), *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
 
 		int32 NodesUpdatedThisRegion = 0;
 
@@ -156,6 +158,109 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 	if (TotalNodesUpdated == 0 && GenerationParameters.DynamicRegionBoxes.Num() > 0)
 	{
 		UE_LOG(LogAeonixNavigation, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
+	}
+}
+
+void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
+{
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions: Processing %d specific region(s) out of %d total"),
+		RegionIds.Num(), GenerationParameters.DynamicRegionBoxes.Num());
+
+	int32 TotalNodesUpdated = 0;
+	int32 RegionIndex = 0;
+
+	// Regenerate only the specified regions
+	for (const FGuid& RegionId : RegionIds)
+	{
+		const FBox* DynamicRegionPtr = GenerationParameters.GetDynamicRegion(RegionId);
+		if (!DynamicRegionPtr)
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("RegenerateDynamicSubregions: Region ID %s not found, skipping"),
+				*RegionId.ToString());
+			continue;
+		}
+
+		const FBox& DynamicRegion = *DynamicRegionPtr;
+		const float VoxelSize = GetVoxelSize(0); // Layer 0 voxel size
+		const int32 NodesPerSide = GetNumNodesPerSide(0);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d (ID: %s): Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
+			RegionIndex, *RegionId.ToString(), *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
+
+		int32 NodesUpdatedThisRegion = 0;
+
+		// Re-rasterize all overlapping Layer 0 nodes
+		TArray<AeonixNode>& Layer0 = OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					// Find this node in Layer 0
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							// Get the position of this Layer 0 node
+							FVector NodePosition;
+							GetNodePosition(0, Code, NodePosition);
+
+							// Get or calculate the leaf index
+							nodeindex_t LeafIndex = NodeIdx;
+
+							// Clear the existing leaf node data first
+							if (LeafIndex < OctreeData.LeafNodes.Num())
+							{
+								OctreeData.LeafNodes[LeafIndex].Clear();
+							}
+
+							// Re-rasterize the leaf voxels
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+							RasterizeLeafNode(LeafOrigin, LeafIndex, CollisionInterface, DebugInterface);
+
+							// Update the FirstChild link
+							AeonixNode& Node = Layer0[NodeIdx];
+							Node.FirstChild.SetLayerIndex(0);
+							Node.FirstChild.SetNodeIndex(LeafIndex);
+							Node.FirstChild.SetSubnodeIndex(0);
+
+							NodesUpdatedThisRegion++;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		UE_LOG(LogAeonixNavigation, Display, TEXT("  Region %d (ID: %s): Updated %d Layer 0 node(s)"),
+			RegionIndex, *RegionId.ToString(), NodesUpdatedThisRegion);
+
+		TotalNodesUpdated += NodesUpdatedThisRegion;
+		RegionIndex++;
+	}
+
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d specified region(s)"),
+		TotalNodesUpdated, RegionIds.Num());
+
+	if (TotalNodesUpdated == 0 && RegionIds.Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that specified regions overlap with generated navigation."));
 	}
 }
 
@@ -568,8 +673,9 @@ void FAeonixData::FirstPassRasterise(const IAeonixCollisionQueryInterface& Colli
 	}
 
 	// Force-allocate voxels within dynamic regions (ensures leaf nodes exist for runtime updates)
-	for (const FBox& DynamicRegion : GenerationParameters.DynamicRegionBoxes)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
 	{
+		const FBox& DynamicRegion = RegionPair.Value;
 		const float VoxelSize = GetVoxelSize(1);
 		const int32 NodesPerSide = GetNumNodesPerSide(1);
 		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;

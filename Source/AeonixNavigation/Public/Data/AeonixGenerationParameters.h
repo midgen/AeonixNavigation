@@ -49,6 +49,8 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 
 	// Dynamic region support - voxels in these regions get pre-allocated leaf nodes for runtime updates
 	// Key = unique GUID for each region, Value = bounding box
+	// This data is now serialized with the bounding volume to persist dynamic regions across level loads
+	UPROPERTY()
 	TMap<FGuid, FBox> DynamicRegionBoxes;
 
 	/** Add a dynamic region with a unique ID */

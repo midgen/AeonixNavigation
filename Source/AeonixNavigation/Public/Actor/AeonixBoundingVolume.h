@@ -57,6 +57,9 @@ public:
 	void RemoveDynamicRegion(const FGuid& RegionId);
 	void ClearDynamicRegions();
 
+	// Validate that loaded dynamic regions match modifier volumes in the level
+	void ValidateDynamicRegions();
+
 	// Called by dynamic obstacles to request regeneration (throttled)
 	void RequestDynamicRegionRegen(const FGuid& RegionId);
 	void TryProcessDirtyRegions();

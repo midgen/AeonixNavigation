@@ -12,6 +12,7 @@
 #include "Util/AeonixMediator.h"
 #include "Mass/AeonixFragments.h"
 #include "Data/AeonixHandleTypes.h"
+#include "Data/AeonixStats.h"
 
 #include "MassCommonFragments.h"
 #include "MassEntityManager.h"
@@ -209,6 +210,7 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	bool Result;
 	{
 		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingSync);
 
 		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
 		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
@@ -267,6 +269,8 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	// TODO: Bit more scope in this lambda than I'd like, there's going to be crash potential if things get destroyed while this task is running
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
+
 		// Acquire read lock for thread-safe octree access during pathfinding
 		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
 
@@ -342,7 +346,7 @@ void UAeonixSubsystem::UpdateComponents()
 
 }
 
-void UAeonixSubsystem::ProcessDynamicObstacles()
+void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 {
 	// Clean up null/invalid obstacle components (iterate backwards for safe removal)
 	for (int32 i = RegisteredDynamicObstacles.Num() - 1; i >= 0; i--)
@@ -398,11 +402,13 @@ void UAeonixSubsystem::ProcessDynamicObstacles()
 	}
 
 	// Try to process dirty regions on all volumes (throttled by cooldown)
+	// and process any pending regeneration results with time budget
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
 		if (Handle.VolumeHandle)
 		{
 			Handle.VolumeHandle->TryProcessDirtyRegions();
+			Handle.VolumeHandle->ProcessPendingRegenResults(DeltaTime);
 		}
 	}
 }
@@ -410,7 +416,7 @@ void UAeonixSubsystem::ProcessDynamicObstacles()
 void UAeonixSubsystem::Tick(float DeltaTime)
 {
 	UpdateComponents();
-	ProcessDynamicObstacles();
+	ProcessDynamicObstacles(DeltaTime);
 	UpdateRequests();
 }
 

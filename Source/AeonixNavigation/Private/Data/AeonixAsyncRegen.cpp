@@ -6,6 +6,7 @@
 #include "Data/AeonixData.h"
 #include "Data/AeonixOctreeData.h"
 #include "Data/AeonixLeafNode.h"
+#include "Data/AeonixStats.h"
 #include "Interface/AeonixCollisionQueryInterface.h"
 #include "Subsystem/AeonixCollisionSubsystem.h"
 #include "Library/libmorton/morton.h"
@@ -17,20 +18,22 @@ namespace AeonixAsyncRegen
 {
 	void ExecuteAsyncRegen(const FAeonixAsyncRegenBatch& Batch)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicAsync);
+
 		if (!Batch.VolumePtr.IsValid())
 		{
-			UE_LOG(LogAeonixNavigation, Error, TEXT("ExecuteAsyncRegen: Volume pointer is invalid!"));
+			UE_LOG(LogAeonixRegen, Error, TEXT("ExecuteAsyncRegen: Volume pointer is invalid!"));
 			return;
 		}
 
 		const int32 TotalLeaves = Batch.LeafIndicesToProcess.Num();
 		if (TotalLeaves == 0)
 		{
-			UE_LOG(LogAeonixNavigation, Warning, TEXT("ExecuteAsyncRegen: No leaves to process"));
+			UE_LOG(LogAeonixRegen, Warning, TEXT("ExecuteAsyncRegen: No leaves to process"));
 			return;
 		}
 
-		UE_LOG(LogAeonixNavigation, Display, TEXT("ExecuteAsyncRegen: Processing %d leaves in chunks of %d"),
+		UE_LOG(LogAeonixRegen, Display, TEXT("ExecuteAsyncRegen: Processing %d leaves in chunks of %d"),
 			TotalLeaves, Batch.ChunkSize);
 
 		// Store all results
@@ -49,14 +52,14 @@ namespace AeonixAsyncRegen
 			ChunksProcessed++;
 		}
 
-		UE_LOG(LogAeonixNavigation, Display, TEXT("ExecuteAsyncRegen: Processed %d chunks, got %d results"),
+		UE_LOG(LogAeonixRegen, Display, TEXT("ExecuteAsyncRegen: Processed %d chunks, got %d results"),
 			ChunksProcessed, AllResults.Num());
 
-		// Apply results back to octree on game thread
+		// Enqueue results for time-budgeted processing on game thread
 		AAeonixBoundingVolume* Volume = Batch.VolumePtr.Get();
 		if (!Volume)
 		{
-			UE_LOG(LogAeonixNavigation, Error, TEXT("ExecuteAsyncRegen: Volume pointer became null during async processing"));
+			UE_LOG(LogAeonixRegen, Error, TEXT("ExecuteAsyncRegen: Volume pointer became null during async processing"));
 			return;
 		}
 
@@ -64,48 +67,13 @@ namespace AeonixAsyncRegen
 		{
 			if (!Volume || !IsValid(Volume))
 			{
-				UE_LOG(LogAeonixNavigation, Error, TEXT("ExecuteAsyncRegen: Volume became invalid before completion"));
+				UE_LOG(LogAeonixRegen, Error, TEXT("ExecuteAsyncRegen: Volume became invalid before completion"));
 				return;
 			}
 
-			// Acquire write lock to update leaf nodes
-			FWriteScopeLock WriteLock(Volume->GetOctreeDataLock());
-
-			FAeonixOctreeData& OctreeData = Volume->GetMutableNavData().OctreeData;
-			int32 NodesUpdated = 0;
-			int32 SkippedNodes = 0;
-
-			for (const FAeonixLeafRasterResult& Result : Results)
-			{
-				if (Result.LeafNodeArrayIndex >= 0 && Result.LeafNodeArrayIndex < OctreeData.LeafNodes.Num())
-				{
-					// Clear and set new voxel data
-					OctreeData.LeafNodes[Result.LeafNodeArrayIndex].Clear();
-					OctreeData.LeafNodes[Result.LeafNodeArrayIndex].VoxelGrid = Result.VoxelBitmask;
-					NodesUpdated++;
-				}
-				else
-				{
-					UE_LOG(LogAeonixNavigation, Warning, TEXT("ExecuteAsyncRegen: Invalid leaf node index %d (total nodes: %d)"),
-						Result.LeafNodeArrayIndex, OctreeData.LeafNodes.Num());
-					SkippedNodes++;
-				}
-			}
-
-			UE_LOG(LogAeonixNavigation, Display, TEXT("ExecuteAsyncRegen: Complete - Updated %d/%d leaf nodes (%d skipped)"),
-				NodesUpdated, TotalLeaves, SkippedNodes);
-
-#if WITH_EDITOR
-			// Mark actor as modified so Unreal saves the updated navigation data
-			Volume->Modify();
-			UE_LOG(LogAeonixNavigation, Log, TEXT("Async dynamic subregion changes marked for save"));
-#endif
-
-			// Fire completion delegate to notify listeners
-			if (Volume->OnNavigationRegenerated.IsBound())
-			{
-				Volume->OnNavigationRegenerated.Broadcast(Volume);
-			}
+			// Enqueue results for time-budgeted processing
+			// The volume's Tick will process them incrementally to avoid frame spikes
+			Volume->EnqueueRegenResults(MoveTemp(const_cast<TArray<FAeonixLeafRasterResult>&>(Results)), TotalLeaves);
 		});
 	}
 
@@ -115,6 +83,8 @@ namespace AeonixAsyncRegen
 		int32 ChunkEnd,
 		TArray<FAeonixLeafRasterResult>& OutResults)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicAsyncChunk);
+
 		if (!Batch.VolumePtr.IsValid())
 		{
 			return;
@@ -129,7 +99,7 @@ namespace AeonixAsyncRegen
 		UWorld* World = Volume->GetWorld();
 		if (!World)
 		{
-			UE_LOG(LogAeonixNavigation, Error, TEXT("ProcessLeafChunk: World is null"));
+			UE_LOG(LogAeonixRegen, Error, TEXT("ProcessLeafChunk: World is null"));
 			return;
 		}
 
@@ -137,7 +107,7 @@ namespace AeonixAsyncRegen
 		UAeonixCollisionSubsystem* CollisionSubsystem = World->GetSubsystem<UAeonixCollisionSubsystem>();
 		if (!CollisionSubsystem)
 		{
-			UE_LOG(LogAeonixNavigation, Error, TEXT("ProcessLeafChunk: CollisionSubsystem is null"));
+			UE_LOG(LogAeonixRegen, Error, TEXT("ProcessLeafChunk: CollisionSubsystem is null"));
 			return;
 		}
 
@@ -189,6 +159,8 @@ namespace AeonixAsyncRegen
 		const FAeonixGenerationParameters& GenParams,
 		const IAeonixCollisionQueryInterface& CollisionInterface)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicAsyncLeaf);
+
 		// Calculate voxel and leaf sizes
 		const float VoxelSizeLayer0 = (GenParams.Extents.X / FMath::Pow(2.f, GenParams.VoxelPower)) * 2.0f; // Layer 0 voxel size
 		const float LeafVoxelSize = VoxelSizeLayer0 * 0.25f; // Each leaf voxel is 1/4 the Layer 0 size

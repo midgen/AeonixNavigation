@@ -4,6 +4,7 @@
 
 DEFINE_LOG_CATEGORY(LogAeonixNavigation);
 DEFINE_LOG_CATEGORY(VLogAeonixNavigation);
+DEFINE_LOG_CATEGORY(LogAeonixRegen);
 
 
 

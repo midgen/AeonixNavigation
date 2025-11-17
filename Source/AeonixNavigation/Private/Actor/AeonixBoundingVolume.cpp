@@ -1,6 +1,7 @@
 
 
 #include "Actor/AeonixBoundingVolume.h"
+#include "Actor/AeonixModifierVolume.h"
 #include "Subsystem/AeonixSubsystem.h"
 #include "Subsystem/AeonixCollisionSubsystem.h"
 #include "AeonixNavigation.h"
@@ -11,6 +12,7 @@
 #include "Components/BrushComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
 #include "Serialization/CustomVersion.h"
@@ -32,6 +34,8 @@ namespace FAeonixBoundingVolumeVersion
 		SerializeGenerationBounds = 1,
 		// Added serialization of VoxelPower for baked navigation data
 		SerializeVoxelPower = 2,
+		// Added serialization of DynamicRegionBoxes for persistent dynamic region registration
+		SerializeDynamicRegions = 3,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
@@ -481,9 +485,33 @@ void AAeonixBoundingVolume::ClearDebugFilterBox()
 
 void AAeonixBoundingVolume::AddDynamicRegion(const FGuid& RegionId, const FBox& RegionBox)
 {
-	GenerationParameters.AddDynamicRegion(RegionId, RegionBox);
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s registered dynamic region (ID: %s) box: %s"),
-		*GetName(), *RegionId.ToString(), *RegionBox.ToString());
+	// Check if region already exists
+	const FBox* ExistingBox = GenerationParameters.GetDynamicRegion(RegionId);
+
+	if (ExistingBox)
+	{
+		// Region already exists - check if bounds have changed
+		if (!ExistingBox->Equals(RegionBox, 0.001f))
+		{
+			// Bounds changed - update it
+			GenerationParameters.AddDynamicRegion(RegionId, RegionBox);
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s updated dynamic region (ID: %s) with new box: %s (was: %s)"),
+				*GetName(), *RegionId.ToString(), *RegionBox.ToString(), *ExistingBox->ToString());
+		}
+		else
+		{
+			// Same bounds - already registered (this is normal during level load)
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s: dynamic region (ID: %s) already registered with same bounds"),
+				*GetName(), *RegionId.ToString());
+		}
+	}
+	else
+	{
+		// New region - add it
+		GenerationParameters.AddDynamicRegion(RegionId, RegionBox);
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s registered new dynamic region (ID: %s) box: %s"),
+			*GetName(), *RegionId.ToString(), *RegionBox.ToString());
+	}
 }
 
 void AAeonixBoundingVolume::RemoveDynamicRegion(const FGuid& RegionId)
@@ -499,6 +527,72 @@ void AAeonixBoundingVolume::ClearDynamicRegions()
 	DirtyRegionIds.Empty();
 	DirtyRegionTimestamps.Empty();
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared dynamic regions and dirty state"), *GetName());
+}
+
+void AAeonixBoundingVolume::ValidateDynamicRegions()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	// Track which loaded regions have been found in the level
+	TSet<FGuid> FoundRegionIds;
+
+	// Iterate through all modifier volumes in the level
+	for (TActorIterator<AAeonixModifierVolume> It(GetWorld()); It; ++It)
+	{
+		AAeonixModifierVolume* ModifierVolume = *It;
+		if (!ModifierVolume)
+		{
+			continue;
+		}
+
+		// Check if this modifier has the DynamicRegion flag
+		const bool bIsDynamicRegion = (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion)) != 0;
+		if (!bIsDynamicRegion)
+		{
+			continue;
+		}
+
+		// Check if this modifier is inside this bounding volume
+		if (!EncompassesPoint(ModifierVolume->GetActorLocation()))
+		{
+			continue;
+		}
+
+		const FGuid& RegionId = ModifierVolume->DynamicRegionId;
+
+		// Check if this region exists in our loaded data
+		if (GenerationParameters.DynamicRegionBoxes.Contains(RegionId))
+		{
+			FoundRegionIds.Add(RegionId);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Validated dynamic region %s for modifier volume %s in bounding volume %s"),
+				*RegionId.ToString(), *ModifierVolume->GetName(), *GetName());
+		}
+		else
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Modifier volume %s has dynamic region %s, but it was not found in loaded navigation data for bounding volume %s. The volume may have been added after the last generation. Consider regenerating navigation."),
+				*ModifierVolume->GetName(), *RegionId.ToString(), *GetName());
+		}
+	}
+
+	// Check for dynamic regions in loaded data that don't have corresponding modifier volumes
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+	{
+		const FGuid& RegionId = RegionPair.Key;
+		if (!FoundRegionIds.Contains(RegionId))
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Bounding volume %s has dynamic region %s in loaded navigation data, but no corresponding modifier volume was found in the level. The volume may have been deleted. Consider regenerating navigation or the dynamic region may not function correctly."),
+				*GetName(), *RegionId.ToString());
+		}
+	}
+
+	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Dynamic region validation complete for bounding volume %s: %d loaded regions, %d matched with modifier volumes"),
+			*GetName(), GenerationParameters.DynamicRegionBoxes.Num(), FoundRegionIds.Num());
+	}
 }
 
 void AAeonixBoundingVolume::RequestDynamicRegionRegen(const FGuid& RegionId)
@@ -675,29 +769,61 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 		// When loading, check what version was saved to know what data is available
 		if (Ar.IsSaving())
 		{
-			// Always save with latest format (includes Origin, Extents, and VoxelPower)
+			// Always save with latest format (includes Origin, Extents, VoxelPower, and DynamicRegionBoxes)
 			// Get the actual parameters from NavigationData (where Generate() stored them)
 			const FAeonixGenerationParameters& Params = NavigationData.GetParams();
 			FVector OriginToSave = Params.Origin;
 			FVector ExtentsToSave = Params.Extents;
 			int32 VoxelPowerToSave = Params.VoxelPower;
+			TMap<FGuid, FBox> DynamicRegionsToSave = Params.DynamicRegionBoxes;
 
 			Ar << OriginToSave;
 			Ar << ExtentsToSave;
 			Ar << VoxelPowerToSave;
-			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d"),
+			Ar << DynamicRegionsToSave;
+
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d"),
 				NavigationData.OctreeData.LeafNodes.Num(),
 				*OriginToSave.ToCompactString(),
 				*ExtentsToSave.ToCompactString(),
-				VoxelPowerToSave);
+				VoxelPowerToSave,
+				DynamicRegionsToSave.Num());
 		}
 		else if (Ar.IsLoading())
 		{
 			const int32 AeonixVersion = Ar.CustomVer(FAeonixBoundingVolumeVersion::GUID);
 
-			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeDynamicRegions)
 			{
-				// Version 2+: Load Origin, Extents, and VoxelPower
+				// Version 3+: Load Origin, Extents, VoxelPower, and DynamicRegionBoxes
+				FVector LoadedOrigin;
+				FVector LoadedExtents;
+				int32 LoadedVoxelPower;
+				TMap<FGuid, FBox> LoadedDynamicRegions;
+				Ar << LoadedOrigin;
+				Ar << LoadedExtents;
+				Ar << LoadedVoxelPower;
+				Ar << LoadedDynamicRegions;
+
+				// Restore all parameters to NavigationData and sync with actor's GenerationParameters
+				FAeonixGenerationParameters RestoredParams = GenerationParameters;
+				RestoredParams.Origin = LoadedOrigin;
+				RestoredParams.Extents = LoadedExtents;
+				RestoredParams.VoxelPower = LoadedVoxelPower;
+				RestoredParams.DynamicRegionBoxes = LoadedDynamicRegions;
+				NavigationData.UpdateGenerationParameters(RestoredParams);
+				GenerationParameters.DynamicRegionBoxes = LoadedDynamicRegions;
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d), marked ready for navigation"),
+					NavigationData.OctreeData.LeafNodes.Num(),
+					*LoadedOrigin.ToCompactString(),
+					*LoadedExtents.ToCompactString(),
+					LoadedVoxelPower,
+					LoadedDynamicRegions.Num());
+			}
+			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			{
+				// Version 2: Load Origin, Extents, and VoxelPower (no DynamicRegionBoxes)
 				FVector LoadedOrigin;
 				FVector LoadedExtents;
 				int32 LoadedVoxelPower;
@@ -712,7 +838,7 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 				RestoredParams.VoxelPower = LoadedVoxelPower;
 				NavigationData.UpdateGenerationParameters(RestoredParams);
 
-				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded from version 2 format - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
 					NavigationData.OctreeData.LeafNodes.Num(),
 					*LoadedOrigin.ToCompactString(),
 					*LoadedExtents.ToCompactString(),
@@ -791,6 +917,12 @@ void AAeonixBoundingVolume::BeginPlay()
 	}
 	// If bIsReadyForNavigation is already true (from baked data), skip UpdateBounds()
 	// to preserve the generation-time Origin and Extents that were serialized
+
+	// Validate that loaded dynamic regions have corresponding modifier volumes in the level
+	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		ValidateDynamicRegions();
+	}
 
 	bIsReadyForNavigation = true;
 }

@@ -578,9 +578,35 @@ void FAeonixData::RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQuer
 				}
 				else
 				{
+					// No collision detected - allocate empty leaf node
 					OctreeData.LeafNodes.AddDefaulted(1);
+
+					// Check if this node is within a dynamic region
+					// Dynamic regions need valid FirstChild links even when empty (for runtime updates)
+					bool bIsInDynamicRegion = false;
+					for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+					{
+						if (RegionPair.Value.IsInside(Position))
+						{
+							bIsInDynamicRegion = true;
+							break;
+						}
+					}
+
+					if (bIsInDynamicRegion)
+					{
+						// In dynamic region - link to the leaf node for future updates
+						node.FirstChild.SetLayerIndex(0);
+						node.FirstChild.SetNodeIndex(leafIndex);
+						node.FirstChild.SetSubnodeIndex(0);
+					}
+					else
+					{
+						// Not in dynamic region - mark as invalid (optimization for static regions)
+						node.FirstChild.SetInvalid();
+					}
+
 					leafIndex++;
-					node.FirstChild.SetInvalid();
 				}
 			}
 		}

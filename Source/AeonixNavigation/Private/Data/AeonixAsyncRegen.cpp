@@ -95,6 +95,12 @@ namespace AeonixAsyncRegen
 			UE_LOG(LogAeonixNavigation, Display, TEXT("ExecuteAsyncRegen: Complete - Updated %d/%d leaf nodes (%d skipped)"),
 				NodesUpdated, TotalLeaves, SkippedNodes);
 
+#if WITH_EDITOR
+			// Mark actor as modified so Unreal saves the updated navigation data
+			Volume->Modify();
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Async dynamic subregion changes marked for save"));
+#endif
+
 			// Fire completion delegate to notify listeners
 			if (Volume->OnNavigationRegenerated.IsBound())
 			{

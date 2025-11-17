@@ -185,6 +185,12 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 
 	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s"), *GetName());
 
+#if WITH_EDITOR
+	// Mark actor as modified so Unreal saves the updated navigation data
+	Modify();
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Dynamic subregion changes marked for save"));
+#endif
+
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);
 }
@@ -324,6 +330,12 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
 		SingleRegion.Add(RegionId);
 		NavigationData.RegenerateDynamicSubregions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
 	}
+
+#if WITH_EDITOR
+	// Mark actor as modified so Unreal saves the updated navigation data
+	Modify();
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Dynamic subregion changes marked for save"));
+#endif
 
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);
@@ -922,6 +934,15 @@ void AAeonixBoundingVolume::BeginPlay()
 	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
 	{
 		ValidateDynamicRegions();
+
+		// Auto-regenerate dynamic regions on level load if we loaded baked data
+		// This ensures dynamic regions have up-to-date collision data
+		if (bIsReadyForNavigation)
+		{
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Auto-regenerating %d dynamic region(s) after level load for bounding volume %s"),
+				GenerationParameters.DynamicRegionBoxes.Num(), *GetName());
+			RegenerateDynamicSubregionsAsync();
+		}
 	}
 
 	bIsReadyForNavigation = true;

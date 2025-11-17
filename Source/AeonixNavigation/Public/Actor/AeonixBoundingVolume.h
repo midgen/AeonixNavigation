@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Data/AeonixData.h"
+#include "Data/AeonixAsyncRegen.h"
 #include "Interface/AeonixDebugDrawInterface.h"
 #include "Interface/AeonixSubsystemInterface.h"
 
@@ -8,7 +9,7 @@
 
 #include "AeonixBoundingVolume.generated.h"
 
-// Forward declaration
+// Forward declarations
 class AAeonixBoundingVolume;
 
 /** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
@@ -64,6 +65,12 @@ public:
 	void RequestDynamicRegionRegen(const FGuid& RegionId);
 	void TryProcessDirtyRegions();
 
+	// Called by async regen to enqueue results for time-budgeted processing
+	void EnqueueRegenResults(TArray<FAeonixLeafRasterResult>&& Results, int32 TotalLeaves);
+
+	// Called by subsystem to process pending regeneration results with time budget
+	void ProcessPendingRegenResults(float DeltaTime);
+
 	const FAeonixData& GetNavData() const { return NavigationData; }
 	FAeonixData& GetMutableNavData() { return NavigationData; }
 
@@ -105,6 +112,15 @@ private:
 
 	/** Time of last dynamic region regeneration */
 	double LastDynamicRegenTime = 0.0;
+
+	/** Pending regeneration results awaiting time-budgeted application */
+	TArray<FAeonixLeafRasterResult> PendingRegenResults;
+
+	/** Index of next result to process from queue */
+	int32 NextResultIndexToProcess = 0;
+
+	/** Total number of leaves in current regeneration batch (for progress tracking) */
+	int32 CurrentRegenTotalLeaves = 0;
 
 protected:
 	FAeonixData NavigationData;

@@ -1,17 +1,57 @@
-﻿// Copyright 2024 Chris Ashworth
+// Copyright 2024 Chris Ashworth
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Object.h"
+#include "Engine/DeveloperSettings.h"
 #include "AeonixSettings.generated.h"
 
 /**
- * 
+ * Aeonix Navigation Plugin Settings
  */
-UCLASS(config = AeonixNavigation)
-class AEONIXNAVIGATION_API UAeonixSettings : public UObject
+UCLASS(config = Game, defaultconfig, meta = (DisplayName = "Aeonix Navigation"))
+class AEONIXNAVIGATION_API UAeonixSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
+public:
+	UAeonixSettings();
+
+	// Override to place settings in the correct category
+	virtual FName GetCategoryName() const override { return FName(TEXT("Plugins")); }
+
+	/**
+	 * Time budget per frame for applying dynamic regeneration results (milliseconds).
+	 * Lower values spread work across more frames, reducing spikes but increasing total time.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Dynamic Regeneration", meta = (ClampMin = "1.0", ClampMax = "50.0", UIMin = "1.0", UIMax = "20.0"))
+	float DynamicRegenTimeBudgetMs = 5.0f;
+
+	/**
+	 * Number of leaves to process in each async chunk (for physics lock management).
+	 * Higher values = fewer lock acquisitions but longer hold times.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Dynamic Regeneration", meta = (ClampMin = "10", ClampMax = "500", UIMin = "25", UIMax = "200"))
+	int32 AsyncChunkSize = 75;
+
+	/**
+	 * Minimum time between dynamic region regenerations (seconds).
+	 * Prevents excessive regeneration when obstacles move frequently.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Dynamic Regeneration", meta = (ClampMin = "0.0", ClampMax = "5.0", UIMin = "0.1", UIMax = "2.0"))
+	float DynamicRegenCooldown = 0.5f;
+
+	/**
+	 * Delay after marking a region dirty before processing it at runtime (seconds).
+	 * Allows physics to settle before regenerating navigation.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Dynamic Regeneration", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "1.0"))
+	float DirtyRegionProcessDelay = 0.25f;
+
+	/**
+	 * Delay after marking a region dirty before processing it in editor (seconds).
+	 * Longer than runtime delay to allow for editor overhead.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Dynamic Regeneration", meta = (ClampMin = "0.0", ClampMax = "10.0", UIMin = "0.5", UIMax = "5.0"))
+	float EditorDirtyRegionProcessDelay = 1.0f;
 };

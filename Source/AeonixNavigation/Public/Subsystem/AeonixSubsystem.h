@@ -79,7 +79,7 @@ private:
 	TArray<UAeonixDynamicObstacleComponent*> RegisteredDynamicObstacles{};
 
 	void UpdateRequests();
-	void ProcessDynamicObstacles();
+	void ProcessDynamicObstacles(float DeltaTime);
 
 private:
 	TArray<FAeonixPathFindRequest> PathRequests;

@@ -35,6 +35,9 @@ struct FAeonixAsyncRegenBatch
 	/** Weak pointer to the volume being regenerated */
 	TWeakObjectPtr<AAeonixBoundingVolume> VolumePtr;
 
+	/** Region IDs to process (empty set means all regions) */
+	TSet<FGuid> RegionIdsToProcess;
+
 	/** Chunk size for lock management (number of leaves to process before releasing lock) */
 	int32 ChunkSize = 75;
 

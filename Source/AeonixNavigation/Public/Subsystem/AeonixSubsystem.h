@@ -10,6 +10,7 @@
 
 class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
+class UAeonixDynamicObstacleComponent;
 
 
 UCLASS()
@@ -31,6 +32,10 @@ public:
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) override;
 	UFUNCTION()
 	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bDestroyMassEntity) override;
+	UFUNCTION()
+	virtual void RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) override;
+	UFUNCTION()
+	virtual void UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) override;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) override;
 	UFUNCTION()
@@ -70,7 +75,11 @@ private:
 	UPROPERTY(Transient)
 	TMap<UAeonixNavAgentComponent*, const AAeonixBoundingVolume*> AgentToVolumeMap;
 
+	UPROPERTY(Transient)
+	TArray<UAeonixDynamicObstacleComponent*> RegisteredDynamicObstacles{};
+
 	void UpdateRequests();
+	void ProcessDynamicObstacles();
 
 private:
 	TArray<FAeonixPathFindRequest> PathRequests;

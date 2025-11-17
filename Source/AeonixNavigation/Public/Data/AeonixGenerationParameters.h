@@ -48,5 +48,32 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 	bool bUseDebugFilterBox{false};
 
 	// Dynamic region support - voxels in these regions get pre-allocated leaf nodes for runtime updates
-	TArray<FBox> DynamicRegionBoxes;
+	// Key = unique GUID for each region, Value = bounding box
+	TMap<FGuid, FBox> DynamicRegionBoxes;
+
+	/** Add a dynamic region with a unique ID */
+	void AddDynamicRegion(const FGuid& RegionId, const FBox& RegionBox)
+	{
+		DynamicRegionBoxes.Add(RegionId, RegionBox);
+	}
+
+	/** Remove a dynamic region by ID */
+	void RemoveDynamicRegion(const FGuid& RegionId)
+	{
+		DynamicRegionBoxes.Remove(RegionId);
+	}
+
+	/** Get a dynamic region by ID (returns nullptr if not found) */
+	const FBox* GetDynamicRegion(const FGuid& RegionId) const
+	{
+		return DynamicRegionBoxes.Find(RegionId);
+	}
+
+	/** Get all region IDs */
+	TArray<FGuid> GetAllRegionIds() const
+	{
+		TArray<FGuid> RegionIds;
+		DynamicRegionBoxes.GetKeys(RegionIds);
+		return RegionIds;
+	}
 };

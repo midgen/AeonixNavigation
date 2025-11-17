@@ -12,6 +12,12 @@ AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectIni
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
 	BrushColor = FColor::Cyan;
 	bColored = true;
+
+	// Generate a unique ID for this dynamic region if not already set
+	if (!DynamicRegionId.IsValid())
+	{
+		DynamicRegionId = FGuid::NewGuid();
+	}
 }
 
 void AAeonixModifierVolume::OnConstruction(const FTransform& Transform)
@@ -90,9 +96,9 @@ void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 				// Register as dynamic region if the DynamicRegion flag is set
 				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
 				{
-					BoundingVolume->AddDynamicRegion(ModifierBox);
-					UE_LOG(LogAeonixNavigation, Display, TEXT("ModifierVolume %s: Registered DynamicRegion with %s"),
-						*GetName(), *BoundingVolume->GetName());
+					BoundingVolume->AddDynamicRegion(DynamicRegionId, ModifierBox);
+					UE_LOG(LogAeonixNavigation, Display, TEXT("ModifierVolume %s: Registered DynamicRegion (ID: %s) with %s"),
+						*GetName(), *DynamicRegionId.ToString(), *BoundingVolume->GetName());
 				}
 			}
 		}
@@ -133,7 +139,7 @@ void AAeonixModifierVolume::UnregisterFromBoundingVolumes()
 						// Re-register as dynamic region if enabled
 						if (OtherModifier->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
 						{
-							BoundingVolume->AddDynamicRegion(ModifierBox);
+							BoundingVolume->AddDynamicRegion(OtherModifier->DynamicRegionId, ModifierBox);
 						}
 					}
 				}

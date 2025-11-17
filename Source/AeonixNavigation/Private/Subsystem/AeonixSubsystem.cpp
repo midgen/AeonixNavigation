@@ -7,6 +7,7 @@
 #include "AeonixNavigation.h"
 #include "Actor/AeonixBoundingVolume.h"
 #include "Component/AeonixNavAgentComponent.h"
+#include "Component/AeonixDynamicObstacleComponent.h"
 #include "Task/AeonixFindPathTask.h"
 #include "Util/AeonixMediator.h"
 #include "Mass/AeonixFragments.h"
@@ -124,6 +125,43 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 			}
 			break;
 		}
+	}
+}
+
+void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
+{
+	if (!ObstacleComponent)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to register null obstacle component"));
+		return;
+	}
+
+	if (RegisteredDynamicObstacles.Contains(ObstacleComponent))
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Obstacle %s already registered"), *ObstacleComponent->GetName());
+		return;
+	}
+
+	RegisteredDynamicObstacles.Add(ObstacleComponent);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s"), *ObstacleComponent->GetName());
+}
+
+void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
+{
+	if (!ObstacleComponent)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister null obstacle component"));
+		return;
+	}
+
+	const int32 NumRemoved = RegisteredDynamicObstacles.Remove(ObstacleComponent);
+	if (NumRemoved == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister obstacle %s that wasn't registered"), *ObstacleComponent->GetName());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered dynamic obstacle: %s"), *ObstacleComponent->GetName());
 	}
 }
 
@@ -304,10 +342,75 @@ void UAeonixSubsystem::UpdateComponents()
 
 }
 
+void UAeonixSubsystem::ProcessDynamicObstacles()
+{
+	// Clean up null/invalid obstacle components (iterate backwards for safe removal)
+	for (int32 i = RegisteredDynamicObstacles.Num() - 1; i >= 0; i--)
+	{
+		UAeonixDynamicObstacleComponent* Obstacle = RegisteredDynamicObstacles[i];
+
+		if (!Obstacle || !IsValid(Obstacle))
+		{
+			RegisteredDynamicObstacles.RemoveAtSwap(i, EAllowShrinking::No);
+			continue;
+		}
+
+		// Skip inactive obstacles
+		if (!Obstacle->bEnableNavigationRegen)
+		{
+			continue;
+		}
+
+		// Check if transform changed beyond thresholds or crossed region boundaries
+		TSet<FGuid> OldRegionIds;
+		TSet<FGuid> NewRegionIds;
+
+		if (Obstacle->CheckForTransformChange(OldRegionIds, NewRegionIds))
+		{
+			// Get the bounding volume this obstacle is in
+			AAeonixBoundingVolume* BoundingVolume = Obstacle->GetCurrentBoundingVolume();
+
+			if (BoundingVolume)
+			{
+				// Request regeneration for all affected regions (union of old and new)
+				// This ensures we update both regions the obstacle left and entered
+				TSet<FGuid> AllAffectedRegions = OldRegionIds.Union(NewRegionIds);
+
+				for (const FGuid& RegionId : AllAffectedRegions)
+				{
+					BoundingVolume->RequestDynamicRegionRegen(RegionId);
+				}
+
+				if (AllAffectedRegions.Num() > 0)
+				{
+					UE_LOG(LogAeonixNavigation, Display,
+						TEXT("Obstacle %s: Transform changed - requested regen for %d regions (old: %d, new: %d)"),
+						*Obstacle->GetName(),
+						AllAffectedRegions.Num(),
+						OldRegionIds.Num(),
+						NewRegionIds.Num());
+				}
+			}
+
+			// Update the tracked transform now that we've processed the change
+			Obstacle->UpdateTrackedTransform();
+		}
+	}
+
+	// Try to process dirty regions on all volumes (throttled by cooldown)
+	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+	{
+		if (Handle.VolumeHandle)
+		{
+			Handle.VolumeHandle->TryProcessDirtyRegions();
+		}
+	}
+}
 
 void UAeonixSubsystem::Tick(float DeltaTime)
 {
 	UpdateComponents();
+	ProcessDynamicObstacles();
 	UpdateRequests();
 }
 

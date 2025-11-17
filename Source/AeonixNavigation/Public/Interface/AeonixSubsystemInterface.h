@@ -9,6 +9,7 @@
 class AAeonixModifierVolume;
 class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
+class UAeonixDynamicObstacleComponent;
 struct FAeonixNavigationPath;
 
 UENUM()
@@ -44,6 +45,10 @@ public:
 	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) = 0;
 	UFUNCTION()
 	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
+	UFUNCTION()
+	virtual void RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) = 0;
+	UFUNCTION()
+	virtual void UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) = 0;
 	UFUNCTION()
 	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) = 0;
 

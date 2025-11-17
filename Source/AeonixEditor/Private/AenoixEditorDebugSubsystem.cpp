@@ -42,6 +42,9 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	// If we've got a valid start and end target
 	if (StartDebugActor && EndDebugActor && !bIsPathPending)
 	{
+		// Ensure we're subscribed to navigation regeneration events
+		BindToBoundingVolumes();
+
 		UE_LOG(LogTemp, Log, TEXT("Both START and END actors set, attempting pathfinding..."));
 		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
 		{
@@ -266,6 +269,12 @@ void UAenoixEditorDebugSubsystem::ClearDebugActor(AAeonixPathDebugActor* ActorTo
 		bIsPathPending = false;
 		CurrentDebugPath.ResetForRepath();
 	}
+
+	// If both actors are now cleared, unbind from bounding volumes
+	if (!StartDebugActor.IsValid() && !EndDebugActor.IsValid())
+	{
+		UnbindFromBoundingVolumes();
+	}
 }
 
 void UAenoixEditorDebugSubsystem::ClearCachedPath()
@@ -311,4 +320,61 @@ void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
 	FailedBatchRunPaths.Empty();
 	bFailedPathsNeedRedraw = false;
 	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));
+}
+
+void UAenoixEditorDebugSubsystem::BindToBoundingVolumes()
+{
+	if (!StartDebugActor.IsValid() || !StartDebugActor->GetWorld())
+	{
+		return;
+	}
+
+	// Iterate through all bounding volumes in the level and subscribe to their OnNavigationRegenerated delegate
+	for (TActorIterator<AAeonixBoundingVolume> It(StartDebugActor->GetWorld()); It; ++It)
+	{
+		AAeonixBoundingVolume* Volume = *It;
+		if (Volume)
+		{
+			Volume->OnNavigationRegenerated.AddUObject(this, &UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated);
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("Debug path subsystem bound to bounding volume regeneration delegates"));
+}
+
+void UAenoixEditorDebugSubsystem::UnbindFromBoundingVolumes()
+{
+	if (!StartDebugActor.IsValid() || !StartDebugActor->GetWorld())
+	{
+		return;
+	}
+
+	// Remove all delegate subscriptions from bounding volumes
+	for (TActorIterator<AAeonixBoundingVolume> It(StartDebugActor->GetWorld()); It; ++It)
+	{
+		AAeonixBoundingVolume* Volume = *It;
+		if (Volume)
+		{
+			Volume->OnNavigationRegenerated.RemoveAll(this);
+		}
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("Debug path subsystem unbound from bounding volume regeneration delegates"));
+}
+
+void UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+{
+	if (!Volume || !StartDebugActor.IsValid() || !EndDebugActor.IsValid())
+	{
+		return;
+	}
+
+	// Check if either debug actor is within the regenerated volume
+	if (Volume->EncompassesPoint(StartDebugActor->GetActorLocation()) ||
+		Volume->EncompassesPoint(EndDebugActor->GetActorLocation()))
+	{
+		// Trigger path recalculation
+		UE_LOG(LogTemp, Log, TEXT("Navigation regenerated in volume containing debug path actors - recalculating path"));
+		UpdateDebugActor(StartDebugActor.Get());
+	}
 }

@@ -41,6 +41,7 @@ public:
 	void UpdateBounds();
 	bool Generate();
 	void RegenerateDynamicSubregions();
+	void RegenerateDynamicSubregionsAsync();
 	bool HasData() const;
 	void ClearData();
 
@@ -53,7 +54,7 @@ public:
 	void ClearDynamicRegions();
 
 	const FAeonixData& GetNavData() const { return NavigationData; }
-	FAeonixData& GetNavigationData() { return NavigationData; }
+	FAeonixData& GetMutableNavData() { return NavigationData; }
 
 	/** Get the read-write lock for thread-safe octree access */
 	FRWLock& GetOctreeDataLock() const { return OctreeDataLock; }

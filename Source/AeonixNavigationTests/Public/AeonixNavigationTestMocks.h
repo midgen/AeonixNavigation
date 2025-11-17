@@ -77,6 +77,12 @@ public:
 
         return false; // Not blocked
     }
+
+    virtual bool IsLeafBlocked(const FVector& Position, const float LeafSize, ECollisionChannel CollisionChannel, const float AgentRadius) const override
+    {
+        // For test purposes, use same logic as IsBlocked but with leaf size
+        return IsBlocked(Position, LeafSize, CollisionChannel, AgentRadius);
+    }
 };
 
 // Mock implementation that simulates obstacles that don't completely block the path
@@ -134,6 +140,12 @@ public:
         }
 
         return false; // Not blocked
+    }
+
+    virtual bool IsLeafBlocked(const FVector& Position, const float LeafSize, ECollisionChannel CollisionChannel, const float AgentRadius) const override
+    {
+        // For test purposes, use same logic as IsBlocked but with leaf size
+        return IsBlocked(Position, LeafSize, CollisionChannel, AgentRadius);
     }
 };
 

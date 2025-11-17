@@ -370,12 +370,27 @@ bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNo
 
 void FAeonixData::RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
+	// Two-pass optimization: First test the entire leaf volume
+	// If the whole leaf is clear, we can skip all 64 individual voxel queries
+	const float leafVoxelSize = GetVoxelSize(0) * 0.25f;
+	const float leafSize = leafVoxelSize * 4.0f; // 4x4x4 voxels
+	const FVector leafCenter = aOrigin + FVector(leafSize * 0.5f);
+
+	// Pass 1: Test entire leaf volume (conservative test)
+	if (!CollisionInterface.IsLeafBlocked(leafCenter, leafSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
+	{
+		// Entire leaf is clear - all 64 voxels are guaranteed empty
+		// The leaf node is already cleared before this function is called in RegenerateDynamicSubregions
+		// No need to do anything - early out saves 64 queries!
+		return;
+	}
+
+	// Pass 2: Leaf contains some blocking geometry - do detailed 64-voxel rasterization
 	for (int i = 0; i < 64; i++)
 	{
 
 		uint_fast32_t x, y, z;
 		morton3D_64_decode(i, x, y, z);
-		float leafVoxelSize = GetVoxelSize(0) * 0.25f;
 		FVector position = aOrigin + FVector(x * leafVoxelSize, y * leafVoxelSize, z * leafVoxelSize) + FVector(leafVoxelSize * 0.5f);
 
 		if (aLeafIndex >= OctreeData.LeafNodes.Num() - 1)

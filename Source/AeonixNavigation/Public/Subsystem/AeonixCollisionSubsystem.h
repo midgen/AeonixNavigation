@@ -18,6 +18,7 @@ class AEONIXNAVIGATION_API UAeonixCollisionSubsystem : public UWorldSubsystem, p
 
 	/* IAeonixCollisionQueryInterface BEGIN */
 	virtual bool IsBlocked(const FVector& Position, const float VoxelSize, ECollisionChannel CollisionChannel, const float AgentRadius) const override;
+	virtual bool IsLeafBlocked(const FVector& Position, const float LeafSize, ECollisionChannel CollisionChannel, const float AgentRadius) const override;
 	/* IAeonixCollisionQueryInterface END */
 
 protected:

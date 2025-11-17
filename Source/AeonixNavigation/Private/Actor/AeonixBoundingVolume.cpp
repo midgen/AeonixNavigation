@@ -5,6 +5,8 @@
 #include "Subsystem/AeonixCollisionSubsystem.h"
 #include "AeonixNavigation.h"
 #include "Debug/AeonixDebugDrawManager.h"
+#include "Data/AeonixAsyncRegen.h"
+#include "Library/libmorton/morton.h"
 
 #include "Components/BrushComponent.h"
 #include "Components/LineBatchComponent.h"
@@ -12,6 +14,8 @@
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
 #include "Serialization/CustomVersion.h"
+#include "Async/Async.h"
+#include "Async/TaskGraphInterfaces.h"
 
 #include <chrono>
 
@@ -178,6 +182,109 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
+{
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregionsAsync called for bounding volume %s"), *GetName());
+
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
+		return;
+	}
+
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+	}
+
+	// Clear octree debug visualization (leaf voxels need to be re-rendered with updated data)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	// Prepare batch data on game thread
+	FAeonixAsyncRegenBatch Batch;
+	Batch.GenParams = Params;
+	Batch.VolumePtr = this;
+	Batch.PhysicsScenePtr = GetWorld()->GetPhysicsScene();
+	Batch.ChunkSize = 75; // Process 75 leaves per chunk
+
+	// Calculate affected leaf nodes for all dynamic regions
+	for (const FBox& DynamicRegion : Params.DynamicRegionBoxes)
+	{
+		const float VoxelSize = NavigationData.GetVoxelSize(0); // Layer 0 voxel size
+		const int32 NodesPerSide = FMath::Pow(2.f, Params.VoxelPower);
+		const FVector VoxelOrigin = Params.Origin - Params.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		// Collect all affected leaf nodes
+		TArray<AeonixNode>& Layer0 = NavigationData.OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					// Find this node in Layer 0 and get its leaf index
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							// Get the position of this Layer 0 node
+							FVector NodePosition;
+							NavigationData.GetNodePosition(0, Code, NodePosition);
+
+							// Calculate leaf origin (corner of the node, not center)
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+
+							// Store data needed for async rasterization
+							Batch.LeafIndicesToProcess.Add(NodeIdx); // Store array index instead of code for easy mapping
+							Batch.LeafCoordinates.Add(FIntVector(X, Y, Z));
+							Batch.LeafOrigins.Add(LeafOrigin);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves"),
+		Batch.LeafIndicesToProcess.Num());
+
+	// Dispatch async task to background thread
+	FFunctionGraphTask::CreateAndDispatchWhenReady([Batch]()
+	{
+		AeonixAsyncRegen::ExecuteAsyncRegen(Batch);
+	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+
+	// Draw debug boxes showing which regions will be regenerated
+	for (const FBox& DynamicRegion : Params.DynamicRegionBoxes)
+	{
+		DrawDebugBox(GetWorld(), DynamicRegion.GetCenter(), DynamicRegion.GetExtent(),
+			FColor::Magenta, false, 5.0f, 0, 2.0f);
+	}
+
+	UE_LOG(LogAeonixNavigation, Display, TEXT("RegenerateDynamicSubregionsAsync: Async task dispatched, returning to game thread"));
 }
 
 bool AAeonixBoundingVolume::HasData() const

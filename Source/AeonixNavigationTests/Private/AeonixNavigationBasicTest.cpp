@@ -14,6 +14,12 @@ public:
         // For testing, always return false (not blocked)
         return false;
     }
+
+    virtual bool IsLeafBlocked(const FVector& Position, const float LeafSize, ECollisionChannel CollisionChannel, const float AgentRadius) const override
+    {
+        // For testing, always return false (not blocked)
+        return false;
+    }
 };
 
 // Mock implementation of IAeonixDebugDrawInterface

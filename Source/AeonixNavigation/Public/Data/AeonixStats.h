@@ -26,3 +26,4 @@ DECLARE_CYCLE_STAT(TEXT("Dynamic Async Leaf"), STAT_AeonixDynamicAsyncLeaf, STAT
 // Pathfinding Stats
 DECLARE_CYCLE_STAT(TEXT("Pathfinding Sync"), STAT_AeonixPathfindingSync, STATGROUP_Aeonix);
 DECLARE_CYCLE_STAT(TEXT("Pathfinding Async"), STAT_AeonixPathfindingAsync, STATGROUP_Aeonix);
+ 

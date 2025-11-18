@@ -269,25 +269,53 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	TArray<FAeonixPathPoint> points;
 
+#if WITH_EDITOR
+	// Track which nodes used the empty leaf optimization for debug visualization
+	TArray<bool> emptyLeafFlags;
+#endif
+
 	// Initial path building from the A* results
 	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
 	{
 		aCurrent = aCameFrom[aCurrent];
 		NavigationData.GetLinkPosition(aCurrent, pos.Position);
-		
+
 		points.Add(pos);
 		const AeonixNode& node = NavigationData.OctreeData.GetNode(aCurrent);
+		bool bIsEmptyLeaf = false;
+
 		if (aCurrent.GetLayerIndex() == 0)
 		{
 			if (!node.HasChildren())
+			{
 				points[points.Num() - 1].Layer = 1;
+			}
 			else
-				points[points.Num() - 1].Layer = 0;
+			{
+				// Check if the leaf is empty (using the empty leaf optimization)
+				const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(node.FirstChild.GetNodeIndex());
+				if (leafNode.IsEmpty())
+				{
+					// Empty leaf optimization was used - use Layer 0 node center position
+					// instead of sub-voxel position, and render at Layer 0 voxel size
+					NavigationData.GetNodePosition(0, node.Code, points[points.Num() - 1].Position);
+					points[points.Num() - 1].Layer = 1;
+					bIsEmptyLeaf = true;
+				}
+				else
+				{
+					points[points.Num() - 1].Layer = 0;
+				}
+			}
 		}
 		else
 		{
 			points[points.Num() - 1].Layer = aCurrent.GetLayerIndex() + 1;
 		}
+
+#if WITH_EDITOR
+		emptyLeafFlags.Add(bIsEmptyLeaf);
+#endif
 	}
 
 	if (points.Num() > 1)
@@ -308,12 +336,14 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	// Store the original path for debug visualization before any optimizations
 	TArray<FDebugVoxelInfo> debugVoxelInfo;
 	debugVoxelInfo.Reserve(points.Num() + 2); // Reserve space for potential start/end additions
-	
 
-	// Add intermediate points
-	for (const FAeonixPathPoint& point : points)
+
+	// Add intermediate points with empty leaf flags
+	for (int32 i = 0; i < points.Num(); i++)
 	{
-		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer));
+		const FAeonixPathPoint& point = points[i];
+		bool bWasEmptyLeaf = emptyLeafFlags.IsValidIndex(i) ? emptyLeafFlags[i] : false;
+		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer, bWasEmptyLeaf));
 	}
 
 	// Set actual voxel positions for debug visualization

@@ -94,6 +94,11 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			{
 				boxColor = FColor::Green;
 			}
+			else if (voxelInfo.bWasEmptyLeaf)  // Empty leaf optimization was used
+			{
+				// Use a distinct color (purple/magenta) to indicate empty leaf traversal
+				boxColor = FColor::Magenta;
+			}
 			else  // Intermediate voxels
 			{
 				// Validate layer index before using it (myLinkColors has 8 elements)

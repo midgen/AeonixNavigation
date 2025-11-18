@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Stats/Stats.h"
-#include "Stats/Stats2.h"
 
 /**
  * Aeonix Navigation Performance Stats

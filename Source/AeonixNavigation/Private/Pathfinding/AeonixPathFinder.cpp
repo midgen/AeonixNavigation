@@ -3,6 +3,7 @@
 
 #include "AeonixNavigation.h"
 #include "Data/AeonixData.h"
+#include "Data/AeonixLeafNode.h"
 #include "Data/AeonixLink.h"
 #include "Data/AeonixNode.h"
 #include "Pathfinding/AeonixNavigationPath.h"
@@ -46,6 +47,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
 			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
+			LastIterationCount = numIterations;
 			return true;
 		}
 
@@ -55,7 +57,22 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
-			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			// Optimization: Check if the leaf is completely empty
+			// If so, treat the entire Layer 0 node as a single navigable space
+			// instead of traversing all 64 individual voxels
+			const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(currentNode.FirstChild.GetNodeIndex());
+
+			if (leafNode.IsEmpty())
+			{
+				// Empty leaf - use Layer 0 neighbors (skip 64-voxel subdivision)
+				NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
+			}
+			else
+			{
+				// Leaf contains blocking geometry - use detailed voxel-level neighbors
+				NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			}
+
 			for (const AeonixLink& neighbour : neighbours)
 			{
 				ProcessLink(neighbour);
@@ -75,11 +92,13 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 		if (numIterations > Settings.MaxIterations)
 		{
 			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
+			LastIterationCount = numIterations;
 			return false;
 		}
 	}
 
 	UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
+	LastIterationCount = numIterations;
 	return false;
 }
 
@@ -169,12 +188,25 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 			// Both are leaf nodes - check if they're navigating between what should be adjacent nodes
 			if (startNode.FirstChild.IsValid() && endNode.FirstChild.IsValid())
 			{
-				// Calculate the expected maximum distance for adjacent leaf voxels
-				// Leaf voxel size is 1/4 of the layer 0 voxel size
-				float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
-				// Maximum distance would be diagonal between adjacent leaf voxels
-				// sqrt(3) * voxelSize for diagonal, but add some tolerance
-				float maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
+				// Check if the start node's leaf is empty (uses the empty leaf optimization)
+				const AeonixLeafNode& startLeafNode = NavigationData.OctreeData.GetLeafNode(startNode.FirstChild.GetNodeIndex());
+
+				float maxExpectedDistance;
+				if (startLeafNode.IsEmpty())
+				{
+					// Empty leaf optimization: navigating at Layer 0 voxel level
+					// Distance can be up to the diagonal of a Layer 0 voxel
+					float layer0VoxelSize = NavigationData.GetVoxelSize(0);
+					maxExpectedDistance = layer0VoxelSize * 1.8f; // sqrt(3) ≈ 1.73, add tolerance
+				}
+				else
+				{
+					// Normal leaf-to-leaf: navigating at sub-voxel level
+					// Leaf voxel size is 1/4 of the layer 0 voxel size
+					float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
+					// Maximum distance would be diagonal between adjacent leaf voxels
+					maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
+				}
 
 				if (cost > maxExpectedDistance)
 				{

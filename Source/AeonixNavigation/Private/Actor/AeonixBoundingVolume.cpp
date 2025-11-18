@@ -54,6 +54,7 @@ AAeonixBoundingVolume::AAeonixBoundingVolume(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 {
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
+	GetBrushComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BrushColor = FColor(255, 255, 255, 255);
 	bColored = true;
 }

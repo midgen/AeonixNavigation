@@ -11,32 +11,32 @@
 
 void FAeonixPathfindBenchmarkSummary::LogSummary() const
 {
-	UE_LOG(LogTemp, Display, TEXT(""));
-	UE_LOG(LogTemp, Display, TEXT("=== Pathfinding Benchmark Results ==="));
-	UE_LOG(LogTemp, Display, TEXT("Seed: %d | Runs: %d | Success: %d (%.1f%%)"),
+	UE_LOG(LogAeonixNavigation, Display, TEXT(""));
+	UE_LOG(LogAeonixNavigation, Display, TEXT("=== Pathfinding Benchmark Results ==="));
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Seed: %d | Runs: %d | Success: %d (%.1f%%)"),
 		Seed, TotalRuns, SuccessfulRuns, GetSuccessRate());
-	UE_LOG(LogTemp, Display, TEXT(""));
+	UE_LOG(LogAeonixNavigation, Display, TEXT(""));
 
 	if (SuccessfulRuns > 0)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Iterations: Avg=%.1f, Min=%d, Max=%d, StdDev=%.1f"),
+		UE_LOG(LogAeonixNavigation, Display, TEXT("Iterations: Avg=%.1f, Min=%d, Max=%d, StdDev=%.1f"),
 			AvgIterations, MinIterations, MaxIterations, StdDevIterations);
-		UE_LOG(LogTemp, Display, TEXT("Time (ms):  Avg=%.3f, Min=%.3f, Max=%.3f, StdDev=%.3f"),
+		UE_LOG(LogAeonixNavigation, Display, TEXT("Time (ms):  Avg=%.3f, Min=%.3f, Max=%.3f, StdDev=%.3f"),
 			AvgTimeMs, MinTimeMs, MaxTimeMs, StdDevTimeMs);
-		UE_LOG(LogTemp, Display, TEXT("Path Length: Avg=%.1f, Min=%.1f, Max=%.1f"),
+		UE_LOG(LogAeonixNavigation, Display, TEXT("Path Length: Avg=%.1f, Min=%.1f, Max=%.1f"),
 			AvgPathLength, MinPathLength, MaxPathLength);
-		UE_LOG(LogTemp, Display, TEXT("Avg Direct Distance: %.1f"),
+		UE_LOG(LogAeonixNavigation, Display, TEXT("Avg Direct Distance: %.1f"),
 			AvgDirectDistance);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Display, TEXT("No successful pathfinds to report statistics"));
+		UE_LOG(LogAeonixNavigation, Display, TEXT("No successful pathfinds to report statistics"));
 	}
 
-	UE_LOG(LogTemp, Display, TEXT(""));
-	UE_LOG(LogTemp, Display, TEXT("Total benchmark time: %.1fms"), TotalTimeMs);
-	UE_LOG(LogTemp, Display, TEXT("====================================="));
-	UE_LOG(LogTemp, Display, TEXT(""));
+	UE_LOG(LogAeonixNavigation, Display, TEXT(""));
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Total benchmark time: %.1fms"), TotalTimeMs);
+	UE_LOG(LogAeonixNavigation, Display, TEXT("====================================="));
+	UE_LOG(LogAeonixNavigation, Display, TEXT(""));
 }
 
 FAeonixPathfindBenchmarkSummary FAeonixPathfindBenchmark::RunBenchmark(
@@ -56,12 +56,12 @@ FAeonixPathfindBenchmarkSummary FAeonixPathfindBenchmark::RunBenchmark(
 
 	if (NavigableNodes.Num() < 2)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Benchmark failed: Need at least 2 navigable nodes, found %d"),
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Benchmark failed: Need at least 2 navigable nodes, found %d"),
 			NavigableNodes.Num());
 		return Summary;
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("Benchmark: Found %d navigable nodes"), NavigableNodes.Num());
+	UE_LOG(LogAeonixNavigation, Display, TEXT("Benchmark: Found %d navigable nodes"), NavigableNodes.Num());
 
 	// Initialize random stream with seed
 	FRandomStream RandomStream(Seed);

@@ -196,7 +196,10 @@ bool UAeonixDynamicObstacleComponent::CheckForTransformChange(TSet<FGuid>& OutOl
 
 void UAeonixDynamicObstacleComponent::UpdateTrackedTransform()
 {
-	LastTrackedTransform = GetOwner()->GetActorTransform();
+	if (AActor* Owner = GetOwner())
+	{
+		LastTrackedTransform = Owner->GetActorTransform();
+	}
 }
 
 bool UAeonixDynamicObstacleComponent::UpdateCurrentRegions()

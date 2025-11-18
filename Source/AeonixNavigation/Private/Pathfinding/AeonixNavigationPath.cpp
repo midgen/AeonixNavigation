@@ -14,7 +14,7 @@ void FAeonixNavigationPath::AddPoint(const FAeonixPathPoint& aPoint)
 
 void FAeonixNavigationPath::ResetForRepath()
 {
-	UE_LOG(LogTemp, Warning, TEXT("AeonixNavigationPath: ResetForRepath called, clearing %d points"), myPoints.Num());
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("AeonixNavigationPath: ResetForRepath called, clearing %d points"), myPoints.Num());
 	myPoints.Empty();
 	myIsReady = false;
 }
@@ -93,6 +93,11 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 			else if (i == NumVoxels - 1)  // Last voxel (start position)
 			{
 				boxColor = FColor::Green;
+			}
+			else if (voxelInfo.bWasEmptyLeaf)  // Empty leaf optimization was used
+			{
+				// Use a distinct color (purple/magenta) to indicate empty leaf traversal
+				boxColor = FColor::Magenta;
 			}
 			else  // Intermediate voxels
 			{

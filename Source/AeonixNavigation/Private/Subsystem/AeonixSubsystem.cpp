@@ -7,10 +7,12 @@
 #include "AeonixNavigation.h"
 #include "Actor/AeonixBoundingVolume.h"
 #include "Component/AeonixNavAgentComponent.h"
+#include "Component/AeonixDynamicObstacleComponent.h"
 #include "Task/AeonixFindPathTask.h"
 #include "Util/AeonixMediator.h"
 #include "Mass/AeonixFragments.h"
 #include "Data/AeonixHandleTypes.h"
+#include "Data/AeonixStats.h"
 
 #include "MassCommonFragments.h"
 #include "MassEntityManager.h"
@@ -61,12 +63,18 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 
 void UAeonixSubsystem::RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-
+	// Note: Modifier volumes are not yet implemented.
+	// When implemented, this should add the volume to a registered list
+	// and trigger regeneration of affected navigation regions.
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("RegisterModifierVolume called but modifier volumes are not yet implemented"));
 }
 
 void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-
+	// Note: Modifier volumes are not yet implemented.
+	// When implemented, this should remove the volume from the registered list
+	// and trigger regeneration of affected navigation regions.
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("UnRegisterModifierVolume called but modifier volumes are not yet implemented"));
 }
 
 void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag CreateMassEntity)
@@ -127,6 +135,43 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 	}
 }
 
+void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
+{
+	if (!ObstacleComponent)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to register null obstacle component"));
+		return;
+	}
+
+	if (RegisteredDynamicObstacles.Contains(ObstacleComponent))
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Obstacle %s already registered"), *ObstacleComponent->GetName());
+		return;
+	}
+
+	RegisteredDynamicObstacles.Add(ObstacleComponent);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s"), *ObstacleComponent->GetName());
+}
+
+void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
+{
+	if (!ObstacleComponent)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister null obstacle component"));
+		return;
+	}
+
+	const int32 NumRemoved = RegisteredDynamicObstacles.Remove(ObstacleComponent);
+	if (NumRemoved == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister obstacle %s that wasn't registered"), *ObstacleComponent->GetName());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered dynamic obstacle: %s"), *ObstacleComponent->GetName());
+	}
+}
+
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVector& Position)
 {
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
@@ -167,9 +212,15 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 	OutPath.ResetForRepath();
 
-	AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+	// Acquire read lock for thread-safe octree access during pathfinding
+	bool Result;
+	{
+		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingSync);
 
-	bool Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+	}
 
 	OutPath.SetIsReady(true);
 	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
@@ -220,13 +271,35 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	OutPath.ResetForRepath();
 	OutPath.SetIsReady(false);
 
-	// Kick off the pathfinding on the task graphs
-	// TODO: Bit more scope in this lambda than I'd like, there's going to be crash potential if things get destroyed while this task is running
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
-	{
-		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+	// Copy necessary data to avoid dangling references in async task
+	// Using TWeakObjectPtr for UObjects that could be destroyed
+	TWeakObjectPtr<const AAeonixBoundingVolume> WeakNavVolume = NavVolume;
+	FAeonixPathFinderSettings PathfinderSettingsCopy = NavigationComponent->PathfinderSettings;
+	FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
+	FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
 
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath))
+	// Kick off the pathfinding on the task graphs
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[&Request, WeakNavVolume, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
+	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
+
+		// Check if volume is still valid
+		const AAeonixBoundingVolume* NavVolume = WeakNavVolume.Get();
+		if (!NavVolume)
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
+			OutPath.SetIsReady(false);
+			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+			return;
+		}
+
+		// Acquire read lock for thread-safe octree access during pathfinding
+		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+
+		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
+
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath))
 		{
 			OutPath.SetIsReady(true);
 			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
@@ -296,10 +369,77 @@ void UAeonixSubsystem::UpdateComponents()
 
 }
 
+void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
+{
+	// Clean up null/invalid obstacle components (iterate backwards for safe removal)
+	for (int32 i = RegisteredDynamicObstacles.Num() - 1; i >= 0; i--)
+	{
+		UAeonixDynamicObstacleComponent* Obstacle = RegisteredDynamicObstacles[i];
+
+		if (!Obstacle || !IsValid(Obstacle))
+		{
+			RegisteredDynamicObstacles.RemoveAtSwap(i, EAllowShrinking::No);
+			continue;
+		}
+
+		// Skip inactive obstacles
+		if (!Obstacle->bEnableNavigationRegen)
+		{
+			continue;
+		}
+
+		// Check if transform changed beyond thresholds or crossed region boundaries
+		TSet<FGuid> OldRegionIds;
+		TSet<FGuid> NewRegionIds;
+
+		if (Obstacle->CheckForTransformChange(OldRegionIds, NewRegionIds))
+		{
+			// Get the bounding volume this obstacle is in
+			AAeonixBoundingVolume* BoundingVolume = Obstacle->GetCurrentBoundingVolume();
+
+			if (BoundingVolume)
+			{
+				// Request regeneration for all affected regions (union of old and new)
+				// This ensures we update both regions the obstacle left and entered
+				TSet<FGuid> AllAffectedRegions = OldRegionIds.Union(NewRegionIds);
+
+				for (const FGuid& RegionId : AllAffectedRegions)
+				{
+					BoundingVolume->RequestDynamicRegionRegen(RegionId);
+				}
+
+				if (AllAffectedRegions.Num() > 0)
+				{
+					UE_LOG(LogAeonixNavigation, Display,
+						TEXT("Obstacle %s: Transform changed - requested regen for %d regions (old: %d, new: %d)"),
+						*Obstacle->GetName(),
+						AllAffectedRegions.Num(),
+						OldRegionIds.Num(),
+						NewRegionIds.Num());
+				}
+			}
+
+			// Update the tracked transform now that we've processed the change
+			Obstacle->UpdateTrackedTransform();
+		}
+	}
+
+	// Try to process dirty regions on all volumes (throttled by cooldown)
+	// and process any pending regeneration results with time budget
+	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+	{
+		if (Handle.VolumeHandle)
+		{
+			Handle.VolumeHandle->TryProcessDirtyRegions();
+			Handle.VolumeHandle->ProcessPendingRegenResults(DeltaTime);
+		}
+	}
+}
 
 void UAeonixSubsystem::Tick(float DeltaTime)
 {
 	UpdateComponents();
+	ProcessDynamicObstacles(DeltaTime);
 	UpdateRequests();
 }
 
@@ -343,12 +483,13 @@ bool UAeonixSubsystem::IsTickableWhenPaused() const
 
 void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 {
-	for (int32 i = 0; i < PathRequests.Num();)
+	for (int32 i = PathRequests.Num() - 1; i >= 0; --i)
 	{
 		FAeonixPathFindRequest& Request = PathRequests[i];
-
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
 	}
+	PathRequests.Empty();
 }
 
 size_t UAeonixSubsystem::GetNumberOfPendingTasks() const

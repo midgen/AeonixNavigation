@@ -61,6 +61,11 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	// Mutex to protect path data. Prevent writing to path while debug drawing it!
 	FCriticalSection PathMutex;
 
+	// Delegate subscription methods for automatic path update on navigation regeneration
+	void BindToBoundingVolumes();
+	void UnbindFromBoundingVolumes();
+	void OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume);
+
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	void UpdateDebugActor(AAeonixPathDebugActor* DebugActor);

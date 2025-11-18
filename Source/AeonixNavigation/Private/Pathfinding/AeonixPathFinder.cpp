@@ -3,13 +3,15 @@
 
 #include "AeonixNavigation.h"
 #include "Data/AeonixData.h"
+#include "Data/AeonixLeafNode.h"
 #include "Data/AeonixLink.h"
 #include "Data/AeonixNode.h"
 #include "Pathfinding/AeonixNavigationPath.h"
 
 bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {
-	OpenSet.Empty();
+	OpenHeap.Empty();
+	OpenSetLookup.Empty();
 	ClosedSet.Empty();
 	CameFrom.Empty();
 	FScore.Empty();
@@ -18,27 +20,29 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	GoalLink = InGoal;
 	StartLink = Start;
 
-	OpenSet.Add(Start);
 	CameFrom.Add(Start, Start);
 	GScore.Add(Start, 0);
 	FScore.Add(Start, CalculateHeuristic(Start, InGoal)); // Distance to target
 
+	// Add start to open set using heap
+	OpenHeap.Add(Start);
+	OpenSetLookup.Add(Start);
+
 	int numIterations = 0;
+	FScoreHeapPredicate HeapPredicate(FScore);
 
-	while (OpenSet.Num() > 0)
+	while (OpenHeap.Num() > 0)
 	{
+		// Pop the node with lowest FScore from the heap - O(log n) instead of O(n)
+		OpenHeap.HeapPop(CurrentLink, HeapPredicate);
+		OpenSetLookup.Remove(CurrentLink);
 
-		float lowestScore = FLT_MAX;
-		for (AeonixLink& link : OpenSet)
+		// Skip if already processed (can happen with lazy deletion approach)
+		if (ClosedSet.Contains(CurrentLink))
 		{
-			if (!FScore.Contains(link) || FScore[link] < lowestScore)
-			{
-				lowestScore = FScore[link];
-				CurrentLink = link;
-			}
+			continue;
 		}
 
-		OpenSet.Remove(CurrentLink);
 		ClosedSet.Add(CurrentLink);
 
 		if (CurrentLink == GoalLink)
@@ -46,6 +50,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
 			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
+			LastIterationCount = numIterations;
 			return true;
 		}
 
@@ -55,7 +60,22 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
-			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			// Optimization: Check if the leaf is completely empty
+			// If so, treat the entire Layer 0 node as a single navigable space
+			// instead of traversing all 64 individual voxels
+			const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(currentNode.FirstChild.GetNodeIndex());
+
+			if (leafNode.IsEmpty())
+			{
+				// Empty leaf - use Layer 0 neighbors (skip 64-voxel subdivision)
+				NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
+			}
+			else
+			{
+				// Leaf contains blocking geometry - use detailed voxel-level neighbors
+				NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			}
+
 			for (const AeonixLink& neighbour : neighbours)
 			{
 				ProcessLink(neighbour);
@@ -75,11 +95,13 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 		if (numIterations > Settings.MaxIterations)
 		{
 			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
+			LastIterationCount = numIterations;
 			return false;
 		}
 	}
 
 	UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding failed, iterations : %i"), numIterations);
+	LastIterationCount = numIterations;
 	return false;
 }
 
@@ -169,12 +191,25 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 			// Both are leaf nodes - check if they're navigating between what should be adjacent nodes
 			if (startNode.FirstChild.IsValid() && endNode.FirstChild.IsValid())
 			{
-				// Calculate the expected maximum distance for adjacent leaf voxels
-				// Leaf voxel size is 1/4 of the layer 0 voxel size
-				float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
-				// Maximum distance would be diagonal between adjacent leaf voxels
-				// sqrt(3) * voxelSize for diagonal, but add some tolerance
-				float maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
+				// Check if the start node's leaf is empty (uses the empty leaf optimization)
+				const AeonixLeafNode& startLeafNode = NavigationData.OctreeData.GetLeafNode(startNode.FirstChild.GetNodeIndex());
+
+				float maxExpectedDistance;
+				if (startLeafNode.IsEmpty())
+				{
+					// Empty leaf optimization: navigating at Layer 0 voxel level
+					// Distance can be up to the diagonal of a Layer 0 voxel
+					float layer0VoxelSize = NavigationData.GetVoxelSize(0);
+					maxExpectedDistance = layer0VoxelSize * 1.8f; // sqrt(3) ≈ 1.73, add tolerance
+				}
+				else
+				{
+					// Normal leaf-to-leaf: navigating at sub-voxel level
+					// Leaf voxel size is 1/4 of the layer 0 voxel size
+					float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
+					// Maximum distance would be diagonal between adjacent leaf voxels
+					maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
+				}
 
 				if (cost > maxExpectedDistance)
 				{
@@ -199,18 +234,6 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		if (ClosedSet.Contains(aNeighbour))
 			return;
 
-		if (!OpenSet.Contains(aNeighbour))
-		{
-			OpenSet.Add(aNeighbour);
-
-			if (Settings.bDebugOpenNodes)
-			{
-				FVector pos;
-				NavigationData.GetLinkPosition(aNeighbour, pos);
-				Settings.DebugPoints.Add(pos);
-			}
-		}
-
 		float t_gScore = FLT_MAX;
 		if (GScore.Contains(CurrentLink))
 			t_gScore = GScore[CurrentLink] + GetCost(CurrentLink, aNeighbour);
@@ -228,6 +251,23 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		float heuristicScore = CalculateHeuristic(aNeighbour, GoalLink, parentLink);
 
 		FScore.Add(aNeighbour, GScore[aNeighbour] + heuristicScore);
+
+		// Add to open set if not already there, or re-add with updated score (lazy deletion approach)
+		if (!OpenSetLookup.Contains(aNeighbour))
+		{
+			OpenSetLookup.Add(aNeighbour);
+
+			if (Settings.bDebugOpenNodes)
+			{
+				FVector pos;
+				NavigationData.GetLinkPosition(aNeighbour, pos);
+				Settings.DebugPoints.Add(pos);
+			}
+		}
+
+		// Push to heap with new score (heap will maintain ordering)
+		FScoreHeapPredicate HeapPredicate(FScore);
+		OpenHeap.HeapPush(aNeighbour, HeapPredicate);
 	}
 }
 
@@ -237,25 +277,53 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	TArray<FAeonixPathPoint> points;
 
+#if WITH_EDITOR
+	// Track which nodes used the empty leaf optimization for debug visualization
+	TArray<bool> emptyLeafFlags;
+#endif
+
 	// Initial path building from the A* results
 	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
 	{
 		aCurrent = aCameFrom[aCurrent];
 		NavigationData.GetLinkPosition(aCurrent, pos.Position);
-		
+
 		points.Add(pos);
 		const AeonixNode& node = NavigationData.OctreeData.GetNode(aCurrent);
+		bool bIsEmptyLeaf = false;
+
 		if (aCurrent.GetLayerIndex() == 0)
 		{
 			if (!node.HasChildren())
+			{
 				points[points.Num() - 1].Layer = 1;
+			}
 			else
-				points[points.Num() - 1].Layer = 0;
+			{
+				// Check if the leaf is empty (using the empty leaf optimization)
+				const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(node.FirstChild.GetNodeIndex());
+				if (leafNode.IsEmpty())
+				{
+					// Empty leaf optimization was used - use Layer 0 node center position
+					// instead of sub-voxel position, and render at Layer 0 voxel size
+					NavigationData.GetNodePosition(0, node.Code, points[points.Num() - 1].Position);
+					points[points.Num() - 1].Layer = 1;
+					bIsEmptyLeaf = true;
+				}
+				else
+				{
+					points[points.Num() - 1].Layer = 0;
+				}
+			}
 		}
 		else
 		{
 			points[points.Num() - 1].Layer = aCurrent.GetLayerIndex() + 1;
 		}
+
+#if WITH_EDITOR
+		emptyLeafFlags.Add(bIsEmptyLeaf);
+#endif
 	}
 
 	if (points.Num() > 1)
@@ -276,12 +344,14 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	// Store the original path for debug visualization before any optimizations
 	TArray<FDebugVoxelInfo> debugVoxelInfo;
 	debugVoxelInfo.Reserve(points.Num() + 2); // Reserve space for potential start/end additions
-	
 
-	// Add intermediate points
-	for (const FAeonixPathPoint& point : points)
+
+	// Add intermediate points with empty leaf flags
+	for (int32 i = 0; i < points.Num(); i++)
 	{
-		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer));
+		const FAeonixPathPoint& point = points[i];
+		bool bWasEmptyLeaf = emptyLeafFlags.IsValidIndex(i) ? emptyLeafFlags[i] : false;
+		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer, bWasEmptyLeaf));
 	}
 
 	// Set actual voxel positions for debug visualization

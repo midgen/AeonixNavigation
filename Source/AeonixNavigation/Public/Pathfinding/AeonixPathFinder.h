@@ -91,19 +91,42 @@ class AEONIXNAVIGATION_API AeonixPathFinder
 public:
 	AeonixPathFinder(const FAeonixData& Data, const FAeonixPathFinderSettings& Settings)
 		: NavigationData(Data)
-		, Settings(Settings){};
+		, Settings(Settings)
+		, LastIterationCount(0){};
 
 	/* Performs an A* search from start to target navlink */
 	bool FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
 
+	/* Returns the number of iterations used in the last FindPath call */
+	int32 GetLastIterationCount() const { return LastIterationCount; }
+
 private:
-	TArray<AeonixLink> OpenSet;
+
+	// Min-heap for open set (sorted by FScore)
+	TArray<AeonixLink> OpenHeap;
+	// Fast lookup to check if a link is in the open set
+	TSet<AeonixLink> OpenSetLookup;
 	TSet<AeonixLink> ClosedSet;
 
 	TMap<AeonixLink, AeonixLink> CameFrom;
 
 	TMap<AeonixLink, float> GScore;
 	TMap<AeonixLink, float> FScore;
+
+	// Predicate for min-heap ordering by FScore
+	struct FScoreHeapPredicate
+	{
+		const TMap<AeonixLink, float>& Scores;
+
+		FScoreHeapPredicate(const TMap<AeonixLink, float>& InScores) : Scores(InScores) {}
+
+		bool operator()(const AeonixLink& A, const AeonixLink& B) const
+		{
+			const float ScoreA = Scores.Contains(A) ? Scores[A] : FLT_MAX;
+			const float ScoreB = Scores.Contains(B) ? Scores[B] : FLT_MAX;
+			return ScoreA < ScoreB;  // Min-heap: lower score = higher priority
+		}
+	};
 
 	AeonixLink StartLink;
 	AeonixLink CurrentLink;
@@ -112,6 +135,8 @@ private:
 	const FAeonixData& NavigationData;
 
 	const FAeonixPathFinderSettings& Settings;
+	/* Stores the iteration count from the most recent FindPath call */
+	int32 LastIterationCount;
 
 	/* Unified A* heuristic calculation combining euclidean, velocity, and node size components */
 	float CalculateHeuristic(const AeonixLink& aStart, const AeonixLink& aTarget, const AeonixLink& aParent = AeonixLink());

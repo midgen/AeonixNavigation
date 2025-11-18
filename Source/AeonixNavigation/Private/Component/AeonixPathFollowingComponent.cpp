@@ -1,6 +1,7 @@
 ﻿// Copyright 2024 Chris Ashworth
 
 #include "Component/AeonixPathFollowingComponent.h"
+#include "AeonixNavigation.h"
 #include "Component/AeonixNavAgentComponent.h"
 #include "Component/AeonixFlyingMovementComponent.h"
 #include "Pathfinding/AeonixNavigationPath.h"
@@ -338,7 +339,7 @@ void UAeonixPathFollowingComponent::TryInitializeNavigation()
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AeonixPathFollowingComponent: No owner found during initialization"));
+		UE_LOG(LogAeonixNavigation, Error, TEXT("AeonixPathFollowingComponent: No owner found during initialization"));
 		return;
 	}
 

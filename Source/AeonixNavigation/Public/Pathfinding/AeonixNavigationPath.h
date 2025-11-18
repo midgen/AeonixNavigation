@@ -50,11 +50,12 @@ struct FDebugVoxelInfo
 {
 	FVector Position; // Original position of the voxel
 	int32 Layer;     // Layer of the voxel in the octree
+	bool bWasEmptyLeaf; // True if this node used the empty leaf optimization (skipped 64-voxel subdivision)
 
-	FDebugVoxelInfo() : Position(FVector::ZeroVector), Layer(-1) {}
-	
-	FDebugVoxelInfo(const FVector& InPosition, int32 InLayer)
-		: Position(InPosition), Layer(InLayer)
+	FDebugVoxelInfo() : Position(FVector::ZeroVector), Layer(-1), bWasEmptyLeaf(false) {}
+
+	FDebugVoxelInfo(const FVector& InPosition, int32 InLayer, bool bInWasEmptyLeaf = false)
+		: Position(InPosition), Layer(InLayer), bWasEmptyLeaf(bInWasEmptyLeaf)
 	{
 	}
 };

@@ -1,17 +1,24 @@
 
 
 #include "Actor/AeonixBoundingVolume.h"
+#include "Actor/AeonixModifierVolume.h"
 #include "Subsystem/AeonixSubsystem.h"
 #include "Subsystem/AeonixCollisionSubsystem.h"
 #include "AeonixNavigation.h"
 #include "Debug/AeonixDebugDrawManager.h"
+#include "Data/AeonixAsyncRegen.h"
+#include "Settings/AeonixSettings.h"
+#include "Library/libmorton/morton.h"
 
 #include "Components/BrushComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
 #include "Serialization/CustomVersion.h"
+#include "Async/Async.h"
+#include "Async/TaskGraphInterfaces.h"
 
 #include <chrono>
 
@@ -28,6 +35,8 @@ namespace FAeonixBoundingVolumeVersion
 		SerializeGenerationBounds = 1,
 		// Added serialization of VoxelPower for baked navigation data
 		SerializeVoxelPower = 2,
+		// Added serialization of DynamicRegionBoxes for persistent dynamic region registration
+		SerializeDynamicRegions = 3,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
@@ -45,6 +54,7 @@ AAeonixBoundingVolume::AAeonixBoundingVolume(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 {
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
+	GetBrushComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BrushColor = FColor(255, 255, 255, 255);
 	bColored = true;
 }
@@ -91,7 +101,12 @@ bool AAeonixBoundingVolume::Generate()
 #endif // WITH_EDITOR
 
 	UpdateBounds();
-	NavigationData.Generate(*GetWorld(), *CollisionQueryInterface.GetInterface(), *this);
+
+	// Acquire write lock for thread-safe octree modification
+	{
+		FWriteScopeLock WriteLock(OctreeDataLock);
+		NavigationData.Generate(*GetWorld(), *CollisionQueryInterface.GetInterface(), *this);
+	}
 
 #if WITH_EDITOR
 
@@ -126,12 +141,343 @@ bool AAeonixBoundingVolume::Generate()
 	UE_LOG(LogAeonixNavigation, Log, TEXT("Actor marked as modified to ensure NavigationData is saved"));
 #endif
 
+	// Broadcast that navigation has been regenerated
+	OnNavigationRegenerated.Broadcast(this);
+
 	return true;
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregions()
+{
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions called for bounding volume %s"), *GetName());
+
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
+		return;
+	}
+
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+	}
+
+	// Clear octree debug visualization (leaf voxels need to be re-rendered with updated data)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	// Acquire write lock for thread-safe octree modification
+	{
+		FWriteScopeLock WriteLock(OctreeDataLock);
+		NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+	}
+
+	// Draw debug boxes showing which regions were regenerated
+	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	{
+		const FBox& DynamicRegion = RegionPair.Value;
+		DrawDebugBox(GetWorld(), DynamicRegion.GetCenter(), DynamicRegion.GetExtent(),
+			FColor::Cyan, false, 5.0f, 0, 2.0f);
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s"), *GetName());
+
+#if WITH_EDITOR
+	// Mark actor as modified so Unreal saves the updated navigation data
+	Modify();
+	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+#endif
+
+	// Broadcast that navigation has been regenerated
+	OnNavigationRegenerated.Broadcast(this);
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
+{
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync called for bounding volume %s"), *GetName());
+
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
+		return;
+	}
+
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+		UE_LOG(LogAeonixNavigation, Error, TEXT("No AeonixSubsystem with a valid CollisionQueryInterface found"));
+	}
+
+	// Clear octree debug visualization (leaf voxels need to be re-rendered with updated data)
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	// Prepare batch data on game thread
+	FAeonixAsyncRegenBatch Batch;
+	Batch.GenParams = Params;
+	Batch.VolumePtr = this;
+	Batch.PhysicsScenePtr = GetWorld()->GetPhysicsScene();
+
+	// Get chunk size from settings
+	const UAeonixSettings* Settings = GetDefault<UAeonixSettings>();
+	Batch.ChunkSize = Settings ? Settings->AsyncChunkSize : 75;
+
+	// Calculate affected leaf nodes for all dynamic regions
+	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	{
+		const FBox& DynamicRegion = RegionPair.Value;
+		const float VoxelSize = NavigationData.GetVoxelSize(0); // Layer 0 voxel size
+		const int32 NodesPerSide = FMath::Pow(2.f, Params.VoxelPower);
+		const FVector VoxelOrigin = Params.Origin - Params.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		// Collect all affected leaf nodes
+		TArray<AeonixNode>& Layer0 = NavigationData.OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					// Find this node in Layer 0 and get its leaf index
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							// Get the position of this Layer 0 node
+							FVector NodePosition;
+							NavigationData.GetNodePosition(0, Code, NodePosition);
+
+							// Calculate leaf origin (corner of the node, not center)
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+
+							// Store data needed for async rasterization
+							Batch.LeafIndicesToProcess.Add(NodeIdx); // Store array index instead of code for easy mapping
+							Batch.LeafCoordinates.Add(FIntVector(X, Y, Z));
+							Batch.LeafOrigins.Add(LeafOrigin);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves"),
+		Batch.LeafIndicesToProcess.Num());
+
+	// Dispatch async task to background thread
+	FFunctionGraphTask::CreateAndDispatchWhenReady([Batch]()
+	{
+		AeonixAsyncRegen::ExecuteAsyncRegen(Batch);
+	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+
+	// Draw debug boxes showing which regions will be regenerated
+	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	{
+		DrawDebugBox(GetWorld(), RegionPair.Value.GetCenter(), RegionPair.Value.GetExtent(),
+			FColor::Magenta, false, 5.0f, 0, 2.0f);
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Async task dispatched, returning to game thread"));
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
+{
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregion called for region %s in volume %s"),
+		*RegionId.ToString(), *GetName());
+
+	if (!GenerationParameters.GetDynamicRegion(RegionId))
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregion: Region %s not found in volume %s"),
+			*RegionId.ToString(), *GetName());
+		return;
+	}
+
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+	}
+
+	// Clear octree debug visualization
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	// Acquire write lock for thread-safe octree modification
+	{
+		FWriteScopeLock WriteLock(OctreeDataLock);
+		TSet<FGuid> SingleRegion;
+		SingleRegion.Add(RegionId);
+		NavigationData.RegenerateDynamicSubregions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
+	}
+
+#if WITH_EDITOR
+	// Mark actor as modified so Unreal saves the updated navigation data
+	Modify();
+	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+#endif
+
+	// Broadcast that navigation has been regenerated
+	OnNavigationRegenerated.Broadcast(this);
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregionAsync(const FGuid& RegionId)
+{
+	TSet<FGuid> SingleRegion;
+	SingleRegion.Add(RegionId);
+	RegenerateDynamicSubregionsAsync(SingleRegion);
+}
+
+void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& RegionIds)
+{
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync called for %d specific region(s) in volume %s"),
+		RegionIds.Num(), *GetName());
+
+	if (RegionIds.Num() == 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregionsAsync: No regions specified"));
+		return;
+	}
+
+	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s"), *GetName());
+		return;
+	}
+
+	if (!CollisionQueryInterface.GetInterface())
+	{
+		UAeonixCollisionSubsystem* CollisionSubsystem = GetWorld()->GetSubsystem<UAeonixCollisionSubsystem>();
+		CollisionQueryInterface = CollisionSubsystem;
+	}
+
+	// Clear octree debug visualization
+	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())
+	{
+		DebugManager->Clear(EAeonixDebugCategory::Octree);
+	}
+
+	// Prepare batch data on game thread
+	FAeonixAsyncRegenBatch Batch;
+	Batch.GenParams = Params;
+	Batch.VolumePtr = this;
+	Batch.PhysicsScenePtr = GetWorld()->GetPhysicsScene();
+
+	// Get chunk size from settings
+	const UAeonixSettings* Settings = GetDefault<UAeonixSettings>();
+	Batch.ChunkSize = Settings ? Settings->AsyncChunkSize : 75;
+	Batch.RegionIdsToProcess = RegionIds; // Set the regions to process
+
+	// Calculate affected leaf nodes for ONLY the specified regions
+	for (const FGuid& RegionId : RegionIds)
+	{
+		const FBox* DynamicRegionPtr = Params.GetDynamicRegion(RegionId);
+		if (!DynamicRegionPtr)
+		{
+			UE_LOG(LogAeonixRegen, Warning, TEXT("Region ID %s not found in volume %s, skipping"),
+				*RegionId.ToString(), *GetName());
+			continue;
+		}
+
+		const FBox& DynamicRegion = *DynamicRegionPtr;
+		const float VoxelSize = NavigationData.GetVoxelSize(0);
+		const int32 NodesPerSide = FMath::Pow(2.f, Params.VoxelPower);
+		const FVector VoxelOrigin = Params.Origin - Params.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with this region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		// Collect all affected leaf nodes
+		TArray<AeonixNode>& Layer0 = NavigationData.OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							FVector NodePosition;
+							NavigationData.GetNodePosition(0, Code, NodePosition);
+
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+
+							Batch.LeafIndicesToProcess.Add(NodeIdx);
+							Batch.LeafCoordinates.Add(FIntVector(X, Y, Z));
+							Batch.LeafOrigins.Add(LeafOrigin);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves across %d regions"),
+		Batch.LeafIndicesToProcess.Num(), RegionIds.Num());
+
+	// Dispatch async task to background thread
+	FFunctionGraphTask::CreateAndDispatchWhenReady([Batch]()
+	{
+		AeonixAsyncRegen::ExecuteAsyncRegen(Batch);
+	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+
+	// Draw debug boxes for the specific regions being regenerated
+	for (const FGuid& RegionId : RegionIds)
+	{
+		if (const FBox* RegionBox = Params.GetDynamicRegion(RegionId))
+		{
+			DrawDebugBox(GetWorld(), RegionBox->GetCenter(), RegionBox->GetExtent(),
+				FColor::Yellow, false, 5.0f, 0, 2.0f);
+		}
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Selective async task dispatched for %d region(s)"),
+		RegionIds.Num());
 }
 
 bool AAeonixBoundingVolume::HasData() const
 {
-	return NavigationData.OctreeData.LeafNodes.Num() > 0;	
+	return NavigationData.OctreeData.LeafNodes.Num() > 0;
 }
 
 void AAeonixBoundingVolume::UpdateBounds()
@@ -155,6 +501,302 @@ void AAeonixBoundingVolume::ClearDebugFilterBox()
 {
 	GenerationParameters.bUseDebugFilterBox = false;
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared debug filter box"), *GetName());
+}
+
+void AAeonixBoundingVolume::AddDynamicRegion(const FGuid& RegionId, const FBox& RegionBox)
+{
+	// Check if region already exists
+	const FBox* ExistingBox = GenerationParameters.GetDynamicRegion(RegionId);
+
+	if (ExistingBox)
+	{
+		// Region already exists - check if bounds have changed
+		if (!ExistingBox->Equals(RegionBox, 0.001f))
+		{
+			// Bounds changed - update it
+			GenerationParameters.AddDynamicRegion(RegionId, RegionBox);
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s updated dynamic region (ID: %s) with new box: %s (was: %s)"),
+				*GetName(), *RegionId.ToString(), *RegionBox.ToString(), *ExistingBox->ToString());
+		}
+		else
+		{
+			// Same bounds - already registered (this is normal during level load)
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s: dynamic region (ID: %s) already registered with same bounds"),
+				*GetName(), *RegionId.ToString());
+		}
+	}
+	else
+	{
+		// New region - add it
+		GenerationParameters.AddDynamicRegion(RegionId, RegionBox);
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Bounding volume %s registered new dynamic region (ID: %s) box: %s"),
+			*GetName(), *RegionId.ToString(), *RegionBox.ToString());
+	}
+}
+
+void AAeonixBoundingVolume::RemoveDynamicRegion(const FGuid& RegionId)
+{
+	GenerationParameters.RemoveDynamicRegion(RegionId);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s removed dynamic region: %s"),
+		*GetName(), *RegionId.ToString());
+}
+
+void AAeonixBoundingVolume::ClearDynamicRegions()
+{
+	GenerationParameters.DynamicRegionBoxes.Empty();
+	DirtyRegionIds.Empty();
+	DirtyRegionTimestamps.Empty();
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Bounding volume %s cleared dynamic regions and dirty state"), *GetName());
+}
+
+void AAeonixBoundingVolume::ValidateDynamicRegions()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	// Track which loaded regions have been found in the level
+	TSet<FGuid> FoundRegionIds;
+
+	// Iterate through all modifier volumes in the level
+	for (TActorIterator<AAeonixModifierVolume> It(GetWorld()); It; ++It)
+	{
+		AAeonixModifierVolume* ModifierVolume = *It;
+		if (!ModifierVolume)
+		{
+			continue;
+		}
+
+		// Check if this modifier has the DynamicRegion flag
+		const bool bIsDynamicRegion = (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion)) != 0;
+		if (!bIsDynamicRegion)
+		{
+			continue;
+		}
+
+		// Check if this modifier is inside this bounding volume
+		if (!EncompassesPoint(ModifierVolume->GetActorLocation()))
+		{
+			continue;
+		}
+
+		const FGuid& RegionId = ModifierVolume->DynamicRegionId;
+
+		// Check if this region exists in our loaded data
+		if (GenerationParameters.DynamicRegionBoxes.Contains(RegionId))
+		{
+			FoundRegionIds.Add(RegionId);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Validated dynamic region %s for modifier volume %s in bounding volume %s"),
+				*RegionId.ToString(), *ModifierVolume->GetName(), *GetName());
+		}
+		else
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Modifier volume %s has dynamic region %s, but it was not found in loaded navigation data for bounding volume %s. The volume may have been added after the last generation. Consider regenerating navigation."),
+				*ModifierVolume->GetName(), *RegionId.ToString(), *GetName());
+		}
+	}
+
+	// Check for dynamic regions in loaded data that don't have corresponding modifier volumes
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+	{
+		const FGuid& RegionId = RegionPair.Key;
+		if (!FoundRegionIds.Contains(RegionId))
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Bounding volume %s has dynamic region %s in loaded navigation data, but no corresponding modifier volume was found in the level. The volume may have been deleted. Consider regenerating navigation or the dynamic region may not function correctly."),
+				*GetName(), *RegionId.ToString());
+		}
+	}
+
+	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Dynamic region validation complete for bounding volume %s: %d loaded regions, %d matched with modifier volumes"),
+			*GetName(), GenerationParameters.DynamicRegionBoxes.Num(), FoundRegionIds.Num());
+	}
+}
+
+void AAeonixBoundingVolume::RequestDynamicRegionRegen(const FGuid& RegionId)
+{
+	if (!RegionId.IsValid())
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("RequestDynamicRegionRegen: Invalid region ID for volume %s"), *GetName());
+		return;
+	}
+
+	// Only record timestamp if this is the first time marking this region dirty
+	if (!DirtyRegionIds.Contains(RegionId))
+	{
+		double CurrentTime = GetWorld()->GetTimeSeconds();
+		DirtyRegionTimestamps.Add(RegionId, CurrentTime);
+		DirtyRegionIds.Add(RegionId);
+
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("Region %s marked dirty for volume %s (total dirty: %d)"),
+			*RegionId.ToString(), *GetName(), DirtyRegionIds.Num());
+	}
+}
+
+void AAeonixBoundingVolume::TryProcessDirtyRegions()
+{
+	if (DirtyRegionIds.Num() == 0)
+		return;
+
+	double CurrentTime = GetWorld()->GetTimeSeconds();
+
+	// Get settings for delays and cooldown
+	const UAeonixSettings* Settings = GetDefault<UAeonixSettings>();
+	const float SettingsCooldown = Settings ? Settings->DynamicRegenCooldown : DynamicRegenCooldown;
+	const float SettingsRuntimeDelay = Settings ? Settings->DirtyRegionProcessDelay : DirtyRegionProcessDelay;
+	const float SettingsEditorDelay = Settings ? Settings->EditorDirtyRegionProcessDelay : EditorDirtyRegionProcessDelay;
+
+	// Check cooldown (time since last regeneration)
+	if (CurrentTime - LastDynamicRegenTime < SettingsCooldown)
+		return; // Still in cooldown
+
+	// Use appropriate delay based on whether we're in editor or runtime
+	const float ProcessDelay = GetWorld()->IsGameWorld() ? SettingsRuntimeDelay : SettingsEditorDelay;
+
+	// Find regions that have been dirty long enough (allows physics to settle)
+	TSet<FGuid> RegionsToProcess;
+	for (const FGuid& RegionId : DirtyRegionIds)
+	{
+		double* DirtyTime = DirtyRegionTimestamps.Find(RegionId);
+		if (DirtyTime && (CurrentTime - *DirtyTime) >= ProcessDelay)
+		{
+			RegionsToProcess.Add(RegionId);
+		}
+	}
+
+	// Only process if we have regions that have been dirty long enough
+	if (RegionsToProcess.Num() == 0)
+	{
+		// Log how long until regions become eligible (helpful for debugging)
+		if (DirtyRegionIds.Num() > 0)
+		{
+			double OldestDirtyTime = TNumericLimits<double>::Max();
+			for (const FGuid& RegionId : DirtyRegionIds)
+			{
+				if (double* DirtyTime = DirtyRegionTimestamps.Find(RegionId))
+				{
+					OldestDirtyTime = FMath::Min(OldestDirtyTime, *DirtyTime);
+				}
+			}
+			float TimeUntilEligible = ProcessDelay - (CurrentTime - OldestDirtyTime);
+			UE_LOG(LogAeonixRegen, Verbose, TEXT("Volume %s: %d dirty region(s) not yet eligible (%.2fs remaining, delay=%.2fs)"),
+				*GetName(), DirtyRegionIds.Num(), FMath::Max(0.0f, TimeUntilEligible), ProcessDelay);
+		}
+		return;
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("Processing %d dirty region(s) for volume %s (total dirty: %d, delay used: %.2fs)"),
+		RegionsToProcess.Num(), *GetName(), DirtyRegionIds.Num(), ProcessDelay);
+
+	RegenerateDynamicSubregionsAsync(RegionsToProcess);
+
+	// Remove processed regions from dirty set
+	for (const FGuid& RegionId : RegionsToProcess)
+	{
+		DirtyRegionIds.Remove(RegionId);
+		DirtyRegionTimestamps.Remove(RegionId);
+	}
+
+	LastDynamicRegenTime = CurrentTime;
+}
+
+void AAeonixBoundingVolume::EnqueueRegenResults(TArray<FAeonixLeafRasterResult>&& Results, int32 TotalLeaves)
+{
+	// Store the new batch of results
+	PendingRegenResults = MoveTemp(Results);
+	NextResultIndexToProcess = 0;
+	CurrentRegenTotalLeaves = TotalLeaves;
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("Enqueued %d regeneration results for time-budgeted processing"), PendingRegenResults.Num());
+}
+
+void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
+{
+	if (PendingRegenResults.Num() == 0 || NextResultIndexToProcess >= PendingRegenResults.Num())
+	{
+		return;
+	}
+
+	// Get time budget from settings
+	const UAeonixSettings* Settings = GetDefault<UAeonixSettings>();
+	const float TimeBudgetMs = Settings ? Settings->DynamicRegenTimeBudgetMs : 5.0f;
+
+	// Convert to seconds for timing
+	const double TimeBudgetSeconds = TimeBudgetMs * 0.001;
+	const double StartTime = FPlatformTime::Seconds();
+
+	int32 ResultsProcessedThisFrame = 0;
+	int32 NodesUpdated = 0;
+	int32 SkippedNodes = 0;
+
+	// Acquire write lock to update leaf nodes
+	FWriteScopeLock WriteLock(OctreeDataLock);
+	FAeonixOctreeData& OctreeData = NavigationData.OctreeData;
+
+	// Process results until time budget is exhausted
+	while (NextResultIndexToProcess < PendingRegenResults.Num())
+	{
+		const FAeonixLeafRasterResult& Result = PendingRegenResults[NextResultIndexToProcess];
+
+		if (Result.LeafNodeArrayIndex >= 0 && Result.LeafNodeArrayIndex < OctreeData.LeafNodes.Num())
+		{
+			// Clear and set new voxel data
+			OctreeData.LeafNodes[Result.LeafNodeArrayIndex].Clear();
+			OctreeData.LeafNodes[Result.LeafNodeArrayIndex].VoxelGrid = Result.VoxelBitmask;
+			NodesUpdated++;
+		}
+		else
+		{
+			UE_LOG(LogAeonixRegen, Warning, TEXT("ProcessPendingRegenResults: Invalid leaf node index %d (total nodes: %d)"),
+				Result.LeafNodeArrayIndex, OctreeData.LeafNodes.Num());
+			SkippedNodes++;
+		}
+
+		NextResultIndexToProcess++;
+		ResultsProcessedThisFrame++;
+
+		// Check if we've exceeded our time budget
+		const double ElapsedTime = FPlatformTime::Seconds() - StartTime;
+		if (ElapsedTime >= TimeBudgetSeconds)
+		{
+			UE_LOG(LogAeonixRegen, Verbose, TEXT("Time budget reached: Processed %d/%d results (%.2fms elapsed)"),
+				NextResultIndexToProcess, PendingRegenResults.Num(), ElapsedTime * 1000.0);
+			break;
+		}
+	}
+
+	// Check if we've finished processing all results
+	if (NextResultIndexToProcess >= PendingRegenResults.Num())
+	{
+		const double TotalTime = FPlatformTime::Seconds() - StartTime;
+		UE_LOG(LogAeonixRegen, Display, TEXT("Dynamic regen complete: Updated %d/%d leaf nodes (%d skipped) in %.2fms"),
+			NodesUpdated, CurrentRegenTotalLeaves, SkippedNodes, TotalTime * 1000.0);
+
+		// Clear the queue
+		PendingRegenResults.Empty();
+		NextResultIndexToProcess = 0;
+		CurrentRegenTotalLeaves = 0;
+
+#if WITH_EDITOR
+		// Mark actor as modified so Unreal saves the updated navigation data
+		Modify();
+		UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+#endif
+
+		// Fire completion delegate
+		if (OnNavigationRegenerated.IsBound())
+		{
+			OnNavigationRegenerated.Broadcast(this);
+		}
+	}
+	else if (ResultsProcessedThisFrame > 0)
+	{
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("Processed %d results this frame (%d/%d total, %.1f%% complete)"),
+			ResultsProcessedThisFrame, NextResultIndexToProcess, PendingRegenResults.Num(),
+			(float)NextResultIndexToProcess / (float)PendingRegenResults.Num() * 100.0f);
+	}
 }
 
 void AAeonixBoundingVolume::AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const
@@ -250,29 +892,61 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 		// When loading, check what version was saved to know what data is available
 		if (Ar.IsSaving())
 		{
-			// Always save with latest format (includes Origin, Extents, and VoxelPower)
+			// Always save with latest format (includes Origin, Extents, VoxelPower, and DynamicRegionBoxes)
 			// Get the actual parameters from NavigationData (where Generate() stored them)
 			const FAeonixGenerationParameters& Params = NavigationData.GetParams();
 			FVector OriginToSave = Params.Origin;
 			FVector ExtentsToSave = Params.Extents;
 			int32 VoxelPowerToSave = Params.VoxelPower;
+			TMap<FGuid, FBox> DynamicRegionsToSave = Params.DynamicRegionBoxes;
 
 			Ar << OriginToSave;
 			Ar << ExtentsToSave;
 			Ar << VoxelPowerToSave;
-			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d"),
+			Ar << DynamicRegionsToSave;
+
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d"),
 				NavigationData.OctreeData.LeafNodes.Num(),
 				*OriginToSave.ToCompactString(),
 				*ExtentsToSave.ToCompactString(),
-				VoxelPowerToSave);
+				VoxelPowerToSave,
+				DynamicRegionsToSave.Num());
 		}
 		else if (Ar.IsLoading())
 		{
 			const int32 AeonixVersion = Ar.CustomVer(FAeonixBoundingVolumeVersion::GUID);
 
-			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeDynamicRegions)
 			{
-				// Version 2+: Load Origin, Extents, and VoxelPower
+				// Version 3+: Load Origin, Extents, VoxelPower, and DynamicRegionBoxes
+				FVector LoadedOrigin;
+				FVector LoadedExtents;
+				int32 LoadedVoxelPower;
+				TMap<FGuid, FBox> LoadedDynamicRegions;
+				Ar << LoadedOrigin;
+				Ar << LoadedExtents;
+				Ar << LoadedVoxelPower;
+				Ar << LoadedDynamicRegions;
+
+				// Restore all parameters to NavigationData and sync with actor's GenerationParameters
+				FAeonixGenerationParameters RestoredParams = GenerationParameters;
+				RestoredParams.Origin = LoadedOrigin;
+				RestoredParams.Extents = LoadedExtents;
+				RestoredParams.VoxelPower = LoadedVoxelPower;
+				RestoredParams.DynamicRegionBoxes = LoadedDynamicRegions;
+				NavigationData.UpdateGenerationParameters(RestoredParams);
+				GenerationParameters.DynamicRegionBoxes = LoadedDynamicRegions;
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d), marked ready for navigation"),
+					NavigationData.OctreeData.LeafNodes.Num(),
+					*LoadedOrigin.ToCompactString(),
+					*LoadedExtents.ToCompactString(),
+					LoadedVoxelPower,
+					LoadedDynamicRegions.Num());
+			}
+			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			{
+				// Version 2: Load Origin, Extents, and VoxelPower (no DynamicRegionBoxes)
 				FVector LoadedOrigin;
 				FVector LoadedExtents;
 				int32 LoadedVoxelPower;
@@ -287,7 +961,7 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 				RestoredParams.VoxelPower = LoadedVoxelPower;
 				NavigationData.UpdateGenerationParameters(RestoredParams);
 
-				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded from version 2 format - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
 					NavigationData.OctreeData.LeafNodes.Num(),
 					*LoadedOrigin.ToCompactString(),
 					*LoadedExtents.ToCompactString(),
@@ -366,6 +1040,21 @@ void AAeonixBoundingVolume::BeginPlay()
 	}
 	// If bIsReadyForNavigation is already true (from baked data), skip UpdateBounds()
 	// to preserve the generation-time Origin and Extents that were serialized
+
+	// Validate that loaded dynamic regions have corresponding modifier volumes in the level
+	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		ValidateDynamicRegions();
+
+		// Auto-regenerate dynamic regions on level load if we loaded baked data
+		// This ensures dynamic regions have up-to-date collision data
+		if (bIsReadyForNavigation)
+		{
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Auto-regenerating %d dynamic region(s) after level load for bounding volume %s"),
+				GenerationParameters.DynamicRegionBoxes.Num(), *GetName());
+			RegenerateDynamicSubregionsAsync();
+		}
+	}
 
 	bIsReadyForNavigation = true;
 }

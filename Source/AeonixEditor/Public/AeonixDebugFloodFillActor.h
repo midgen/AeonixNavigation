@@ -36,11 +36,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix Debug|Flood Fill", meta = (ClampMin = "0.1", ClampMax = "50.0"))
 	float LineThickness = 5.0f;
 
+	/** Automatically update flood fill when navigation is regenerated */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix Debug|Flood Fill")
+	bool bAutoUpdateOnRegeneration = true;
+
 	/** Manually trigger clearing of the flood fill visualization */
 	UFUNCTION(CallInEditor, Category = "Aeonix Debug|Flood Fill")
 	void ClearVisualization();
 
-protected:
 	/** Performs the flood fill algorithm and visualizes the results */
 	void PerformFloodFill();
+
+	// AActor interface
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+private:
+	/** Handler for when a bounding volume regenerates its navigation */
+	void OnBoundingVolumeRegenerated(class AAeonixBoundingVolume* Volume);
+
+	/** Bind to all bounding volumes in the level */
+	void BindToBoundingVolumes();
+
+	/** Unbind from all bounding volumes */
+	void UnbindFromBoundingVolumes();
 };

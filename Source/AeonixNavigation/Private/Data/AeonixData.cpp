@@ -2,6 +2,8 @@
 #include "Data/AeonixGenerationParameters.h"
 #include "Interface/AeonixCollisionQueryInterface.h"
 #include "Interface/AeonixDebugDrawInterface.h"
+#include "AeonixNavigation.h"
+#include "Data/AeonixStats.h"
 
 void FAeonixData::SetExtents(const FVector& Origin, const FVector& Extents)
 {
@@ -36,6 +38,8 @@ const FAeonixGenerationParameters& FAeonixData::GetParams() const
 
 void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
+	SCOPE_CYCLE_COUNTER(STAT_AeonixFullOctreeGen);
+
 	FirstPassRasterise(CollisionInterface);
 
 	// Allocate the leaf node data
@@ -58,6 +62,212 @@ void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& 
 	for (int i = OctreeData.NumLayers - 2; i >= 0; i--)
 	{
 		BuildNeighbourLinks(i, DebugInterface);
+	}
+}
+
+void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
+{
+	SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicSync);
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Processing %d dynamic region(s)"),
+		GenerationParameters.DynamicRegionBoxes.Num());
+
+	int32 TotalNodesUpdated = 0;
+	int32 RegionIndex = 0;
+
+	// Regenerate leaf voxels within dynamic regions by re-sampling collision geometry
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+	{
+		const FGuid& RegionId = RegionPair.Key;
+		const FBox& DynamicRegion = RegionPair.Value;
+		const float VoxelSize = GetVoxelSize(0); // Layer 0 voxel size
+		const int32 NodesPerSide = GetNumNodesPerSide(0);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("  Region %d (ID: %s): Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
+			RegionIndex, *RegionId.ToString(), *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
+
+		int32 NodesUpdatedThisRegion = 0;
+
+		// Re-rasterize all overlapping Layer 0 nodes
+		TArray<AeonixNode>& Layer0 = OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					// Find this node in Layer 0
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							// Get the position of this Layer 0 node
+							FVector NodePosition;
+							GetNodePosition(0, Code, NodePosition);
+
+							// Get or calculate the leaf index
+							// During generation, leaf nodes are allocated 1:1 with Layer 0 nodes
+							// NodeIdx in Layer0 array corresponds to the same index in LeafNodes array
+							nodeindex_t LeafIndex = NodeIdx;
+
+							// IMPORTANT: Clear the existing leaf node data first
+							if (LeafIndex < OctreeData.LeafNodes.Num())
+							{
+								OctreeData.LeafNodes[LeafIndex].Clear();
+							}
+
+							// Re-rasterize the leaf voxels (updates the 64-bit VoxelGrid bitmask)
+							// Also need to pass the corner of the node, not center
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+							RasterizeLeafNode(LeafOrigin, LeafIndex, CollisionInterface, DebugInterface);
+
+							// Update the FirstChild link to mark this as having valid leaf data
+							AeonixNode& Node = Layer0[NodeIdx];
+							Node.FirstChild.SetLayerIndex(0);
+							Node.FirstChild.SetNodeIndex(LeafIndex);
+							Node.FirstChild.SetSubnodeIndex(0);
+
+							NodesUpdatedThisRegion++;
+							break; // Found and updated this node, move to next
+						}
+					}
+				}
+			}
+		}
+
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("  Region %d: Updated %d Layer 0 node(s)"),
+			RegionIndex, NodesUpdatedThisRegion);
+
+		TotalNodesUpdated += NodesUpdatedThisRegion;
+		RegionIndex++;
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d region(s)"),
+		TotalNodesUpdated, GenerationParameters.DynamicRegionBoxes.Num());
+
+	if (TotalNodesUpdated == 0 && GenerationParameters.DynamicRegionBoxes.Num() > 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
+	}
+}
+
+void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
+{
+	SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicSync);
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Processing %d specific region(s) out of %d total"),
+		RegionIds.Num(), GenerationParameters.DynamicRegionBoxes.Num());
+
+	int32 TotalNodesUpdated = 0;
+	int32 RegionIndex = 0;
+
+	// Regenerate only the specified regions
+	for (const FGuid& RegionId : RegionIds)
+	{
+		const FBox* DynamicRegionPtr = GenerationParameters.GetDynamicRegion(RegionId);
+		if (!DynamicRegionPtr)
+		{
+			UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: Region ID %s not found, skipping"),
+				*RegionId.ToString());
+			continue;
+		}
+
+		const FBox& DynamicRegion = *DynamicRegionPtr;
+		const float VoxelSize = GetVoxelSize(0); // Layer 0 voxel size
+		const int32 NodesPerSide = GetNumNodesPerSide(0);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
+
+		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("  Region %d (ID: %s): Bounds=%s, VoxelRange=(%d-%d, %d-%d, %d-%d)"),
+			RegionIndex, *RegionId.ToString(), *DynamicRegion.ToString(), MinX, MaxX, MinY, MaxY, MinZ, MaxZ);
+
+		int32 NodesUpdatedThisRegion = 0;
+
+		// Re-rasterize all overlapping Layer 0 nodes
+		TArray<AeonixNode>& Layer0 = OctreeData.GetLayer(0);
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+
+					// Find this node in Layer 0
+					for (int32 NodeIdx = 0; NodeIdx < Layer0.Num(); ++NodeIdx)
+					{
+						if (Layer0[NodeIdx].Code == Code)
+						{
+							// Get the position of this Layer 0 node
+							FVector NodePosition;
+							GetNodePosition(0, Code, NodePosition);
+
+							// Get or calculate the leaf index
+							nodeindex_t LeafIndex = NodeIdx;
+
+							// Clear the existing leaf node data first
+							if (LeafIndex < OctreeData.LeafNodes.Num())
+							{
+								OctreeData.LeafNodes[LeafIndex].Clear();
+							}
+
+							// Re-rasterize the leaf voxels
+							FVector LeafOrigin = NodePosition - FVector(VoxelSize * 0.5f);
+							RasterizeLeafNode(LeafOrigin, LeafIndex, CollisionInterface, DebugInterface);
+
+							// Update the FirstChild link
+							AeonixNode& Node = Layer0[NodeIdx];
+							Node.FirstChild.SetLayerIndex(0);
+							Node.FirstChild.SetNodeIndex(LeafIndex);
+							Node.FirstChild.SetSubnodeIndex(0);
+
+							NodesUpdatedThisRegion++;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		UE_LOG(LogAeonixRegen, Verbose, TEXT("  Region %d (ID: %s): Updated %d Layer 0 node(s)"),
+			RegionIndex, *RegionId.ToString(), NodesUpdatedThisRegion);
+
+		TotalNodesUpdated += NodesUpdatedThisRegion;
+		RegionIndex++;
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d specified region(s)"),
+		TotalNodesUpdated, RegionIds.Num());
+
+	if (TotalNodesUpdated == 0 && RegionIds.Num() > 0)
+	{
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that specified regions overlap with generated navigation."));
 	}
 }
 
@@ -137,12 +347,27 @@ bool FAeonixData::GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodei
 {
 	const TArray<AeonixNode>& layer = OctreeData.GetLayer(aLayer);
 
-	for (int i = 0; i < layer.Num(); i++)
+	// Binary search - morton codes are sorted by construction
+	int32 Low = 0;
+	int32 High = layer.Num() - 1;
+
+	while (Low <= High)
 	{
-		if (layer[i].Code == aCode)
+		const int32 Mid = (Low + High) / 2;
+		const mortoncode_t MidCode = layer[Mid].Code;
+
+		if (MidCode == aCode)
 		{
-			oIndex = i;
+			oIndex = Mid;
 			return true;
+		}
+		else if (MidCode < aCode)
+		{
+			Low = Mid + 1;
+		}
+		else
+		{
+			High = Mid - 1;
 		}
 	}
 
@@ -272,12 +497,27 @@ bool FAeonixData::FindLinkInDirection(layerindex_t aLayer, const nodeindex_t aNo
 
 void FAeonixData::RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
+	// Two-pass optimization: First test the entire leaf volume
+	// If the whole leaf is clear, we can skip all 64 individual voxel queries
+	const float leafVoxelSize = GetVoxelSize(0) * 0.25f;
+	const float leafSize = leafVoxelSize * 4.0f; // 4x4x4 voxels
+	const FVector leafCenter = aOrigin + FVector(leafSize * 0.5f);
+
+	// Pass 1: Test entire leaf volume (conservative test)
+	if (!CollisionInterface.IsLeafBlocked(leafCenter, leafSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
+	{
+		// Entire leaf is clear - all 64 voxels are guaranteed empty
+		// The leaf node is already cleared before this function is called in RegenerateDynamicSubregions
+		// No need to do anything - early out saves 64 queries!
+		return;
+	}
+
+	// Pass 2: Leaf contains some blocking geometry - do detailed 64-voxel rasterization
 	for (int i = 0; i < 64; i++)
 	{
 
 		uint_fast32_t x, y, z;
 		morton3D_64_decode(i, x, y, z);
-		float leafVoxelSize = GetVoxelSize(0) * 0.25f;
 		FVector position = aOrigin + FVector(x * leafVoxelSize, y * leafVoxelSize, z * leafVoxelSize) + FVector(leafVoxelSize * 0.5f);
 
 		if (aLeafIndex >= OctreeData.LeafNodes.Num() - 1)
@@ -360,9 +600,35 @@ void FAeonixData::RasteriseLayer(layerindex_t aLayer, const IAeonixCollisionQuer
 				}
 				else
 				{
+					// No collision detected - allocate empty leaf node
 					OctreeData.LeafNodes.AddDefaulted(1);
+
+					// Check if this node is within a dynamic region
+					// Dynamic regions need valid FirstChild links even when empty (for runtime updates)
+					bool bIsInDynamicRegion = false;
+					for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+					{
+						if (RegionPair.Value.IsInside(Position))
+						{
+							bIsInDynamicRegion = true;
+							break;
+						}
+					}
+
+					if (bIsInDynamicRegion)
+					{
+						// In dynamic region - link to the leaf node for future updates
+						node.FirstChild.SetLayerIndex(0);
+						node.FirstChild.SetNodeIndex(leafIndex);
+						node.FirstChild.SetSubnodeIndex(0);
+					}
+					else
+					{
+						// Not in dynamic region - mark as invalid (optimization for static regions)
+						node.FirstChild.SetInvalid();
+					}
+
 					leafIndex++;
-					node.FirstChild.SetInvalid();
 				}
 			}
 		}
@@ -451,6 +717,40 @@ void FAeonixData::FirstPassRasterise(const IAeonixCollisionQueryInterface& Colli
 		if (CollisionInterface.IsBlocked(Position, VoxelSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
 		{
 			OctreeData.BlockedIndices[0].Add(i);
+		}
+	}
+
+	// Force-allocate voxels within dynamic regions (ensures leaf nodes exist for runtime updates)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+	{
+		const FBox& DynamicRegion = RegionPair.Value;
+		const float VoxelSize = GetVoxelSize(1);
+		const int32 NodesPerSide = GetNumNodesPerSide(1);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
+
+		// Calculate voxel coordinate bounds that overlap with the dynamic region
+		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
+		const FVector RegionMax = DynamicRegion.Max - VoxelOrigin;
+
+		const int32 MinX = FMath::Max(0, FMath::FloorToInt(RegionMin.X / VoxelSize));
+		const int32 MinY = FMath::Max(0, FMath::FloorToInt(RegionMin.Y / VoxelSize));
+		const int32 MinZ = FMath::Max(0, FMath::FloorToInt(RegionMin.Z / VoxelSize));
+
+		const int32 MaxX = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.X / VoxelSize));
+		const int32 MaxY = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Y / VoxelSize));
+		const int32 MaxZ = FMath::Min(NodesPerSide - 1, FMath::CeilToInt(RegionMax.Z / VoxelSize));
+
+		// Force-add all voxels in this range to ensure leaf nodes are allocated
+		for (int32 X = MinX; X <= MaxX; ++X)
+		{
+			for (int32 Y = MinY; Y <= MaxY; ++Y)
+			{
+				for (int32 Z = MinZ; Z <= MaxZ; ++Z)
+				{
+					mortoncode_t Code = morton3D_64_encode(X, Y, Z);
+					OctreeData.BlockedIndices[0].Add(Code); // TSet will ignore duplicates
+				}
+			}
 		}
 	}
 

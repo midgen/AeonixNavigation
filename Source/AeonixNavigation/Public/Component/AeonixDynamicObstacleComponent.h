@@ -42,29 +42,24 @@ public:
 	void TriggerNavigationRegen();
 
 	/**
-	 * Check if the obstacle's transform has changed beyond the configured thresholds.
-	 * Called by the subsystem each tick.
-	 * @param OutOldRegionIds Set of region IDs the obstacle was in before (output)
-	 * @param OutNewRegionIds Set of region IDs the obstacle is now in (output)
-	 * @return True if transform changed beyond thresholds or crossed region boundaries
-	 */
-	bool CheckForTransformChange(TSet<FGuid>& OutOldRegionIds, TSet<FGuid>& OutNewRegionIds);
-
-	/**
-	 * Update the tracked transform to the current actor transform.
-	 * Called by the subsystem after processing a transform change.
-	 */
-	void UpdateTrackedTransform();
-
-	/**
 	 * Get the set of dynamic region IDs this obstacle is currently inside.
 	 */
 	const TSet<FGuid>& GetCurrentRegionIds() const { return CurrentDynamicRegionIds; }
 
 	/**
+	 * Set the current region IDs (called by subsystem).
+	 */
+	void SetCurrentRegionIds(const TSet<FGuid>& NewRegionIds) { CurrentDynamicRegionIds = NewRegionIds; }
+
+	/**
 	 * Get the bounding volume this obstacle is currently inside (can be null).
 	 */
 	AAeonixBoundingVolume* GetCurrentBoundingVolume() const { return CurrentBoundingVolume.Get(); }
+
+	/**
+	 * Set the current bounding volume (called by subsystem).
+	 */
+	void SetCurrentBoundingVolume(AAeonixBoundingVolume* Volume) { CurrentBoundingVolume = Volume; }
 
 protected:
 	virtual void OnRegister() override;
@@ -86,33 +81,9 @@ private:
 	/** Unregister from subsystem */
 	void UnregisterFromSubsystem();
 
-private:
-	/** Last tracked transform (used to detect changes) */
-	FTransform LastTrackedTransform;
-
 	/** Set of dynamic region IDs this obstacle is currently inside */
 	TSet<FGuid> CurrentDynamicRegionIds;
 
 	/** Bounding volume this obstacle is currently inside */
 	TWeakObjectPtr<AAeonixBoundingVolume> CurrentBoundingVolume;
-
-	/** Reference to the Aeonix subsystem */
-	UPROPERTY(Transient)
-	TScriptInterface<IAeonixSubsystemInterface> AeonixSubsystem;
-
-	/**
-	 * Update which bounding volume and dynamic regions this obstacle is inside.
-	 * Returns true if the regions changed.
-	 */
-	bool UpdateCurrentRegions();
-
-	/**
-	 * Check if the position has changed beyond the threshold.
-	 */
-	bool HasPositionChangedBeyondThreshold() const;
-
-	/**
-	 * Check if the rotation has changed beyond the threshold.
-	 */
-	bool HasRotationChangedBeyondThreshold() const;
 };

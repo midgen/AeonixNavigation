@@ -9,6 +9,7 @@
 #include "AeonixSubsystem.generated.h"
 
 class AAeonixBoundingVolume;
+class AAeonixModifierVolume;
 class UAeonixNavAgentComponent;
 class UAeonixDynamicObstacleComponent;
 
@@ -78,8 +79,19 @@ private:
 	UPROPERTY(Transient)
 	TArray<UAeonixDynamicObstacleComponent*> RegisteredDynamicObstacles{};
 
+	// Tracks the last transform for each dynamic obstacle (for threshold checking)
+	TMap<UAeonixDynamicObstacleComponent*, FTransform> ObstacleLastTransformMap;
+
+	UPROPERTY(Transient)
+	TArray<AAeonixModifierVolume*> RegisteredModifierVolumes{};
+
+	// Tracks which bounding volume each modifier volume is currently registered with
+	UPROPERTY(Transient)
+	TMap<AAeonixModifierVolume*, AAeonixBoundingVolume*> ModifierToVolumeMap;
+
 	void UpdateRequests();
 	void ProcessDynamicObstacles(float DeltaTime);
+	void UpdateSpatialRelationships();
 
 private:
 	TArray<FAeonixPathFindRequest> PathRequests;

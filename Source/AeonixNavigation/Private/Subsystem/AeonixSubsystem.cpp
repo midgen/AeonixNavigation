@@ -6,6 +6,7 @@
 
 #include "AeonixNavigation.h"
 #include "Actor/AeonixBoundingVolume.h"
+#include "Actor/AeonixModifierVolume.h"
 #include "Component/AeonixNavAgentComponent.h"
 #include "Component/AeonixDynamicObstacleComponent.h"
 #include "Task/AeonixFindPathTask.h"
@@ -13,6 +14,7 @@
 #include "Mass/AeonixFragments.h"
 #include "Data/AeonixHandleTypes.h"
 #include "Data/AeonixStats.h"
+#include "Data/AeonixGenerationParameters.h"
 
 #include "MassCommonFragments.h"
 #include "MassEntityManager.h"
@@ -63,18 +65,60 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 
 void UAeonixSubsystem::RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-	// Note: Modifier volumes are not yet implemented.
-	// When implemented, this should add the volume to a registered list
-	// and trigger regeneration of affected navigation regions.
-	UE_LOG(LogAeonixNavigation, Verbose, TEXT("RegisterModifierVolume called but modifier volumes are not yet implemented"));
+	if (!ModifierVolume)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to register null modifier volume"));
+		return;
+	}
+
+	if (RegisteredModifierVolumes.Contains(ModifierVolume))
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Modifier volume %s already registered"), *ModifierVolume->GetName());
+		return;
+	}
+
+	RegisteredModifierVolumes.Add(ModifierVolume);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered modifier volume: %s"), *ModifierVolume->GetName());
 }
 
 void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-	// Note: Modifier volumes are not yet implemented.
-	// When implemented, this should remove the volume from the registered list
-	// and trigger regeneration of affected navigation regions.
-	UE_LOG(LogAeonixNavigation, Verbose, TEXT("UnRegisterModifierVolume called but modifier volumes are not yet implemented"));
+	if (!ModifierVolume)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister null modifier volume"));
+		return;
+	}
+
+	// If this modifier was registered with a bounding volume, unregister it
+	if (AAeonixBoundingVolume** FoundVolume = ModifierToVolumeMap.Find(ModifierVolume))
+	{
+		AAeonixBoundingVolume* BoundingVolume = *FoundVolume;
+		if (BoundingVolume)
+		{
+			// Remove dynamic region if it was a dynamic region modifier
+			if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+			{
+				BoundingVolume->RemoveDynamicRegion(ModifierVolume->DynamicRegionId);
+			}
+
+			// Clear debug filter if it was a debug filter modifier
+			if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+			{
+				BoundingVolume->ClearDebugFilterBox();
+			}
+		}
+		ModifierToVolumeMap.Remove(ModifierVolume);
+	}
+
+	const int32 NumRemoved = RegisteredModifierVolumes.Remove(ModifierVolume);
+	if (NumRemoved == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister modifier volume %s that wasn't registered"), *ModifierVolume->GetName());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered modifier volume: %s"), *ModifierVolume->GetName());
+	}
 }
 
 void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag CreateMassEntity)
@@ -150,6 +194,13 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 	}
 
 	RegisteredDynamicObstacles.Add(ObstacleComponent);
+
+	// Initialize transform tracking
+	if (AActor* Owner = ObstacleComponent->GetOwner())
+	{
+		ObstacleLastTransformMap.Add(ObstacleComponent, Owner->GetActorTransform());
+	}
+
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s"), *ObstacleComponent->GetName());
 }
 
@@ -162,6 +213,8 @@ void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent
 	}
 
 	const int32 NumRemoved = RegisteredDynamicObstacles.Remove(ObstacleComponent);
+	ObstacleLastTransformMap.Remove(ObstacleComponent);
+
 	if (NumRemoved == 0)
 	{
 		UE_LOG(LogAeonixNavigation, Warning, TEXT("Tried to unregister obstacle %s that wasn't registered"), *ObstacleComponent->GetName());
@@ -378,6 +431,7 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 
 		if (!Obstacle || !IsValid(Obstacle))
 		{
+			ObstacleLastTransformMap.Remove(Obstacle);
 			RegisteredDynamicObstacles.RemoveAtSwap(i, EAllowShrinking::No);
 			continue;
 		}
@@ -388,24 +442,81 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 			continue;
 		}
 
-		// Check if transform changed beyond thresholds or crossed region boundaries
-		TSet<FGuid> OldRegionIds;
+		AActor* Owner = Obstacle->GetOwner();
+		if (!Owner)
+		{
+			continue;
+		}
+
+		// Get current and last transform
+		const FTransform CurrentTransform = Owner->GetActorTransform();
+		FTransform* LastTransform = ObstacleLastTransformMap.Find(Obstacle);
+		if (!LastTransform)
+		{
+			// Initialize if missing
+			ObstacleLastTransformMap.Add(Obstacle, CurrentTransform);
+			LastTransform = ObstacleLastTransformMap.Find(Obstacle);
+		}
+
+		// Store old region IDs
+		const TSet<FGuid> OldRegionIds = Obstacle->GetCurrentRegionIds();
+
+		// Find which bounding volume and regions the obstacle is now in
+		const FVector CurrentPosition = Owner->GetActorLocation();
+		AAeonixBoundingVolume* NewBoundingVolume = nullptr;
 		TSet<FGuid> NewRegionIds;
 
-		if (Obstacle->CheckForTransformChange(OldRegionIds, NewRegionIds))
+		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			// Get the bounding volume this obstacle is in
-			AAeonixBoundingVolume* BoundingVolume = Obstacle->GetCurrentBoundingVolume();
+			if (Handle.VolumeHandle && Handle.VolumeHandle->EncompassesPoint(CurrentPosition))
+			{
+				NewBoundingVolume = Handle.VolumeHandle;
 
-			if (BoundingVolume)
+				// Check which dynamic regions within this volume we're inside
+				const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
+				for (const auto& RegionPair : Params.DynamicRegionBoxes)
+				{
+					if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
+					{
+						NewRegionIds.Add(RegionPair.Key);
+					}
+				}
+				break;
+			}
+		}
+
+		// Update obstacle's current state
+		Obstacle->SetCurrentBoundingVolume(NewBoundingVolume);
+		Obstacle->SetCurrentRegionIds(NewRegionIds);
+
+		// Check if regions changed
+		const bool bRegionsChanged = !(NewRegionIds.Num() == OldRegionIds.Num() && NewRegionIds.Includes(OldRegionIds));
+
+		// Check position threshold
+		const FVector CurrentPos = CurrentTransform.GetLocation();
+		const FVector LastPos = LastTransform->GetLocation();
+		const float DistanceSq = FVector::DistSquared(CurrentPos, LastPos);
+		const float PositionThresholdSq = Obstacle->PositionThreshold * Obstacle->PositionThreshold;
+		const bool bPositionChanged = DistanceSq > PositionThresholdSq;
+
+		// Check rotation threshold
+		const FQuat CurrentRotation = CurrentTransform.GetRotation();
+		const FQuat LastRotation = LastTransform->GetRotation();
+		const float DotProduct = FMath::Abs(CurrentRotation | LastRotation);
+		const float AngleDegrees = FMath::RadiansToDegrees(2.0f * FMath::Acos(FMath::Min(DotProduct, 1.0f)));
+		const bool bRotationChanged = AngleDegrees > Obstacle->RotationThreshold;
+
+		// If any threshold exceeded or regions changed, request regeneration
+		if (bRegionsChanged || bPositionChanged || bRotationChanged)
+		{
+			if (NewBoundingVolume)
 			{
 				// Request regeneration for all affected regions (union of old and new)
-				// This ensures we update both regions the obstacle left and entered
 				TSet<FGuid> AllAffectedRegions = OldRegionIds.Union(NewRegionIds);
 
 				for (const FGuid& RegionId : AllAffectedRegions)
 				{
-					BoundingVolume->RequestDynamicRegionRegen(RegionId);
+					NewBoundingVolume->RequestDynamicRegionRegen(RegionId);
 				}
 
 				if (AllAffectedRegions.Num() > 0)
@@ -419,8 +530,8 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 				}
 			}
 
-			// Update the tracked transform now that we've processed the change
-			Obstacle->UpdateTrackedTransform();
+			// Update the tracked transform
+			*LastTransform = CurrentTransform;
 		}
 	}
 
@@ -436,8 +547,101 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 	}
 }
 
+void UAeonixSubsystem::UpdateSpatialRelationships()
+{
+	// Clean up null/invalid modifier volumes (iterate backwards for safe removal)
+	for (int32 i = RegisteredModifierVolumes.Num() - 1; i >= 0; i--)
+	{
+		AAeonixModifierVolume* ModifierVolume = RegisteredModifierVolumes[i];
+		if (!ModifierVolume || !IsValid(ModifierVolume))
+		{
+			// Clean up the map entry too
+			ModifierToVolumeMap.Remove(ModifierVolume);
+			RegisteredModifierVolumes.RemoveAtSwap(i, EAllowShrinking::No);
+			continue;
+		}
+
+		// Find which bounding volume this modifier is currently inside
+		AAeonixBoundingVolume* CurrentBoundingVolume = nullptr;
+		const FVector ModifierLocation = ModifierVolume->GetActorLocation();
+
+		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+		{
+			if (Handle.VolumeHandle && Handle.VolumeHandle->EncompassesPoint(ModifierLocation))
+			{
+				CurrentBoundingVolume = Handle.VolumeHandle;
+				break;
+			}
+		}
+
+		// Get the previous bounding volume this modifier was in
+		AAeonixBoundingVolume* PreviousBoundingVolume = nullptr;
+		if (AAeonixBoundingVolume** FoundVolume = ModifierToVolumeMap.Find(ModifierVolume))
+		{
+			PreviousBoundingVolume = *FoundVolume;
+		}
+
+		// Check if the modifier has moved to a different bounding volume
+		if (CurrentBoundingVolume != PreviousBoundingVolume)
+		{
+			// Unregister from previous bounding volume
+			if (PreviousBoundingVolume)
+			{
+				if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+				{
+					PreviousBoundingVolume->RemoveDynamicRegion(ModifierVolume->DynamicRegionId);
+				}
+				if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+				{
+					PreviousBoundingVolume->ClearDebugFilterBox();
+				}
+			}
+
+			// Register with new bounding volume
+			if (CurrentBoundingVolume)
+			{
+				const FBox ModifierBox = ModifierVolume->GetComponentsBoundingBox(true);
+
+				if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+				{
+					CurrentBoundingVolume->AddDynamicRegion(ModifierVolume->DynamicRegionId, ModifierBox);
+				}
+				if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+				{
+					CurrentBoundingVolume->SetDebugFilterBox(ModifierBox);
+				}
+			}
+
+			// Update the map
+			if (CurrentBoundingVolume)
+			{
+				ModifierToVolumeMap.Add(ModifierVolume, CurrentBoundingVolume);
+			}
+			else
+			{
+				ModifierToVolumeMap.Remove(ModifierVolume);
+			}
+		}
+		else if (CurrentBoundingVolume)
+		{
+			// Even if in the same volume, update the bounds in case the modifier moved/resized within the volume
+			const FBox ModifierBox = ModifierVolume->GetComponentsBoundingBox(true);
+
+			if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
+			{
+				CurrentBoundingVolume->AddDynamicRegion(ModifierVolume->DynamicRegionId, ModifierBox);
+			}
+			if (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
+			{
+				CurrentBoundingVolume->SetDebugFilterBox(ModifierBox);
+			}
+		}
+	}
+}
+
 void UAeonixSubsystem::Tick(float DeltaTime)
 {
+	UpdateSpatialRelationships();
 	UpdateComponents();
 	ProcessDynamicObstacles(DeltaTime);
 	UpdateRequests();

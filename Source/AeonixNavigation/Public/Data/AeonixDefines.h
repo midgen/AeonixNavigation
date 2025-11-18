@@ -25,7 +25,7 @@ enum class dir : uint8
 	nZ
 };
 
-#define LEAF_LAYER_INDEX 14;
+#define LEAF_LAYER_INDEX 14
 
 class AEONIXNAVIGATION_API AeonixStatics
 {

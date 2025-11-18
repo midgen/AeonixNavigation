@@ -43,7 +43,9 @@ struct AEONIXNAVIGATION_API AeonixLink
 
 FORCEINLINE uint32 GetTypeHash(const AeonixLink& b)
 {
-	return *(uint32*)&b;
+	uint32 Result;
+	FMemory::Memcpy(&Result, &b, sizeof(uint32));
+	return Result;
 }
 
 

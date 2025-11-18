@@ -347,12 +347,27 @@ bool FAeonixData::GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodei
 {
 	const TArray<AeonixNode>& layer = OctreeData.GetLayer(aLayer);
 
-	for (int i = 0; i < layer.Num(); i++)
+	// Binary search - morton codes are sorted by construction
+	int32 Low = 0;
+	int32 High = layer.Num() - 1;
+
+	while (Low <= High)
 	{
-		if (layer[i].Code == aCode)
+		const int32 Mid = (Low + High) / 2;
+		const mortoncode_t MidCode = layer[Mid].Code;
+
+		if (MidCode == aCode)
 		{
-			oIndex = i;
+			oIndex = Mid;
 			return true;
+		}
+		else if (MidCode < aCode)
+		{
+			Low = Mid + 1;
+		}
+		else
+		{
+			High = Mid - 1;
 		}
 	}
 

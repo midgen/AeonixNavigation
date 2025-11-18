@@ -102,13 +102,31 @@ public:
 
 private:
 
-	TArray<AeonixLink> OpenSet;
+	// Min-heap for open set (sorted by FScore)
+	TArray<AeonixLink> OpenHeap;
+	// Fast lookup to check if a link is in the open set
+	TSet<AeonixLink> OpenSetLookup;
 	TSet<AeonixLink> ClosedSet;
 
 	TMap<AeonixLink, AeonixLink> CameFrom;
 
 	TMap<AeonixLink, float> GScore;
 	TMap<AeonixLink, float> FScore;
+
+	// Predicate for min-heap ordering by FScore
+	struct FScoreHeapPredicate
+	{
+		const TMap<AeonixLink, float>& Scores;
+
+		FScoreHeapPredicate(const TMap<AeonixLink, float>& InScores) : Scores(InScores) {}
+
+		bool operator()(const AeonixLink& A, const AeonixLink& B) const
+		{
+			const float ScoreA = Scores.Contains(A) ? Scores[A] : FLT_MAX;
+			const float ScoreB = Scores.Contains(B) ? Scores[B] : FLT_MAX;
+			return ScoreA < ScoreB;  // Min-heap: lower score = higher priority
+		}
+	};
 
 	AeonixLink StartLink;
 	AeonixLink CurrentLink;

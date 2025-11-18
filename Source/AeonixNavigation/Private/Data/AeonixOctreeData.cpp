@@ -1,10 +1,15 @@
 #include "Data/AeonixOctreeData.h"
+#include "Data/AeonixDefines.h"
 
 const AeonixNode& FAeonixOctreeData::GetNode(const AeonixLink& aLink) const
 {
-	if (aLink.GetLayerIndex() < 14)
+	if (aLink.GetLayerIndex() < LEAF_LAYER_INDEX)
 	{
-		return GetLayer(aLink.GetLayerIndex())[aLink.GetNodeIndex()];
+		const TArray<AeonixNode>& Layer = GetLayer(aLink.GetLayerIndex());
+		checkf(aLink.GetNodeIndex() < static_cast<uint_fast32_t>(Layer.Num()),
+			TEXT("Node index %d out of bounds for layer %d (size: %d)"),
+			aLink.GetNodeIndex(), aLink.GetLayerIndex(), Layer.Num());
+		return Layer[aLink.GetNodeIndex()];
 	}
 	else
 	{
@@ -14,6 +19,8 @@ const AeonixNode& FAeonixOctreeData::GetNode(const AeonixLink& aLink) const
 
 const AeonixLeafNode& FAeonixOctreeData::GetLeafNode(nodeindex_t aIndex) const
 {
+	checkf(aIndex >= 0 && aIndex < LeafNodes.Num(),
+		TEXT("Leaf node index %d out of bounds (size: %d)"), aIndex, LeafNodes.Num());
 	return LeafNodes[aIndex];
 }
 

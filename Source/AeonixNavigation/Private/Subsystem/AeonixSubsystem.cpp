@@ -63,12 +63,18 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 
 void UAeonixSubsystem::RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-
+	// Note: Modifier volumes are not yet implemented.
+	// When implemented, this should add the volume to a registered list
+	// and trigger regeneration of affected navigation regions.
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("RegisterModifierVolume called but modifier volumes are not yet implemented"));
 }
 
 void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
 {
-
+	// Note: Modifier volumes are not yet implemented.
+	// When implemented, this should remove the volume from the registered list
+	// and trigger regeneration of affected navigation regions.
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("UnRegisterModifierVolume called but modifier volumes are not yet implemented"));
 }
 
 void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag CreateMassEntity)
@@ -265,18 +271,35 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	OutPath.ResetForRepath();
 	OutPath.SetIsReady(false);
 
+	// Copy necessary data to avoid dangling references in async task
+	// Using TWeakObjectPtr for UObjects that could be destroyed
+	TWeakObjectPtr<const AAeonixBoundingVolume> WeakNavVolume = NavVolume;
+	FAeonixPathFinderSettings PathfinderSettingsCopy = NavigationComponent->PathfinderSettings;
+	FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
+	FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
+
 	// Kick off the pathfinding on the task graphs
-	// TODO: Bit more scope in this lambda than I'd like, there's going to be crash potential if things get destroyed while this task is running
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([&Request, NavVolume, NavigationComponent, StartNavLink, TargetNavLink, End, &OutPath ]()
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[&Request, WeakNavVolume, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
+
+		// Check if volume is still valid
+		const AAeonixBoundingVolume* NavVolume = WeakNavVolume.Get();
+		if (!NavVolume)
+		{
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
+			OutPath.SetIsReady(false);
+			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+			return;
+		}
 
 		// Acquire read lock for thread-safe octree access during pathfinding
 		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
 
-		AeonixPathFinder PathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
+		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
 
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath))
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath))
 		{
 			OutPath.SetIsReady(true);
 			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
@@ -460,12 +483,13 @@ bool UAeonixSubsystem::IsTickableWhenPaused() const
 
 void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 {
-	for (int32 i = 0; i < PathRequests.Num();)
+	for (int32 i = PathRequests.Num() - 1; i >= 0; --i)
 	{
 		FAeonixPathFindRequest& Request = PathRequests[i];
-
 		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
 	}
+	PathRequests.Empty();
 }
 
 size_t UAeonixSubsystem::GetNumberOfPendingTasks() const

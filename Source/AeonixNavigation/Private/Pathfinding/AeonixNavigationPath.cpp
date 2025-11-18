@@ -14,7 +14,7 @@ void FAeonixNavigationPath::AddPoint(const FAeonixPathPoint& aPoint)
 
 void FAeonixNavigationPath::ResetForRepath()
 {
-	UE_LOG(LogTemp, Warning, TEXT("AeonixNavigationPath: ResetForRepath called, clearing %d points"), myPoints.Num());
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("AeonixNavigationPath: ResetForRepath called, clearing %d points"), myPoints.Num());
 	myPoints.Empty();
 	myIsReady = false;
 }

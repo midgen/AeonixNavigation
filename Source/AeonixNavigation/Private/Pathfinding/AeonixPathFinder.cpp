@@ -10,7 +10,8 @@
 
 bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
 {
-	OpenSet.Empty();
+	OpenHeap.Empty();
+	OpenSetLookup.Empty();
 	ClosedSet.Empty();
 	CameFrom.Empty();
 	FScore.Empty();
@@ -19,27 +20,29 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	GoalLink = InGoal;
 	StartLink = Start;
 
-	OpenSet.Add(Start);
 	CameFrom.Add(Start, Start);
 	GScore.Add(Start, 0);
 	FScore.Add(Start, CalculateHeuristic(Start, InGoal)); // Distance to target
 
+	// Add start to open set using heap
+	OpenHeap.Add(Start);
+	OpenSetLookup.Add(Start);
+
 	int numIterations = 0;
+	FScoreHeapPredicate HeapPredicate(FScore);
 
-	while (OpenSet.Num() > 0)
+	while (OpenHeap.Num() > 0)
 	{
+		// Pop the node with lowest FScore from the heap - O(log n) instead of O(n)
+		OpenHeap.HeapPop(CurrentLink, HeapPredicate);
+		OpenSetLookup.Remove(CurrentLink);
 
-		float lowestScore = FLT_MAX;
-		for (AeonixLink& link : OpenSet)
+		// Skip if already processed (can happen with lazy deletion approach)
+		if (ClosedSet.Contains(CurrentLink))
 		{
-			if (!FScore.Contains(link) || FScore[link] < lowestScore)
-			{
-				lowestScore = FScore[link];
-				CurrentLink = link;
-			}
+			continue;
 		}
 
-		OpenSet.Remove(CurrentLink);
 		ClosedSet.Add(CurrentLink);
 
 		if (CurrentLink == GoalLink)
@@ -231,18 +234,6 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		if (ClosedSet.Contains(aNeighbour))
 			return;
 
-		if (!OpenSet.Contains(aNeighbour))
-		{
-			OpenSet.Add(aNeighbour);
-
-			if (Settings.bDebugOpenNodes)
-			{
-				FVector pos;
-				NavigationData.GetLinkPosition(aNeighbour, pos);
-				Settings.DebugPoints.Add(pos);
-			}
-		}
-
 		float t_gScore = FLT_MAX;
 		if (GScore.Contains(CurrentLink))
 			t_gScore = GScore[CurrentLink] + GetCost(CurrentLink, aNeighbour);
@@ -260,6 +251,23 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 		float heuristicScore = CalculateHeuristic(aNeighbour, GoalLink, parentLink);
 
 		FScore.Add(aNeighbour, GScore[aNeighbour] + heuristicScore);
+
+		// Add to open set if not already there, or re-add with updated score (lazy deletion approach)
+		if (!OpenSetLookup.Contains(aNeighbour))
+		{
+			OpenSetLookup.Add(aNeighbour);
+
+			if (Settings.bDebugOpenNodes)
+			{
+				FVector pos;
+				NavigationData.GetLinkPosition(aNeighbour, pos);
+				Settings.DebugPoints.Add(pos);
+			}
+		}
+
+		// Push to heap with new score (heap will maintain ordering)
+		FScoreHeapPredicate HeapPredicate(FScore);
+		OpenHeap.HeapPush(aNeighbour, HeapPredicate);
 	}
 }
 

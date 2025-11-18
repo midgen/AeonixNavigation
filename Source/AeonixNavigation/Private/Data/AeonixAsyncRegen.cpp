@@ -63,7 +63,7 @@ namespace AeonixAsyncRegen
 			return;
 		}
 
-		AsyncTask(ENamedThreads::GameThread, [Volume, Results = MoveTemp(AllResults), TotalLeaves]()
+		AsyncTask(ENamedThreads::GameThread, [Volume, Results = MoveTemp(AllResults), TotalLeaves]() mutable
 		{
 			if (!Volume || !IsValid(Volume))
 			{
@@ -73,7 +73,7 @@ namespace AeonixAsyncRegen
 
 			// Enqueue results for time-budgeted processing
 			// The volume's Tick will process them incrementally to avoid frame spikes
-			Volume->EnqueueRegenResults(MoveTemp(const_cast<TArray<FAeonixLeafRasterResult>&>(Results)), TotalLeaves);
+			Volume->EnqueueRegenResults(MoveTemp(Results), TotalLeaves);
 		});
 	}
 

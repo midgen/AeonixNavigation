@@ -10,6 +10,7 @@ AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 {
 	GetBrushComponent()->Mobility = EComponentMobility::Static;
+	GetBrushComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BrushColor = FColor::Cyan;
 	bColored = true;
 

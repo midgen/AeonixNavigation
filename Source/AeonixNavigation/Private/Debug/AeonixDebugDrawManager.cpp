@@ -4,6 +4,10 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 
+#if WITH_EDITOR
+#include "UnrealEd.h"  // For GEditor
+#endif
+
 void UAeonixDebugDrawManager::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -107,6 +111,14 @@ void UAeonixDebugDrawManager::Clear(EAeonixDebugCategory Category)
 	{
 		FlushPersistentDebugLines(World);
 		RedrawAllPrimitives();
+
+		#if WITH_EDITOR
+		// Force viewport refresh so changes are visible immediately
+		if (GEditor)
+		{
+			GEditor->RedrawAllViewports();
+		}
+		#endif
 	}
 }
 
@@ -192,6 +204,14 @@ void UAeonixDebugDrawManager::SetCategoryVisible(EAeonixDebugCategory Category, 
 		{
 			FlushPersistentDebugLines(World);
 			RedrawAllPrimitives();
+
+			#if WITH_EDITOR
+			// Force viewport refresh so changes are visible immediately
+			if (GEditor)
+			{
+				GEditor->RedrawAllViewports();
+			}
+			#endif
 		}
 	}
 }

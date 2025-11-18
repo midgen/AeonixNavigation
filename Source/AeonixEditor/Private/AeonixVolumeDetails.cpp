@@ -130,6 +130,30 @@ void FAeonixVolumeDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder
 		]
 		];
 
+	DetailBuilder.EditCategory(AeonixCategoryName)
+		.AddCustomRow(NSLOCTEXT("Aeonix", "RegenerateDynamic", "Regenerate Dynamic Subregions"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		.Text(NSLOCTEXT("Aeonix", "RegenerateDynamic", "Regenerate Dynamic Subregions"))
+		]
+	.ValueContent()
+		.MaxDesiredWidth(125.f)
+		.MinDesiredWidth(125.f)
+		[
+			SNew(SButton)
+			.ContentPadding(2)
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Center)
+		.OnClicked(this, &FAeonixVolumeDetails::OnRegenerateDynamicSubregions)
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		.Text(NSLOCTEXT("Aeonix", "RegenerateDynamic", "Regenerate Dynamic Subregions"))
+		]
+		];
+
 	DetailBuilder.EditCategory(AeonixCategoryName).SetSortOrder(0);
 	
 	navigationCategory.AddProperty(debugDistanceProperty);
@@ -155,6 +179,16 @@ FReply FAeonixVolumeDetails::OnClearVolumeClick()
 	if (myVolume.IsValid())
 	{
 		myVolume->ClearData();
+	}
+
+	return FReply::Handled();
+}
+
+FReply FAeonixVolumeDetails::OnRegenerateDynamicSubregions()
+{
+	if (myVolume.IsValid())
+	{
+		myVolume->RegenerateDynamicSubregions();
 	}
 
 	return FReply::Handled();

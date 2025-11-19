@@ -2,10 +2,9 @@
 
 #include "Interface/AeonixSubsystemInterface.h"
 #include "Components/ActorComponent.h"
+#include "Actor/AeonixBoundingVolume.h"
 
 #include "AeonixDynamicObstacleComponent.generated.h"
-
-class AAeonixBoundingVolume;
 
 /**
  * Component that tracks dynamic obstacles and triggers navigation regeneration

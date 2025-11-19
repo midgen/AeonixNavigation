@@ -87,7 +87,7 @@ void AAeonixDebugFloodFillActor::OnBoundingVolumeRegenerated(AAeonixBoundingVolu
 		return;
 
 	// Only update if this actor is within the regenerated volume
-	if (Volume->EncompassesPoint(GetActorLocation()))
+	if (Volume->IsPointInside(GetActorLocation()))
 	{
 		PerformFloodFill();
 	}

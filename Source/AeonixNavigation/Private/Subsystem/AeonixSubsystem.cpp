@@ -389,9 +389,18 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 	if (TargetNavLink == StartNavLink)
 	{
-		// TODO: this should succeed
-		UE_LOG(LogAeonixNavigation, Error, TEXT("Trying to path from same start and end navlink"));
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		// Same voxel - create direct path with start and end points
+		OutPath.ResetForRepath();
+
+		FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
+		FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
+
+		OutPath.AddPoint(FAeonixPathPoint(StartPosition, StartNavLink.GetLayerIndex()));
+		OutPath.AddPoint(FAeonixPathPoint(EndPosition, StartNavLink.GetLayerIndex()));
+
+		OutPath.SetIsReady(true);
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Same voxel path - direct path with 2 points"));
+		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 		return Request.OnPathFindRequestComplete;
 	}
 

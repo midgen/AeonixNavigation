@@ -34,11 +34,12 @@ void UAeonixDynamicObstacleComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Make sure we're registered (OnRegister should have already done this, but be safe)
-	if (!bRegisteredWithSubsystem)
-	{
-		RegisterWithSubsystem();
-	}
+	// Reset state from editor world - PIE creates new world with new actor instances
+	CurrentBoundingVolume = nullptr;
+	CurrentDynamicRegionIds.Empty();
+	bRegisteredWithSubsystem = false;
+
+	RegisterWithSubsystem();
 }
 
 void UAeonixDynamicObstacleComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

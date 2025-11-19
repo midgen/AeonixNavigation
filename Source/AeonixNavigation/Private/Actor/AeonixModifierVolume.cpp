@@ -14,16 +14,41 @@ AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectIni
 	BrushColor = FColor::Cyan;
 	bColored = true;
 
-	// Generate a unique ID for this dynamic region if not already set
+	// Don't generate GUID in constructor - wait for serialization to load it first
+	// GUID generation happens in PostLoad (for loaded actors) or OnConstruction (for new actors)
+}
+
+void AAeonixModifierVolume::PostLoad()
+{
+	Super::PostLoad();
+
+	// Generate GUID only if not loaded from serialization
 	if (!DynamicRegionId.IsValid())
 	{
 		DynamicRegionId = FGuid::NewGuid();
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("ModifierVolume %s: Generated NEW GUID in PostLoad %s"),
+			*GetName(), *DynamicRegionId.ToString());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ModifierVolume %s: Loaded serialized GUID %s"),
+			*GetName(), *DynamicRegionId.ToString());
 	}
 }
 
 void AAeonixModifierVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+
+	// Generate GUID for newly placed actors (not loaded from disk)
+	// Loaded actors get their GUID in PostLoad
+	if (!DynamicRegionId.IsValid())
+	{
+		DynamicRegionId = FGuid::NewGuid();
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ModifierVolume %s: Generated NEW GUID in OnConstruction %s"),
+			*GetName(), *DynamicRegionId.ToString());
+	}
+
 	RegisterWithBoundingVolumes();
 }
 

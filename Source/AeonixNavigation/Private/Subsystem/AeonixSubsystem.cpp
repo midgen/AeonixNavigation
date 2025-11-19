@@ -138,8 +138,8 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 			FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
 
 			FMassArchetypeCompositionDescriptor Composition;
-			Composition.Fragments.Add<FTransformFragment>();
-			Composition.Fragments.Add<FAeonixNavAgentFragment>();
+			Composition.GetFragments().Add<FTransformFragment>();
+			Composition.GetFragments().Add<FAeonixNavAgentFragment>();
 
 			FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
 			Entity = EntityManager.CreateEntity(Archetype);
@@ -195,13 +195,60 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 
 	RegisteredDynamicObstacles.Add(ObstacleComponent);
 
-	// Initialize transform tracking
+	// Initialize transform tracking and immediately determine bounding volume/regions
 	if (AActor* Owner = ObstacleComponent->GetOwner())
 	{
 		ObstacleLastTransformMap.Add(ObstacleComponent, Owner->GetActorTransform());
-	}
 
-	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s"), *ObstacleComponent->GetName());
+		// Immediately determine which bounding volume and regions the obstacle is in
+		// This prevents timing issues where TriggerNavigationRegen() is called before first tick
+		const FVector CurrentPosition = Owner->GetActorLocation();
+		AAeonixBoundingVolume* FoundVolume = nullptr;
+		TSet<FGuid> FoundRegionIds;
+
+		UE_LOG(LogAeonixNavigation, Log, TEXT("RegisterDynamicObstacle: %s at %s, checking %d volumes"),
+			*ObstacleComponent->GetName(), *CurrentPosition.ToString(), RegisteredVolumes.Num());
+
+		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+		{
+			if (Handle.VolumeHandle)
+			{
+				const FBox VolumeBounds = Handle.VolumeHandle->GetComponentsBoundingBox(true);
+				const bool bIsInside = Handle.VolumeHandle->IsPointInside(CurrentPosition);
+				UE_LOG(LogAeonixNavigation, Log, TEXT("  Volume %s: Bounds Min=%s Max=%s, IsPointInside=%d"),
+					*Handle.VolumeHandle->GetName(), *VolumeBounds.Min.ToString(), *VolumeBounds.Max.ToString(), bIsInside);
+
+				if (bIsInside)
+				{
+					FoundVolume = Handle.VolumeHandle;
+
+					// Check which dynamic regions within this volume we're inside
+					const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
+					for (const auto& RegionPair : Params.DynamicRegionBoxes)
+					{
+						if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
+						{
+							FoundRegionIds.Add(RegionPair.Key);
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		// Set the obstacle's current state immediately
+		ObstacleComponent->SetCurrentBoundingVolume(FoundVolume);
+		ObstacleComponent->SetCurrentRegionIds(FoundRegionIds);
+
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s (Volume: %s, Regions: %d)"),
+			*ObstacleComponent->GetName(),
+			FoundVolume ? *FoundVolume->GetName() : TEXT("None"),
+			FoundRegionIds.Num());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s (no owner)"), *ObstacleComponent->GetName());
+	}
 }
 
 void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
@@ -229,7 +276,7 @@ const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVecto
 {
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
-		if (Handle.VolumeHandle->EncompassesPoint(Position))
+		if (Handle.VolumeHandle->IsPointInside(Position))
 		{
 			return Handle.VolumeHandle;
 		}
@@ -406,7 +453,7 @@ void UAeonixSubsystem::UpdateComponents()
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle->EncompassesPoint(AgentHandle.NavAgentComponent->GetAgentPosition()))
+			if (Handle.VolumeHandle->IsPointInside(AgentHandle.NavAgentComponent->GetAgentPosition()))
 			{
 				AgentToVolumeMap.Add(AgentHandle.NavAgentComponent, Handle.VolumeHandle);
 				bIsInValidVolume = true;
@@ -468,7 +515,7 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle && Handle.VolumeHandle->EncompassesPoint(CurrentPosition))
+			if (Handle.VolumeHandle && Handle.VolumeHandle->IsPointInside(CurrentPosition))
 			{
 				NewBoundingVolume = Handle.VolumeHandle;
 
@@ -567,10 +614,14 @@ void UAeonixSubsystem::UpdateSpatialRelationships()
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle && Handle.VolumeHandle->EncompassesPoint(ModifierLocation))
+			if (Handle.VolumeHandle)
 			{
-				CurrentBoundingVolume = Handle.VolumeHandle;
-				break;
+				const bool bIsInside = Handle.VolumeHandle->IsPointInside(ModifierLocation);
+				if (bIsInside)
+				{
+					CurrentBoundingVolume = Handle.VolumeHandle;
+					break;
+				}
 			}
 		}
 

@@ -36,6 +36,10 @@ class AEONIXNAVIGATION_API AAeonixModifierVolume : public AVolume
 public:
 	AAeonixModifierVolume(const FObjectInitializer& ObjectInitializer);
 
+	//~ Begin UObject Interface
+	virtual void PostLoad() override;
+	//~ End UObject Interface
+
 	//~ Begin AActor Interface
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -52,7 +56,7 @@ public:
 	int32 ModifierTypes = static_cast<int32>(EAeonixModifierType::None);
 
 	/** Unique ID for this dynamic region (used for selective regeneration) */
-	UPROPERTY(SaveGame)
+	UPROPERTY()
 	FGuid DynamicRegionId;
 
 private:

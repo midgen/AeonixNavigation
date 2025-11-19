@@ -219,9 +219,10 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 	if (AActor* Owner = ObstacleComponent->GetOwner())
 	{
 		// Only set last transform if not already tracked (prevents reset on re-registration during editor moves)
-		if (!ObstacleLastTransformMap.Contains(ObstacleComponent))
+		// Key by Actor because components can be recreated during editor moves
+		if (!ObstacleLastTransformMap.Contains(Owner))
 		{
-			ObstacleLastTransformMap.Add(ObstacleComponent, Owner->GetActorTransform());
+			ObstacleLastTransformMap.Add(Owner, Owner->GetActorTransform());
 		}
 
 		// Immediately determine which bounding volume and regions the obstacle is in
@@ -230,33 +231,22 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 		AAeonixBoundingVolume* FoundVolume = nullptr;
 		TSet<FGuid> FoundRegionIds;
 
-		UE_LOG(LogAeonixNavigation, Log, TEXT("RegisterDynamicObstacle: %s at %s, checking %d volumes"),
-			*ObstacleComponent->GetName(), *CurrentPosition.ToString(), RegisteredVolumes.Num());
-
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle)
+			if (Handle.VolumeHandle && Handle.VolumeHandle->IsPointInside(CurrentPosition))
 			{
-				const FBox VolumeBounds = Handle.VolumeHandle->GetComponentsBoundingBox(true);
-				const bool bIsInside = Handle.VolumeHandle->IsPointInside(CurrentPosition);
-				UE_LOG(LogAeonixNavigation, Log, TEXT("  Volume %s: Bounds Min=%s Max=%s, IsPointInside=%d"),
-					*Handle.VolumeHandle->GetName(), *VolumeBounds.Min.ToString(), *VolumeBounds.Max.ToString(), bIsInside);
+				FoundVolume = Handle.VolumeHandle;
 
-				if (bIsInside)
+				// Check which dynamic regions within this volume we're inside
+				const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
+				for (const auto& RegionPair : Params.DynamicRegionBoxes)
 				{
-					FoundVolume = Handle.VolumeHandle;
-
-					// Check which dynamic regions within this volume we're inside
-					const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
-					for (const auto& RegionPair : Params.DynamicRegionBoxes)
+					if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
 					{
-						if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
-						{
-							FoundRegionIds.Add(RegionPair.Key);
-						}
+						FoundRegionIds.Add(RegionPair.Key);
 					}
-					break;
 				}
+				break;
 			}
 		}
 
@@ -503,6 +493,15 @@ void UAeonixSubsystem::UpdateComponents()
 
 void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 {
+	// Clean up stale entries in transform map (actors that are no longer valid)
+	for (auto It = ObstacleLastTransformMap.CreateIterator(); It; ++It)
+	{
+		if (!It.Key() || !IsValid(It.Key()))
+		{
+			It.RemoveCurrent();
+		}
+	}
+
 	// Clean up null/invalid obstacle components (iterate backwards for safe removal)
 	for (int32 i = RegisteredDynamicObstacles.Num() - 1; i >= 0; i--)
 	{
@@ -510,7 +509,6 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 
 		if (!Obstacle || !IsValid(Obstacle))
 		{
-			ObstacleLastTransformMap.Remove(Obstacle);
 			RegisteredDynamicObstacles.RemoveAtSwap(i, EAllowShrinking::No);
 			continue;
 		}
@@ -527,14 +525,14 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 			continue;
 		}
 
-		// Get current and last transform
+		// Get current and last transform (keyed by Actor for stability during editor moves)
 		const FTransform CurrentTransform = Owner->GetActorTransform();
-		FTransform* LastTransform = ObstacleLastTransformMap.Find(Obstacle);
+		FTransform* LastTransform = ObstacleLastTransformMap.Find(Owner);
 		if (!LastTransform)
 		{
 			// Initialize if missing
-			ObstacleLastTransformMap.Add(Obstacle, CurrentTransform);
-			LastTransform = ObstacleLastTransformMap.Find(Obstacle);
+			ObstacleLastTransformMap.Add(Owner, CurrentTransform);
+			LastTransform = ObstacleLastTransformMap.Find(Owner);
 		}
 
 		// Store old region IDs
@@ -588,6 +586,12 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 		// If any threshold exceeded or regions changed, request regeneration
 		if (bRegionsChanged || bPositionChanged || bRotationChanged)
 		{
+			// Log movement detection
+			UE_LOG(LogAeonixNavigation, Log,
+				TEXT("Obstacle %s: Movement detected (pos=%d, rot=%d, regions=%d), OldRegions=%d, NewRegions=%d"),
+				*Obstacle->GetName(), bPositionChanged, bRotationChanged, bRegionsChanged,
+				OldRegionIds.Num(), NewRegionIds.Num());
+
 			if (NewBoundingVolume)
 			{
 				// Request regeneration for all affected regions (union of old and new)
@@ -607,6 +611,18 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 						OldRegionIds.Num(),
 						NewRegionIds.Num());
 				}
+				else
+				{
+					UE_LOG(LogAeonixNavigation, Warning,
+						TEXT("Obstacle %s: Movement detected but not inside any dynamic regions - no regen triggered. Ensure obstacle is inside a modifier volume with DynamicRegion flag."),
+						*Obstacle->GetName());
+				}
+			}
+			else
+			{
+				UE_LOG(LogAeonixNavigation, Warning,
+					TEXT("Obstacle %s: Movement detected but not inside any bounding volume - no regen triggered"),
+					*Obstacle->GetName());
 			}
 
 			// Update the tracked transform

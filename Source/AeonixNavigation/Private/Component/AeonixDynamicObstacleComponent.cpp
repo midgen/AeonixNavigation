@@ -83,16 +83,24 @@ void UAeonixDynamicObstacleComponent::UnregisterFromSubsystem()
 	}
 
 	// Unregister from subsystem
-	if (UWorld* World = GetWorld())
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		if (UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>())
-		{
-			Subsystem->UnRegisterDynamicObstacle(this);
-			bRegisteredWithSubsystem = false;
-
-			UE_LOG(LogAeonixNavigation, Verbose, TEXT("DynamicObstacle %s: Unregistered from subsystem"), *GetName());
-		}
+		bRegisteredWithSubsystem = false;
+		return;
 	}
+
+	UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>();
+	if (!Subsystem)
+	{
+		bRegisteredWithSubsystem = false;
+		return;
+	}
+
+	Subsystem->UnRegisterDynamicObstacle(this);
+	bRegisteredWithSubsystem = false;
+
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("DynamicObstacle %s: Unregistered from subsystem"), *GetName());
 }
 
 #if WITH_EDITOR

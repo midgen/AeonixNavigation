@@ -82,8 +82,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<UAeonixDynamicObstacleComponent*> RegisteredDynamicObstacles{};
 
-	// Tracks the last transform for each dynamic obstacle (for threshold checking)
-	TMap<UAeonixDynamicObstacleComponent*, FTransform> ObstacleLastTransformMap;
+	// Tracks the last transform for each dynamic obstacle's owner actor (for threshold checking)
+	// Keyed by Actor because components can be recreated during editor moves
+	TMap<AActor*, FTransform> ObstacleLastTransformMap;
 
 	UPROPERTY(Transient)
 	TArray<AAeonixModifierVolume*> RegisteredModifierVolumes{};

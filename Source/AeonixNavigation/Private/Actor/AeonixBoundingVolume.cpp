@@ -721,7 +721,21 @@ void AAeonixBoundingVolume::TryProcessDirtyRegions()
 	UE_LOG(LogAeonixRegen, Display, TEXT("Processing %d dirty region(s) for volume %s (total dirty: %d, delay used: %.2fs)"),
 		RegionsToProcess.Num(), *GetName(), DirtyRegionIds.Num(), ProcessDelay);
 
-	RegenerateDynamicSubregionsAsync(RegionsToProcess);
+	// In editor, use synchronous regeneration for immediate feedback
+	// At runtime, use async to avoid hitches
+	if (!GetWorld()->IsGameWorld())
+	{
+		// Synchronous regeneration (same as manual button click)
+		for (const FGuid& RegionId : RegionsToProcess)
+		{
+			RegenerateDynamicSubregion(RegionId);
+		}
+	}
+	else
+	{
+		// Async regeneration for runtime
+		RegenerateDynamicSubregionsAsync(RegionsToProcess);
+	}
 
 	// Remove processed regions from dirty set
 	for (const FGuid& RegionId : RegionsToProcess)

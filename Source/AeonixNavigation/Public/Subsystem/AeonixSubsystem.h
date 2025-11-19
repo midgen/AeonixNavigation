@@ -110,6 +110,6 @@ private:
 	FOnRegistrationChanged OnRegistrationChanged;
 
 private:
-	TArray<FAeonixPathFindRequest> PathRequests;
+	TArray<TUniquePtr<FAeonixPathFindRequest>> PathRequests;
 };
 

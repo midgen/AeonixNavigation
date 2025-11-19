@@ -361,30 +361,31 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
 
-	FAeonixPathFindRequest& Request = PathRequests.Emplace_GetRef();
-	
+	TUniquePtr<FAeonixPathFindRequest>& Request = PathRequests.Add_GetRef(MakeUnique<FAeonixPathFindRequest>());
+	FAeonixPathFindRequest* RequestPtr = Request.Get();
+
 	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
 
 	if (!NavVolume)
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Nav Agent Not In A Volume"));
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		return Request.OnPathFindRequestComplete;
+		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return RequestPtr->OnPathFindRequestComplete;
 	}
-	
+
 	// Get the nav link from our volume
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingStartPosition(), *NavVolume, StartNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		return Request.OnPathFindRequestComplete;
+		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return RequestPtr->OnPathFindRequestComplete;
 	}
 
 	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingEndPosition(End), *NavVolume, TargetNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		return Request.OnPathFindRequestComplete;
+		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		return RequestPtr->OnPathFindRequestComplete;
 	}
 
 	if (TargetNavLink == StartNavLink)
@@ -400,8 +401,8 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 		OutPath.SetIsReady(true);
 		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Same voxel path - direct path with 2 points"));
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
-		return Request.OnPathFindRequestComplete;
+		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+		return RequestPtr->OnPathFindRequestComplete;
 	}
 
 	// Make sure the path isn't flagged ready
@@ -417,7 +418,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 	// Kick off the pathfinding on the task graphs
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[&Request, WeakNavVolume, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
+		[RequestPtr, WeakNavVolume, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
 
@@ -427,7 +428,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		{
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
 			OutPath.SetIsReady(false);
-			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 			return;
 		}
 
@@ -440,16 +441,16 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		{
 			OutPath.SetIsReady(true);
 			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
-			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 		}
 		else
 		{
 			OutPath.SetIsReady(false);
-			Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 		}
 	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
 
-	return Request.OnPathFindRequestComplete;
+	return RequestPtr->OnPathFindRequestComplete;
 }
 
 const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
@@ -765,13 +766,13 @@ void UAeonixSubsystem::UpdateRequests()
 {
 	for (int32 i = 0; i < PathRequests.Num();)
 	{
-		FAeonixPathFindRequest& Request = PathRequests[i];
+		FAeonixPathFindRequest* Request = PathRequests[i].Get();
 
 		// If our task has finished
-		if (Request.PathFindFuture.IsReady())
+		if (Request->PathFindFuture.IsReady())
 		{
-			EAeonixPathFindStatus Status = Request.PathFindFuture.Get();
-			Request.OnPathFindRequestComplete.ExecuteIfBound(Status);
+			EAeonixPathFindStatus Status = Request->PathFindFuture.Get();
+			Request->OnPathFindRequestComplete.ExecuteIfBound(Status);
 			PathRequests.RemoveAtSwap(i);
 			continue;
 		}
@@ -803,9 +804,9 @@ void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 {
 	for (int32 i = PathRequests.Num() - 1; i >= 0; --i)
 	{
-		FAeonixPathFindRequest& Request = PathRequests[i];
-		Request.PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		Request.OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
+		FAeonixPathFindRequest* Request = PathRequests[i].Get();
+		Request->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		Request->OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
 	}
 	PathRequests.Empty();
 }

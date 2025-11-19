@@ -9,6 +9,7 @@
 #include "AeonixSubsystem.generated.h"
 
 class AAeonixBoundingVolume;
+class AAeonixModifierVolume;
 class UAeonixNavAgentComponent;
 class UAeonixDynamicObstacleComponent;
 
@@ -48,6 +49,9 @@ public:
 	virtual AAeonixBoundingVolume* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
 	virtual void UpdateComponents() override;
+	virtual FOnNavigationRegenCompleted& GetOnNavigationRegenCompleted() override { return OnNavigationRegenCompleted; }
+	virtual FOnRegistrationChanged& GetOnRegistrationChanged() override { return OnRegistrationChanged; }
+	virtual void RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent) override;
 	/* IAeonixSubsystemInterface END */
 	
 	virtual void Tick(float DeltaTime) override;
@@ -78,8 +82,32 @@ private:
 	UPROPERTY(Transient)
 	TArray<UAeonixDynamicObstacleComponent*> RegisteredDynamicObstacles{};
 
+	// Tracks the last transform for each dynamic obstacle's owner actor (for threshold checking)
+	// Keyed by Actor because components can be recreated during editor moves
+	TMap<AActor*, FTransform> ObstacleLastTransformMap;
+
+	UPROPERTY(Transient)
+	TArray<AAeonixModifierVolume*> RegisteredModifierVolumes{};
+
+	// Tracks which bounding volume each modifier volume is currently registered with
+	UPROPERTY(Transient)
+	TMap<AAeonixModifierVolume*, AAeonixBoundingVolume*> ModifierToVolumeMap;
+
 	void UpdateRequests();
 	void ProcessDynamicObstacles(float DeltaTime);
+	void UpdateSpatialRelationships();
+
+	/** Handler for when a bounding volume completes regeneration */
+	void OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume);
+
+	/** Update debug paths for all nav agents within a specific volume */
+	void UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume);
+
+	/** Delegate broadcast when navigation regeneration completes */
+	FOnNavigationRegenCompleted OnNavigationRegenCompleted;
+
+	/** Delegate broadcast when registration changes */
+	FOnRegistrationChanged OnRegistrationChanged;
 
 private:
 	TArray<FAeonixPathFindRequest> PathRequests;

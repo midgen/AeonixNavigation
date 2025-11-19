@@ -7,7 +7,7 @@ public class AeonixEditor : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AeonixNavigation", "InputCore" });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "PropertyEditor", "EditorStyle", "UnrealEd", "GraphEditor", "BlueprintGraph", "EditorSubsystem", "Blutility", "UMG" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "PropertyEditor", "EditorStyle", "UnrealEd", "GraphEditor", "BlueprintGraph", "EditorSubsystem", "Blutility", "UMG", "ToolMenus", "LevelEditor", "WorkspaceMenuStructure" });
 
         PrivateIncludePaths.AddRange(new string[] { "AeonixEditor/Private" });
 

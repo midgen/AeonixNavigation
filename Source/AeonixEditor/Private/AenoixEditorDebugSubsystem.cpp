@@ -19,19 +19,19 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 {
 	if (!DebugActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("UpdateDebugActor called with null DebugActor"));
+		UE_LOG(LogAeonixEditor, Warning, TEXT("UpdateDebugActor called with null DebugActor"));
 		return;
 	}
 
 	if (DebugActor->DebugType == EAeonixPathDebugActorType::START)
 	{
 		StartDebugActor = DebugActor;
-		UE_LOG(LogTemp, Log, TEXT("Updated START debug actor at %s"), *DebugActor->GetActorLocation().ToString());
+		UE_LOG(LogAeonixEditor, Log, TEXT("Updated START debug actor at %s"), *DebugActor->GetActorLocation().ToString());
 	}
 	else
 	{
 		EndDebugActor = DebugActor;
-		UE_LOG(LogTemp, Log, TEXT("Updated END debug actor at %s"), *DebugActor->GetActorLocation().ToString());
+		UE_LOG(LogAeonixEditor, Log, TEXT("Updated END debug actor at %s"), *DebugActor->GetActorLocation().ToString());
 	}
 
 	// Flag that we need to redraw due to actor change
@@ -45,24 +45,24 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 		// Ensure we're subscribed to navigation regeneration events
 		BindToBoundingVolumes();
 
-		UE_LOG(LogTemp, Log, TEXT("Both START and END actors set, attempting pathfinding..."));
+		UE_LOG(LogAeonixEditor, Log, TEXT("Both START and END actors set, attempting pathfinding..."));
 		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
 		{
 			// Don't attempt pathfinding if the volume isn't ready (prevents hangs during asset loading)
 			if (!Volume->bIsReadyForNavigation)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Volume not ready for navigation - skipping pathfinding"));
+				UE_LOG(LogAeonixEditor, Warning, TEXT("Volume not ready for navigation - skipping pathfinding"));
 				return;
 			}
 			Volume->UpdateBounds();
-			UE_LOG(LogTemp, Log, TEXT("Requesting pathfind from %s to %s"), *StartDebugActor->GetActorLocation().ToString(), *EndDebugActor->GetActorLocation().ToString());
+			UE_LOG(LogAeonixEditor, Log, TEXT("Requesting pathfind from %s to %s"), *StartDebugActor->GetActorLocation().ToString(), *EndDebugActor->GetActorLocation().ToString());
 			FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
 			PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
 			bIsPathPending = true;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to get volume for agent"));
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Failed to get volume for agent"));
 		}
 
 	}
@@ -70,15 +70,15 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 	{
 		if (!StartDebugActor)
 		{
-			UE_LOG(LogTemp, Log, TEXT("No START actor set yet"));
+			UE_LOG(LogAeonixEditor, Log, TEXT("No START actor set yet"));
 		}
 		if (!EndDebugActor)
 		{
-			UE_LOG(LogTemp, Log, TEXT("No END actor set yet"));
+			UE_LOG(LogAeonixEditor, Log, TEXT("No END actor set yet"));
 		}
 		if (bIsPathPending)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Path already pending"));
+			UE_LOG(LogAeonixEditor, Log, TEXT("Path already pending"));
 		}
 	}
 }
@@ -96,14 +96,14 @@ void UAenoixEditorDebugSubsystem::OnPathFindComplete(EAeonixPathFindStatus Statu
 		bIsPathPending = false;
 		// Flag that we need to redraw the new path
 		bNeedsRedraw = true;
-		UE_LOG(LogTemp, Log, TEXT("Pathfinding COMPLETE - path ready to draw with %d waypoints"), CurrentDebugPath.GetPathPoints().Num());
+		UE_LOG(LogAeonixEditor, Log, TEXT("Pathfinding COMPLETE - path ready to draw with %d waypoints"), CurrentDebugPath.GetPathPoints().Num());
 	}
 	else if (Status == EAeonixPathFindStatus::Failed)
 	{
 		CurrentDebugPath.SetIsReady(false);
 		bIsPathPending = false;
 		// Keep showing the cached path even if new calculation failed
-		UE_LOG(LogTemp, Warning, TEXT("Pathfinding FAILED"));
+		UE_LOG(LogAeonixEditor, Warning, TEXT("Pathfinding FAILED"));
 	}
 	else
 	{
@@ -289,7 +289,7 @@ void UAenoixEditorDebugSubsystem::SetBatchRunPaths(const TArray<FAeonixNavigatio
 	FScopeLock Lock(&PathMutex);
 	BatchRunPaths = Paths;
 	bBatchPathsNeedRedraw = true;
-	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d batch run paths for visualization"), Paths.Num());
+	UE_LOG(LogAeonixEditor, Log, TEXT("Debug subsystem received %d batch run paths for visualization"), Paths.Num());
 }
 
 void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
@@ -299,7 +299,7 @@ void UAenoixEditorDebugSubsystem::ClearBatchRunPaths()
 	FailedBatchRunPaths.Empty(); // Also clear failed paths
 	bBatchPathsNeedRedraw = false;
 	bFailedPathsNeedRedraw = false;
-	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared batch run paths"));
+	UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("Debug subsystem cleared batch run paths"));
 }
 
 void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVector, FVector>>& FailedPaths)
@@ -311,7 +311,7 @@ void UAenoixEditorDebugSubsystem::SetFailedBatchRunPaths(const TArray<TPair<FVec
 		FailedBatchRunPaths.Add(FAeonixFailedPath(Path.Key, Path.Value));
 	}
 	bFailedPathsNeedRedraw = true;
-	UE_LOG(LogTemp, Log, TEXT("Debug subsystem received %d failed batch run paths for visualization"), FailedPaths.Num());
+	UE_LOG(LogAeonixEditor, Log, TEXT("Debug subsystem received %d failed batch run paths for visualization"), FailedPaths.Num());
 }
 
 void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
@@ -319,7 +319,7 @@ void UAenoixEditorDebugSubsystem::ClearFailedBatchRunPaths()
 	FScopeLock Lock(&PathMutex);
 	FailedBatchRunPaths.Empty();
 	bFailedPathsNeedRedraw = false;
-	UE_LOG(LogTemp, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));
+	UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("Debug subsystem cleared failed batch run paths"));
 }
 
 void UAenoixEditorDebugSubsystem::BindToBoundingVolumes()
@@ -329,17 +329,14 @@ void UAenoixEditorDebugSubsystem::BindToBoundingVolumes()
 		return;
 	}
 
-	// Iterate through all bounding volumes in the level and subscribe to their OnNavigationRegenerated delegate
-	for (TActorIterator<AAeonixBoundingVolume> It(StartDebugActor->GetWorld()); It; ++It)
+	// Subscribe to the subsystem's centralized regeneration delegate
+	UAeonixSubsystem* AeonixSubsystem = StartDebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	if (AeonixSubsystem)
 	{
-		AAeonixBoundingVolume* Volume = *It;
-		if (Volume)
-		{
-			Volume->OnNavigationRegenerated.AddUObject(this, &UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated);
-		}
+		AeonixSubsystem->GetOnNavigationRegenCompleted().AddUObject(this, &UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated);
 	}
 
-	UE_LOG(LogTemp, Verbose, TEXT("Debug path subsystem bound to bounding volume regeneration delegates"));
+	UE_LOG(LogAeonixEditor, Verbose, TEXT("Debug path subsystem bound to subsystem regeneration delegate"));
 }
 
 void UAenoixEditorDebugSubsystem::UnbindFromBoundingVolumes()
@@ -349,17 +346,14 @@ void UAenoixEditorDebugSubsystem::UnbindFromBoundingVolumes()
 		return;
 	}
 
-	// Remove all delegate subscriptions from bounding volumes
-	for (TActorIterator<AAeonixBoundingVolume> It(StartDebugActor->GetWorld()); It; ++It)
+	// Unsubscribe from the subsystem's centralized regeneration delegate
+	UAeonixSubsystem* AeonixSubsystem = StartDebugActor->GetWorld()->GetSubsystem<UAeonixSubsystem>();
+	if (AeonixSubsystem)
 	{
-		AAeonixBoundingVolume* Volume = *It;
-		if (Volume)
-		{
-			Volume->OnNavigationRegenerated.RemoveAll(this);
-		}
+		AeonixSubsystem->GetOnNavigationRegenCompleted().RemoveAll(this);
 	}
 
-	UE_LOG(LogTemp, Verbose, TEXT("Debug path subsystem unbound from bounding volume regeneration delegates"));
+	UE_LOG(LogAeonixEditor, Verbose, TEXT("Debug path subsystem unbound from subsystem regeneration delegate"));
 }
 
 void UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
@@ -370,11 +364,11 @@ void UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVol
 	}
 
 	// Check if either debug actor is within the regenerated volume
-	if (Volume->EncompassesPoint(StartDebugActor->GetActorLocation()) ||
-		Volume->EncompassesPoint(EndDebugActor->GetActorLocation()))
+	if (Volume->IsPointInside(StartDebugActor->GetActorLocation()) ||
+		Volume->IsPointInside(EndDebugActor->GetActorLocation()))
 	{
 		// Trigger path recalculation
-		UE_LOG(LogTemp, Log, TEXT("Navigation regenerated in volume containing debug path actors - recalculating path"));
+		UE_LOG(LogAeonixEditor, Log, TEXT("Navigation regenerated in volume containing debug path actors - recalculating path"));
 		UpdateDebugActor(StartDebugActor.Get());
 	}
 }

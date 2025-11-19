@@ -151,8 +151,8 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 {
 	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions called for bounding volume %s"), *GetName());
 
-	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
-	if (Params.DynamicRegionBoxes.Num() == 0)
+	// Use GenerationParameters which gets updated at runtime by AddDynamicRegion
+	if (GenerationParameters.DynamicRegionBoxes.Num() == 0)
 	{
 		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
 		return;
@@ -178,7 +178,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 	}
 
 	// Draw debug boxes showing which regions were regenerated
-	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
 	{
 		const FBox& DynamicRegion = RegionPair.Value;
 		DrawDebugBox(GetWorld(), DynamicRegion.GetCenter(), DynamicRegion.GetExtent(),
@@ -201,8 +201,8 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 {
 	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync called for bounding volume %s"), *GetName());
 
-	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
-	if (Params.DynamicRegionBoxes.Num() == 0)
+	// Use GenerationParameters which gets updated at runtime by AddDynamicRegion
+	if (GenerationParameters.DynamicRegionBoxes.Num() == 0)
 	{
 		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s. Add modifier volumes with DynamicRegion type."), *GetName());
 		return;
@@ -223,7 +223,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 
 	// Prepare batch data on game thread
 	FAeonixAsyncRegenBatch Batch;
-	Batch.GenParams = Params;
+	Batch.GenParams = GenerationParameters;
 	Batch.VolumePtr = this;
 	Batch.PhysicsScenePtr = GetWorld()->GetPhysicsScene();
 
@@ -232,12 +232,12 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 	Batch.ChunkSize = Settings ? Settings->AsyncChunkSize : 75;
 
 	// Calculate affected leaf nodes for all dynamic regions
-	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
 	{
 		const FBox& DynamicRegion = RegionPair.Value;
 		const float VoxelSize = NavigationData.GetVoxelSize(0); // Layer 0 voxel size
-		const int32 NodesPerSide = FMath::Pow(2.f, Params.VoxelPower);
-		const FVector VoxelOrigin = Params.Origin - Params.Extents;
+		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.VoxelPower);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
 
 		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
 		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
@@ -295,7 +295,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
 
 	// Draw debug boxes showing which regions will be regenerated
-	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
 	{
 		DrawDebugBox(GetWorld(), RegionPair.Value.GetCenter(), RegionPair.Value.GetExtent(),
 			FColor::Magenta, false, 5.0f, 0, 2.0f);
@@ -364,8 +364,8 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 		return;
 	}
 
-	const FAeonixGenerationParameters& Params = NavigationData.GetParams();
-	if (Params.DynamicRegionBoxes.Num() == 0)
+	// Use GenerationParameters which gets updated at runtime by AddDynamicRegion
+	if (GenerationParameters.DynamicRegionBoxes.Num() == 0)
 	{
 		UE_LOG(LogAeonixRegen, Warning, TEXT("No dynamic regions registered for bounding volume %s"), *GetName());
 		return;
@@ -385,7 +385,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 
 	// Prepare batch data on game thread
 	FAeonixAsyncRegenBatch Batch;
-	Batch.GenParams = Params;
+	Batch.GenParams = GenerationParameters;
 	Batch.VolumePtr = this;
 	Batch.PhysicsScenePtr = GetWorld()->GetPhysicsScene();
 
@@ -397,7 +397,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 	// Calculate affected leaf nodes for ONLY the specified regions
 	for (const FGuid& RegionId : RegionIds)
 	{
-		const FBox* DynamicRegionPtr = Params.GetDynamicRegion(RegionId);
+		const FBox* DynamicRegionPtr = GenerationParameters.GetDynamicRegion(RegionId);
 		if (!DynamicRegionPtr)
 		{
 			UE_LOG(LogAeonixRegen, Warning, TEXT("Region ID %s not found in volume %s, skipping"),
@@ -407,8 +407,8 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 
 		const FBox& DynamicRegion = *DynamicRegionPtr;
 		const float VoxelSize = NavigationData.GetVoxelSize(0);
-		const int32 NodesPerSide = FMath::Pow(2.f, Params.VoxelPower);
-		const FVector VoxelOrigin = Params.Origin - Params.Extents;
+		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.VoxelPower);
+		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
 
 		// Calculate Layer 0 voxel coordinate bounds that overlap with this region
 		const FVector RegionMin = DynamicRegion.Min - VoxelOrigin;
@@ -464,7 +464,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 	// Draw debug boxes for the specific regions being regenerated
 	for (const FGuid& RegionId : RegionIds)
 	{
-		if (const FBox* RegionBox = Params.GetDynamicRegion(RegionId))
+		if (const FBox* RegionBox = GenerationParameters.GetDynamicRegion(RegionId))
 		{
 			DrawDebugBox(GetWorld(), RegionBox->GetCenter(), RegionBox->GetExtent(),
 				FColor::Yellow, false, 5.0f, 0, 2.0f);
@@ -478,6 +478,12 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 bool AAeonixBoundingVolume::HasData() const
 {
 	return NavigationData.OctreeData.LeafNodes.Num() > 0;
+}
+
+bool AAeonixBoundingVolume::IsPointInside(const FVector& Point) const
+{
+	const FBox Bounds = GetComponentsBoundingBox(true);
+	return Bounds.IsInsideOrOn(Point);
 }
 
 void AAeonixBoundingVolume::UpdateBounds()
@@ -559,6 +565,19 @@ void AAeonixBoundingVolume::ValidateDynamicRegions()
 	// Track which loaded regions have been found in the level
 	TSet<FGuid> FoundRegionIds;
 
+	// Log what GUIDs are in the loaded DynamicRegionBoxes
+	UE_LOG(LogAeonixNavigation, Log, TEXT("ValidateDynamicRegions: BoundingVolume %s has %d loaded regions:"),
+		*GetName(), GenerationParameters.DynamicRegionBoxes.Num());
+	for (const auto& RegionPair : GenerationParameters.DynamicRegionBoxes)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("  - Loaded GUID: %s"), *RegionPair.Key.ToString());
+	}
+
+	// Log bounding volume info for spatial checks
+	const FBox BoundingBox = GetComponentsBoundingBox(true);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("ValidateDynamicRegions: BoundingVolume %s at %s, Bounds: Min=%s Max=%s"),
+		*GetName(), *GetActorLocation().ToString(), *BoundingBox.Min.ToString(), *BoundingBox.Max.ToString());
+
 	// Iterate through all modifier volumes in the level
 	for (TActorIterator<AAeonixModifierVolume> It(GetWorld()); It; ++It)
 	{
@@ -570,18 +589,29 @@ void AAeonixBoundingVolume::ValidateDynamicRegions()
 
 		// Check if this modifier has the DynamicRegion flag
 		const bool bIsDynamicRegion = (ModifierVolume->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion)) != 0;
+
+		// Log detailed info for spatial check
+		const FVector ModifierLocation = ModifierVolume->GetActorLocation();
+		const bool bIsInside = IsPointInside(ModifierLocation);
+
+		UE_LOG(LogAeonixNavigation, Log, TEXT("  ModifierVolume %s: Location=%s, IsDynamicRegion=%d, IsPointInside=%d, GUID=%s"),
+			*ModifierVolume->GetName(), *ModifierLocation.ToString(), bIsDynamicRegion, bIsInside, *ModifierVolume->DynamicRegionId.ToString());
+
 		if (!bIsDynamicRegion)
 		{
 			continue;
 		}
 
 		// Check if this modifier is inside this bounding volume
-		if (!EncompassesPoint(ModifierVolume->GetActorLocation()))
+		if (!bIsInside)
 		{
 			continue;
 		}
 
 		const FGuid& RegionId = ModifierVolume->DynamicRegionId;
+
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ValidateDynamicRegions: ModifierVolume %s has GUID %s"),
+			*ModifierVolume->GetName(), *RegionId.ToString());
 
 		// Check if this region exists in our loaded data
 		if (GenerationParameters.DynamicRegionBoxes.Contains(RegionId))
@@ -614,6 +644,7 @@ void AAeonixBoundingVolume::ValidateDynamicRegions()
 			*GetName(), GenerationParameters.DynamicRegionBoxes.Num(), FoundRegionIds.Num());
 	}
 }
+
 
 void AAeonixBoundingVolume::RequestDynamicRegionRegen(const FGuid& RegionId)
 {
@@ -690,7 +721,21 @@ void AAeonixBoundingVolume::TryProcessDirtyRegions()
 	UE_LOG(LogAeonixRegen, Display, TEXT("Processing %d dirty region(s) for volume %s (total dirty: %d, delay used: %.2fs)"),
 		RegionsToProcess.Num(), *GetName(), DirtyRegionIds.Num(), ProcessDelay);
 
-	RegenerateDynamicSubregionsAsync(RegionsToProcess);
+	// In editor, use synchronous regeneration for immediate feedback
+	// At runtime, use async to avoid hitches
+	if (!GetWorld()->IsGameWorld())
+	{
+		// Synchronous regeneration (same as manual button click)
+		for (const FGuid& RegionId : RegionsToProcess)
+		{
+			RegenerateDynamicSubregion(RegionId);
+		}
+	}
+	else
+	{
+		// Async regeneration for runtime
+		RegenerateDynamicSubregionsAsync(RegionsToProcess);
+	}
 
 	// Remove processed regions from dirty set
 	for (const FGuid& RegionId : RegionsToProcess)
@@ -1041,9 +1086,11 @@ void AAeonixBoundingVolume::BeginPlay()
 	// If bIsReadyForNavigation is already true (from baked data), skip UpdateBounds()
 	// to preserve the generation-time Origin and Extents that were serialized
 
-	// Validate that loaded dynamic regions have corresponding modifier volumes in the level
+	// Handle dynamic regions - validate loaded regions have corresponding modifier volumes
 	if (GenerationParameters.DynamicRegionBoxes.Num() > 0)
 	{
+		// Validate that loaded regions still have corresponding modifier volumes
+		// (GUIDs are now properly serialized, so no remapping needed)
 		ValidateDynamicRegions();
 
 		// Auto-regenerate dynamic regions on level load if we loaded baked data

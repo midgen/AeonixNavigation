@@ -2,8 +2,8 @@
 
 #include "Actor/AeonixModifierVolume.h"
 #include "Actor/AeonixBoundingVolume.h"
+#include "Subsystem/AeonixSubsystem.h"
 #include "Components/BrushComponent.h"
-#include "EngineUtils.h"
 #include "AeonixNavigation.h"
 
 AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectInitializer)
@@ -14,16 +14,41 @@ AAeonixModifierVolume::AAeonixModifierVolume(const FObjectInitializer& ObjectIni
 	BrushColor = FColor::Cyan;
 	bColored = true;
 
-	// Generate a unique ID for this dynamic region if not already set
+	// Don't generate GUID in constructor - wait for serialization to load it first
+	// GUID generation happens in PostLoad (for loaded actors) or OnConstruction (for new actors)
+}
+
+void AAeonixModifierVolume::PostLoad()
+{
+	Super::PostLoad();
+
+	// Generate GUID only if not loaded from serialization
 	if (!DynamicRegionId.IsValid())
 	{
 		DynamicRegionId = FGuid::NewGuid();
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("ModifierVolume %s: Generated NEW GUID in PostLoad %s"),
+			*GetName(), *DynamicRegionId.ToString());
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ModifierVolume %s: Loaded serialized GUID %s"),
+			*GetName(), *DynamicRegionId.ToString());
 	}
 }
 
 void AAeonixModifierVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+
+	// Generate GUID for newly placed actors (not loaded from disk)
+	// Loaded actors get their GUID in PostLoad
+	if (!DynamicRegionId.IsValid())
+	{
+		DynamicRegionId = FGuid::NewGuid();
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ModifierVolume %s: Generated NEW GUID in OnConstruction %s"),
+			*GetName(), *DynamicRegionId.ToString());
+	}
+
 	RegisterWithBoundingVolumes();
 }
 
@@ -72,36 +97,13 @@ void AAeonixModifierVolume::RegisterWithBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
-		UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: RegisterWithBoundingVolumes - ModifierTypes=%d"),
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Registering with subsystem - ModifierTypes=%d"),
 			*GetName(), ModifierTypes);
 
-		// Find all bounding volumes and register with ones we're inside
-		for (TActorIterator<AAeonixBoundingVolume> It(World); It; ++It)
+		// Simply register with the subsystem - it will handle spatial relationships
+		if (UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>())
 		{
-			AAeonixBoundingVolume* BoundingVolume = *It;
-			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
-			{
-				UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Inside bounding volume %s"),
-					*GetName(), *BoundingVolume->GetName());
-
-				// Get the bounding box of this modifier volume
-				FBox ModifierBox = GetComponentsBoundingBox(true);
-
-				// Apply debug filter if the DebugFilter flag is set
-				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
-				{
-					BoundingVolume->SetDebugFilterBox(ModifierBox);
-					UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Registered DebugFilter"), *GetName());
-				}
-
-				// Register as dynamic region if the DynamicRegion flag is set
-				if (ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
-				{
-					BoundingVolume->AddDynamicRegion(DynamicRegionId, ModifierBox);
-					UE_LOG(LogAeonixNavigation, Display, TEXT("ModifierVolume %s: Registered DynamicRegion (ID: %s) with %s"),
-						*GetName(), *DynamicRegionId.ToString(), *BoundingVolume->GetName());
-				}
-			}
+			Subsystem->RegisterModifierVolume(this);
 		}
 	}
 }
@@ -110,41 +112,13 @@ void AAeonixModifierVolume::UnregisterFromBoundingVolumes()
 {
 	if (UWorld* World = GetWorld())
 	{
-		// When unregistering, we need to rebuild the modifier lists since we support multiple modifiers
-		// This ensures other modifier volumes remain registered
-		for (TActorIterator<AAeonixBoundingVolume> It(World); It; ++It)
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("ModifierVolume %s: Unregistering from subsystem"),
+			*GetName());
+
+		// Simply unregister from the subsystem - it will handle cleanup
+		if (UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>())
 		{
-			AAeonixBoundingVolume* BoundingVolume = *It;
-			if (BoundingVolume && BoundingVolume->EncompassesPoint(GetActorLocation()))
-			{
-				// Clear all modifiers for this bounding volume
-				BoundingVolume->ClearDebugFilterBox();
-				BoundingVolume->ClearDynamicRegions();
-
-				// Re-register all OTHER modifier volumes
-				for (TActorIterator<AAeonixModifierVolume> ModIt(World); ModIt; ++ModIt)
-				{
-					AAeonixModifierVolume* OtherModifier = *ModIt;
-					// Skip this modifier volume (the one being unregistered)
-					if (OtherModifier && OtherModifier != this &&
-						BoundingVolume->EncompassesPoint(OtherModifier->GetActorLocation()))
-					{
-						FBox ModifierBox = OtherModifier->GetComponentsBoundingBox(true);
-
-						// Re-apply debug filter if enabled
-						if (OtherModifier->ModifierTypes & static_cast<int32>(EAeonixModifierType::DebugFilter))
-						{
-							BoundingVolume->SetDebugFilterBox(ModifierBox);
-						}
-
-						// Re-register as dynamic region if enabled
-						if (OtherModifier->ModifierTypes & static_cast<int32>(EAeonixModifierType::DynamicRegion))
-						{
-							BoundingVolume->AddDynamicRegion(OtherModifier->DynamicRegionId, ModifierBox);
-						}
-					}
-				}
-			}
+			Subsystem->UnRegisterModifierVolume(this);
 		}
 	}
 }

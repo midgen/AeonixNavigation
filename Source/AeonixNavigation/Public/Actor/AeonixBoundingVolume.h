@@ -74,6 +74,9 @@ public:
 	const FAeonixData& GetNavData() const { return NavigationData; }
 	FAeonixData& GetMutableNavData() { return NavigationData; }
 
+	/** Check if a point is inside this volume using bounding box (more reliable than EncompassesPoint in PIE) */
+	bool IsPointInside(const FVector& Point) const;
+
 	/** Get the read-write lock for thread-safe octree access */
 	FRWLock& GetOctreeDataLock() const { return OctreeDataLock; }
 

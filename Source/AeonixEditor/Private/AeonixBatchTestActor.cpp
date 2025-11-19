@@ -1,4 +1,5 @@
 #include "AeonixBatchTestActor.h"
+#include "AeonixEditor/AeonixEditor.h"
 #include "../Public/AeonixPerformanceTypes.h"
 #include "AeonixNavigation/Public/Actor/AeonixBoundingVolume.h"
 #include "AeonixNavigation/Public/Component/AeonixNavAgentComponent.h"
@@ -95,11 +96,11 @@ void AAeonixBatchTestActor::OnConstruction(const FTransform& Transform)
 		if (Subsystem)
 		{
 			Subsystem->RegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Enabled);
-			UE_LOG(LogTemp, Log, TEXT("Registered NavAgentComponent in OnConstruction"));
+			UE_LOG(LogAeonixEditor, Log, TEXT("Registered NavAgentComponent in OnConstruction"));
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to get AeonixSubsystem in OnConstruction"));
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Failed to get AeonixSubsystem in OnConstruction"));
 		}
 	}
 }
@@ -109,7 +110,7 @@ void AAeonixBatchTestActor::StartBatchTest()
 {
 	if (CurrentStatus == EAeonixPerformanceTestStatus::Running)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Performance test is already running"));
+		UE_LOG(LogAeonixEditor, Warning, TEXT("Performance test is already running"));
 		return;
 	}
 
@@ -121,13 +122,13 @@ void AAeonixBatchTestActor::StartBatchTest()
 	AAeonixBoundingVolume* TargetVolume = GetTargetVolume();
 	if (!TargetVolume)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No valid target volume found for performance testing"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("No valid target volume found for performance testing"));
 		return;
 	}
 
 	if (!TargetVolume->HasData())
 	{
-		UE_LOG(LogTemp, Error, TEXT("Target volume has no navigation data"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("Target volume has no navigation data"));
 		return;
 	}
 
@@ -139,7 +140,7 @@ void AAeonixBatchTestActor::StartBatchTest()
 
 	ClearVisualization();
 
-	UE_LOG(LogTemp, Log, TEXT("Starting performance test with %d iterations"), TestSettings.NumberOfTests);
+	UE_LOG(LogAeonixEditor, Log, TEXT("Starting performance test with %d iterations"), TestSettings.NumberOfTests);
 
 	RunSynchronousTests();
 }
@@ -153,7 +154,7 @@ void AAeonixBatchTestActor::CancelBatchTest()
 
 	CurrentStatus = EAeonixPerformanceTestStatus::Cancelled;
 
-	UE_LOG(LogTemp, Log, TEXT("Performance test cancelled"));
+	UE_LOG(LogAeonixEditor, Log, TEXT("Performance test cancelled"));
 }
 
 void AAeonixBatchTestActor::ClearResults()
@@ -172,7 +173,7 @@ void AAeonixBatchTestActor::RunSynchronousTests()
 		FVector EndPos;
 		if (!GenerateRandomEndPoint(EndPos))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to generate valid end point %d"), CurrentTestIndex);
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Failed to generate valid end point %d"), CurrentTestIndex);
 			continue;
 		}
 
@@ -258,13 +259,13 @@ void AAeonixBatchTestActor::ExecuteSingleTest(const FVector& Start, const FVecto
 
 	if (!AeonixSubsystem || !NavAgentComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ExecuteSingleTest failed: AeonixSubsystem=%s, NavAgentComponent=%s"),
+		UE_LOG(LogAeonixEditor, Warning, TEXT("ExecuteSingleTest failed: AeonixSubsystem=%s, NavAgentComponent=%s"),
 			AeonixSubsystem ? TEXT("Valid") : TEXT("NULL"),
 			NavAgentComponent ? TEXT("Valid") : TEXT("NULL"));
 		return;
 	}
 
-	UE_LOG(LogTemp, VeryVerbose, TEXT("ExecuteSingleTest: From (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)"),
+	UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("ExecuteSingleTest: From (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)"),
 		ActorPosition.X, ActorPosition.Y, ActorPosition.Z, End.X, End.Y, End.Z);
 
 	// No need to move actor - use current position
@@ -278,7 +279,7 @@ void AAeonixBatchTestActor::ExecuteSingleTest(const FVector& Start, const FVecto
 	OutResult.bPathFound = bPathFound;
 	OutResult.PathfindingTime = (float)(EndTime - StartTime);
 
-	UE_LOG(LogTemp, VeryVerbose, TEXT("Pathfinding result: %s, Time: %.6f seconds"),
+	UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("Pathfinding result: %s, Time: %.6f seconds"),
 		bPathFound ? TEXT("SUCCESS") : TEXT("FAILED"), OutResult.PathfindingTime);
 
 	if (bPathFound)
@@ -298,7 +299,7 @@ void AAeonixBatchTestActor::ExecuteSingleTest(const FVector& Start, const FVecto
 			VisualizationPaths.Add(NavigationPath);
 			VisualizationPoints.Add(ActorPosition);
 			VisualizationPoints.Add(End);
-			UE_LOG(LogTemp, VeryVerbose, TEXT("Added path for visualization: %d points, total stored: %d"),
+			UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("Added path for visualization: %d points, total stored: %d"),
 				PathPoints.Num(), VisualizationPaths.Num());
 		}
 	}
@@ -308,7 +309,7 @@ void AAeonixBatchTestActor::ExecuteSingleTest(const FVector& Start, const FVecto
 		if (TestSettings.bVisualizeResults)
 		{
 			FailedPathVisualizationPoints.Add(TPair<FVector, FVector>(ActorPosition, End));
-			UE_LOG(LogTemp, VeryVerbose, TEXT("Added failed path for visualization from (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)"),
+			UE_LOG(LogAeonixEditor, VeryVerbose, TEXT("Added failed path for visualization from (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)"),
 				ActorPosition.X, ActorPosition.Y, ActorPosition.Z, End.X, End.Y, End.Z);
 		}
 	}
@@ -322,7 +323,7 @@ void AAeonixBatchTestActor::OnTestCompleted()
 	LastTestSummary.TotalTestTime = FPlatformTime::Seconds() - TestStartTime;
 	LastTestSummary.CalculateSummary();
 
-	UE_LOG(LogTemp, Log, TEXT("Performance test completed. Success rate: %.1f%%, Average time: %.6f seconds"),
+	UE_LOG(LogAeonixEditor, Log, TEXT("Performance test completed. Success rate: %.1f%%, Average time: %.6f seconds"),
 		LastTestSummary.SuccessRate, LastTestSummary.AveragePathfindingTime);
 
 	if (TestSettings.bVisualizeResults)
@@ -335,7 +336,7 @@ void AAeonixBatchTestActor::OnTestCompleted()
 
 void AAeonixBatchTestActor::VisualizeTestResults()
 {
-	UE_LOG(LogTemp, Log, TEXT("Visualizing %d successful paths and %d failed paths from performance test"),
+	UE_LOG(LogAeonixEditor, Log, TEXT("Visualizing %d successful paths and %d failed paths from performance test"),
 		VisualizationPaths.Num(), FailedPathVisualizationPoints.Num());
 
 	// Push paths to debug subsystem for visualization
@@ -352,12 +353,12 @@ void AAeonixBatchTestActor::VisualizeTestResults()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to get debug subsystem for path visualization"));
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Failed to get debug subsystem for path visualization"));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("GEditor not available for path visualization"));
+		UE_LOG(LogAeonixEditor, Warning, TEXT("GEditor not available for path visualization"));
 	}
 }
 
@@ -427,26 +428,26 @@ void AAeonixBatchTestActor::RunTestInEditor()
 
 	if (CurrentStatus == EAeonixPerformanceTestStatus::Running)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Performance test is already running"));
+		UE_LOG(LogAeonixEditor, Warning, TEXT("Performance test is already running"));
 		return;
 	}
 
 	if (!AeonixSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AeonixSubsystem not available in editor context"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("AeonixSubsystem not available in editor context"));
 		return;
 	}
 
 	AAeonixBoundingVolume* TargetVolume = GetTargetVolume();
 	if (!TargetVolume)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No valid target volume found for performance testing"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("No valid target volume found for performance testing"));
 		return;
 	}
 
 	if (!TargetVolume->HasData())
 	{
-		UE_LOG(LogTemp, Error, TEXT("Target volume has no navigation data"));
+		UE_LOG(LogAeonixEditor, Error, TEXT("Target volume has no navigation data"));
 		return;
 	}
 
@@ -458,7 +459,7 @@ void AAeonixBatchTestActor::RunTestInEditor()
 
 	ClearVisualization();
 
-	UE_LOG(LogTemp, Log, TEXT("Starting editor performance test with %d iterations"), TestSettings.NumberOfTests);
+	UE_LOG(LogAeonixEditor, Log, TEXT("Starting editor performance test with %d iterations"), TestSettings.NumberOfTests);
 
 	RunSynchronousTests();
 }
@@ -466,7 +467,7 @@ void AAeonixBatchTestActor::RunTestInEditor()
 void AAeonixBatchTestActor::ClearResultsInEditor()
 {
 	ClearResults();
-	UE_LOG(LogTemp, Log, TEXT("Editor performance test results cleared"));
+	UE_LOG(LogAeonixEditor, Log, TEXT("Editor performance test results cleared"));
 }
 
 
@@ -477,7 +478,7 @@ void AAeonixBatchTestActor::InitializeSubsystemIfNeeded()
 		AeonixSubsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>();
 		if (!AeonixSubsystem)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to get AeonixSubsystem in editor context"));
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Failed to get AeonixSubsystem in editor context"));
 		}
 		else if (NavAgentComponent)
 		{

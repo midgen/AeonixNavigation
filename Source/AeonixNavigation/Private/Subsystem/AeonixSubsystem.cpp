@@ -33,6 +33,13 @@ void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMass
 	// TODO: Create Mass Entity
 
 	RegisteredVolumes.Emplace(Volume);
+
+	// Subscribe to the volume's regeneration events for subsystem orchestration
+	Volume->OnNavigationRegenerated.AddUObject(this, &UAeonixSubsystem::OnBoundingVolumeRegenerated);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem subscribed to volume %s regeneration events"), *Volume->GetName());
+
+	// Notify listeners that registration changed
+	OnRegistrationChanged.Broadcast();
 }
 
 void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag DestroyMassEntity)
@@ -55,7 +62,14 @@ void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMa
 				}
 			}
 
+			// Unsubscribe from the volume's regeneration events
+			Volume->OnNavigationRegenerated.RemoveAll(this);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem unsubscribed from volume %s regeneration events"), *Volume->GetName());
+
 			RegisteredVolumes.RemoveSingle(Handle);
+
+			// Notify listeners that registration changed
+			OnRegistrationChanged.Broadcast();
 			return;
 		}
 	}
@@ -79,6 +93,9 @@ void UAeonixSubsystem::RegisterModifierVolume(AAeonixModifierVolume* ModifierVol
 
 	RegisteredModifierVolumes.Add(ModifierVolume);
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered modifier volume: %s"), *ModifierVolume->GetName());
+
+	// Notify listeners that registration changed
+	OnRegistrationChanged.Broadcast();
 }
 
 void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume)
@@ -118,6 +135,9 @@ void UAeonixSubsystem::UnRegisterModifierVolume(AAeonixModifierVolume* ModifierV
 	else
 	{
 		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered modifier volume: %s"), *ModifierVolume->GetName());
+
+		// Notify listeners that registration changed
+		OnRegistrationChanged.Broadcast();
 	}
 }
 
@@ -198,7 +218,11 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 	// Initialize transform tracking and immediately determine bounding volume/regions
 	if (AActor* Owner = ObstacleComponent->GetOwner())
 	{
-		ObstacleLastTransformMap.Add(ObstacleComponent, Owner->GetActorTransform());
+		// Only set last transform if not already tracked (prevents reset on re-registration during editor moves)
+		if (!ObstacleLastTransformMap.Contains(ObstacleComponent))
+		{
+			ObstacleLastTransformMap.Add(ObstacleComponent, Owner->GetActorTransform());
+		}
 
 		// Immediately determine which bounding volume and regions the obstacle is in
 		// This prevents timing issues where TriggerNavigationRegen() is called before first tick
@@ -249,6 +273,9 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 	{
 		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered dynamic obstacle: %s (no owner)"), *ObstacleComponent->GetName());
 	}
+
+	// Notify listeners that registration changed
+	OnRegistrationChanged.Broadcast();
 }
 
 void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
@@ -260,7 +287,9 @@ void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent
 	}
 
 	const int32 NumRemoved = RegisteredDynamicObstacles.Remove(ObstacleComponent);
-	ObstacleLastTransformMap.Remove(ObstacleComponent);
+	// Note: Don't remove from ObstacleLastTransformMap here - preserve transform history
+	// during editor move cycles (unregister/re-register). The map entry will be cleaned up
+	// automatically in ProcessDynamicObstacles() when the obstacle becomes invalid.
 
 	if (NumRemoved == 0)
 	{
@@ -269,6 +298,9 @@ void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent
 	else
 	{
 		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered dynamic obstacle: %s"), *ObstacleComponent->GetName());
+
+		// Notify listeners that registration changed
+		OnRegistrationChanged.Broadcast();
 	}
 }
 
@@ -760,6 +792,65 @@ size_t UAeonixSubsystem::GetNumberOfRegisteredNavAgents() const
 size_t UAeonixSubsystem::GetNumberOfRegisteredNavVolumes() const
 {
 	return RegisteredVolumes.Num();
+}
+
+void UAeonixSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+{
+	if (!Volume)
+	{
+		return;
+	}
+
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Subsystem: Navigation regenerated for volume %s - broadcasting and updating debug paths"), *Volume->GetName());
+
+	// Broadcast to external subscribers (like EditorDebugSubsystem)
+	OnNavigationRegenCompleted.Broadcast(Volume);
+
+	// Update debug paths for nav agents within this volume
+	UpdateDebugPathsForVolume(Volume);
+}
+
+void UAeonixSubsystem::UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume)
+{
+	if (!Volume)
+	{
+		return;
+	}
+
+	// Find all nav agents within this volume that have debug rendering enabled
+	for (const FAeonixNavAgentHandle& AgentHandle : RegisteredNavAgents)
+	{
+		if (!AgentHandle.NavAgentComponent || !IsValid(AgentHandle.NavAgentComponent))
+		{
+			continue;
+		}
+
+		// Check if this agent is in the regenerated volume
+		if (const AAeonixBoundingVolume** AgentVolume = AgentToVolumeMap.Find(AgentHandle.NavAgentComponent))
+		{
+			if (*AgentVolume == Volume)
+			{
+				// Check if this agent has debug path rendering enabled
+				if (AgentHandle.NavAgentComponent->bEnablePathDebugRendering)
+				{
+					RequestDebugPathUpdate(AgentHandle.NavAgentComponent);
+				}
+			}
+		}
+	}
+}
+
+void UAeonixSubsystem::RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent)
+{
+	if (!NavComponent)
+	{
+		return;
+	}
+
+	// Trigger path recalculation and debug rendering for this component
+	NavComponent->RegisterPathForDebugRendering();
+
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Requested debug path update for nav agent %s"), *NavComponent->GetName());
 }
 
 bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

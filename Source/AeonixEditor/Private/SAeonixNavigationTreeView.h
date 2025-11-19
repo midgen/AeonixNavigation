@@ -85,6 +85,13 @@ private:
 	FReply OnExpandAllClicked();
 	FReply OnCollapseAllClicked();
 
+	// Item action callbacks
+	FReply OnRegenerateVolumeClicked(FAeonixTreeItemPtr Item);
+	FReply OnRegenerateModifierClicked(FAeonixTreeItemPtr Item);
+
+	// Registration change callback
+	void OnRegistrationChanged();
+
 	// Status text
 	FText GetStatusText() const;
 	FText GetPendingTasksText() const;

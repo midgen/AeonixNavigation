@@ -188,10 +188,23 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 
 	// Initial population
 	RefreshTreeData();
+
+	// Subscribe to registration changes for auto-refresh
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (Subsystem)
+	{
+		Subsystem->GetOnRegistrationChanged().AddSP(this, &SAeonixNavigationTreeView::OnRegistrationChanged);
+	}
 }
 
 SAeonixNavigationTreeView::~SAeonixNavigationTreeView()
 {
+	// Unsubscribe from registration changes
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (Subsystem)
+	{
+		Subsystem->GetOnRegistrationChanged().RemoveAll(this);
+	}
 }
 
 TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
@@ -204,28 +217,69 @@ TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPt
 		TextColor = FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f));
 	}
 
+	// Create the row content
+	TSharedRef<SHorizontalBox> RowContent = SNew(SHorizontalBox)
+
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.0f, 0.0f)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SImage)
+			.Image(FAppStyle::GetBrush(*Item->GetIconName()))
+		]
+
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.0f)
+		.Padding(2.0f, 0.0f)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(Item->DisplayName))
+			.ColorAndOpacity(TextColor)
+		];
+
+	// Add action buttons based on item type
+	if (Item->Type == EAeonixTreeItemType::BoundingVolume && Item->IsValid())
+	{
+		RowContent->AddSlot()
+			.AutoWidth()
+			.Padding(4.0f, 0.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ToolTipText(LOCTEXT("RegenerateVolumeTooltip", "Regenerate navigation data for this volume"))
+				.OnClicked(this, &SAeonixNavigationTreeView::OnRegenerateVolumeClicked, Item)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Refresh"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+				]
+			];
+	}
+	else if (Item->Type == EAeonixTreeItemType::ModifierVolume && Item->IsValid())
+	{
+		RowContent->AddSlot()
+			.AutoWidth()
+			.Padding(4.0f, 0.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ToolTipText(LOCTEXT("RegenerateModifierTooltip", "Regenerate dynamic region for this modifier"))
+				.OnClicked(this, &SAeonixNavigationTreeView::OnRegenerateModifierClicked, Item)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Refresh"))
+					.ColorAndOpacity(FSlateColor(FLinearColor(0.2f, 0.8f, 1.0f)))
+				]
+			];
+	}
+
 	return SNew(STableRow<FAeonixTreeItemPtr>, OwnerTable)
 		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(2.0f, 0.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SImage)
-				.Image(FAppStyle::GetBrush(*Item->GetIconName()))
-			]
-
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			.Padding(2.0f, 0.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(Item->DisplayName))
-				.ColorAndOpacity(TextColor)
-			]
+			RowContent
 		];
 }
 
@@ -509,6 +563,35 @@ void SAeonixNavigationTreeView::ExpandItemRecursive(FAeonixTreeItemPtr Item)
 	{
 		ExpandItemRecursive(Child);
 	}
+}
+
+FReply SAeonixNavigationTreeView::OnRegenerateVolumeClicked(FAeonixTreeItemPtr Item)
+{
+	if (Item.IsValid() && Item->BoundingVolume.IsValid())
+	{
+		Item->BoundingVolume->Generate();
+	}
+	return FReply::Handled();
+}
+
+FReply SAeonixNavigationTreeView::OnRegenerateModifierClicked(FAeonixTreeItemPtr Item)
+{
+	if (Item.IsValid() && Item->ModifierVolume.IsValid())
+	{
+		// Find the parent bounding volume
+		FAeonixTreeItemPtr ParentItem = Item->Parent.Pin();
+		if (ParentItem.IsValid() && ParentItem->BoundingVolume.IsValid())
+		{
+			// Regenerate the dynamic region for this modifier
+			ParentItem->BoundingVolume->RegenerateDynamicSubregion(Item->ModifierVolume->DynamicRegionId);
+		}
+	}
+	return FReply::Handled();
+}
+
+void SAeonixNavigationTreeView::OnRegistrationChanged()
+{
+	RefreshTreeData();
 }
 
 #undef LOCTEXT_NAMESPACE

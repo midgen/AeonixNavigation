@@ -49,6 +49,9 @@ public:
 	virtual AAeonixBoundingVolume* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) override;
 	UFUNCTION()
 	virtual void UpdateComponents() override;
+	virtual FOnNavigationRegenCompleted& GetOnNavigationRegenCompleted() override { return OnNavigationRegenCompleted; }
+	virtual FOnRegistrationChanged& GetOnRegistrationChanged() override { return OnRegistrationChanged; }
+	virtual void RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent) override;
 	/* IAeonixSubsystemInterface END */
 	
 	virtual void Tick(float DeltaTime) override;
@@ -92,6 +95,18 @@ private:
 	void UpdateRequests();
 	void ProcessDynamicObstacles(float DeltaTime);
 	void UpdateSpatialRelationships();
+
+	/** Handler for when a bounding volume completes regeneration */
+	void OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume);
+
+	/** Update debug paths for all nav agents within a specific volume */
+	void UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume);
+
+	/** Delegate broadcast when navigation regeneration completes */
+	FOnNavigationRegenCompleted OnNavigationRegenCompleted;
+
+	/** Delegate broadcast when registration changes */
+	FOnRegistrationChanged OnRegistrationChanged;
 
 private:
 	TArray<FAeonixPathFindRequest> PathRequests;

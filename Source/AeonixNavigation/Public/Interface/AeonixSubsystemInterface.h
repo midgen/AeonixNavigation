@@ -12,6 +12,12 @@ class UAeonixNavAgentComponent;
 class UAeonixDynamicObstacleComponent;
 struct FAeonixNavigationPath;
 
+/** Delegate broadcast when navigation regeneration completes (full or dynamic subregions) */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenCompleted, AAeonixBoundingVolume*);
+
+/** Delegate broadcast when registration changes (volumes, modifiers, or obstacles added/removed) */
+DECLARE_MULTICAST_DELEGATE(FOnRegistrationChanged);
+
 UENUM()
 enum class EAeonixMassEntityFlag : uint8
 {
@@ -65,5 +71,14 @@ public:
 
 	UFUNCTION()
 	virtual void UpdateComponents() = 0;
-	
+
+	/** Get delegate for navigation regeneration completion notifications */
+	virtual FOnNavigationRegenCompleted& GetOnNavigationRegenCompleted() = 0;
+
+	/** Get delegate for registration change notifications */
+	virtual FOnRegistrationChanged& GetOnRegistrationChanged() = 0;
+
+	/** Request debug path update for a specific nav agent component */
+	virtual void RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent) = 0;
+
 };

@@ -7,7 +7,7 @@
 bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, AeonixLink& oLink)
 {
 	// Position is outside the volume, no can do
-	if (!aVolume.EncompassesPoint(aPosition))
+	if (!aVolume.IsPointInside(aPosition))
 	{
 		return false;
 	}

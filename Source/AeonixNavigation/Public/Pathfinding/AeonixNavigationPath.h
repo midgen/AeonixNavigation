@@ -35,7 +35,10 @@ struct AEONIXNAVIGATION_API FAeonixPathPoint
 	{
 	}
 
+	UPROPERTY(BlueprintReadOnly, Category = "Aeonix|Path")
 	FVector Position{}; // Position of the point
+
+	UPROPERTY(BlueprintReadOnly, Category = "Aeonix|Path")
 	int Layer{-1};			// Layer that the point came from (so we can infer it's volume)
 	bool bCullFlag{false};
 #if WITH_EDITOR
@@ -78,6 +81,8 @@ public:
 	};
 
 	TArray<FAeonixPathPoint>& GetPathPoints() { return myPoints; }
+
+	int32 GetNumPoints() const { return myPoints.Num(); }
 
 #if WITH_EDITOR
 	// Sets the debug voxel information, to be called before any path optimizations

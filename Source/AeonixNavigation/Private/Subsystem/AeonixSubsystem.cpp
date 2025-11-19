@@ -158,8 +158,14 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 			FMassEntityManager& EntityManager = MassEntitySubsystem->GetMutableEntityManager();
 
 			FMassArchetypeCompositionDescriptor Composition;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
 			Composition.GetFragments().Add<FTransformFragment>();
 			Composition.GetFragments().Add<FAeonixNavAgentFragment>();
+#else
+			// UE 5.5/5.6: Access Fragments member directly
+			Composition.Fragments.Add<FTransformFragment>();
+			Composition.Fragments.Add<FAeonixNavAgentFragment>();
+#endif
 
 			FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Composition);
 			Entity = EntityManager.CreateEntity(Archetype);

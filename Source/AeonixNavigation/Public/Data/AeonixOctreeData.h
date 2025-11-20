@@ -22,7 +22,7 @@ struct AEONIXNAVIGATION_API FAeonixOctreeData
 		LeafNodes.Empty();
 	}
 
-	int GetSize()
+	int GetSize() const
 	{
 		int Result = 0;
 		Result += LeafNodes.Num() * sizeof(AeonixLeafNode);

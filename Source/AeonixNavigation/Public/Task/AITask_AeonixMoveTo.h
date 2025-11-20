@@ -34,9 +34,13 @@ public:
 	EPathFollowingResult::Type GetMoveResult() const { return MoveResult; }
 	bool WasMoveSuccessful() const { return MoveResult == EPathFollowingResult::Success; }
 
-	UFUNCTION(BlueprintCallable, Category = "AI|Tasks", meta = (AdvancedDisplay = "AcceptanceRadius,StopOnOverlap,AcceptPartialPath,bUsePathfinding,bUseContinuosGoalTracking", DefaultToSelf = "Controller", BlueprintInternalUseOnly = "TRUE", DisplayName = "Aeonix Move To Location or Actor"))
+	/** If true, automatically repath when path is invalidated by dynamic region changes. If false, abort the move. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Aeonix")
+	bool bRepathOnInvalidation = true;
+
+	UFUNCTION(BlueprintCallable, Category = "AI|Tasks", meta = (AdvancedDisplay = "AcceptanceRadius,StopOnOverlap,AcceptPartialPath,bUsePathfinding,bUseContinuosGoalTracking,bInRepathOnInvalidation", DefaultToSelf = "Controller", BlueprintInternalUseOnly = "TRUE", DisplayName = "Aeonix Move To Location or Actor"))
 	static UAITask_AeonixMoveTo* AeonixAIMoveTo(AAIController* Controller, FVector GoalLocation, bool aUseAsyncPathfinding, AActor* GoalActor = nullptr,
-		float AcceptanceRadius = -1.f, EAIOptionFlag::Type StopOnOverlap = EAIOptionFlag::Default, bool bLockAILogic = true, bool bUseContinuosGoalTracking = false);
+		float AcceptanceRadius = -1.f, EAIOptionFlag::Type StopOnOverlap = EAIOptionFlag::Default, bool bLockAILogic = true, bool bUseContinuosGoalTracking = false, bool bInRepathOnInvalidation = true);
 
 	UE_DEPRECATED(4.12, "This function is now depreacted, please use version with FAIMoveRequest parameter")
 	void SetUp(AAIController* Controller, FVector GoalLocation, AActor* GoalActor = nullptr, float AcceptanceRadius = -1.f, EAIOptionFlag::Type StopOnOverlap = EAIOptionFlag::Default);
@@ -73,6 +77,9 @@ protected:
 
 	/** handle of path's update event delegate */
 	FDelegateHandle PathUpdateDelegateHandle;
+
+	/** handle of path's invalidation delegate */
+	FDelegateHandle PathInvalidationDelegateHandle;
 
 	/** handle of active ConditionalPerformMove timer  */
 	FTimerHandle MoveRetryTimerHandle;
@@ -135,6 +142,9 @@ protected:
 
 	/** event from followed path */
 	virtual void OnPathEvent(FNavigationPath* InPath, ENavPathEvent::Type Event);
+
+	/** event from path invalidation (dynamic region regeneration) */
+	virtual void OnPathInvalidated(FAeonixNavigationPath* InvalidatedPath);
 
 	/** event from path following */
 	virtual void OnRequestFinished(FAIRequestID RequestID, const FPathFollowingResult& Result);

@@ -20,6 +20,25 @@ public:
 	// Override to place settings in the correct category
 	virtual FName GetCategoryName() const override { return FName(TEXT("Plugins")); }
 
+	//~ Pathfinding Settings
+
+	/**
+	 * Number of worker threads for async pathfinding operations.
+	 * Recommended: 2-8 threads depending on CPU core count.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Pathfinding", meta = (ClampMin = "1", ClampMax = "16", UIMin = "1", UIMax = "8"))
+	int32 PathfindingWorkerThreads = 2;
+
+	/**
+	 * Maximum number of concurrent pathfinding requests allowed in the queue.
+	 * Prevents memory issues when overwhelmed with pathfinding requests.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Pathfinding", meta = (ClampMin = "4", ClampMax = "200", UIMin = "8", UIMax = "100",
+		Tooltip = "Maximum pending pathfinding requests. Higher values allow more buffering but use more memory."))
+	int32 MaxConcurrentPathfinds = 8;
+
+	//~ Dynamic Regeneration Settings
+
 	/**
 	 * Time budget per frame for applying dynamic regeneration results (milliseconds).
 	 * Lower values spread work across more frames, reducing spikes but increasing total time.

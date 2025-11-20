@@ -8,7 +8,7 @@
 #include "Data/AeonixNode.h"
 #include "Pathfinding/AeonixNavigationPath.h"
 
-bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path)
+bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path, FAeonixPathFailureInfo* OutFailureInfo)
 {
 	OpenHeap.Empty();
 	OpenSetLookup.Empty();
@@ -31,6 +31,15 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	int numIterations = 0;
 	FScoreHeapPredicate HeapPredicate(FScore);
 
+	// Diagnostic tracking for iteration explosion debugging
+	TSet<AeonixLink> UniqueNodesProcessed;
+	int32 DuplicatePopCount = 0;
+	int32 TotalNeighborsGenerated = 0;
+	int32 MaxNeighborsInSingleIteration = 0;
+	int32 EmptyLeafNeighbourCount = 0;
+	int32 NonEmptyLeafNeighbourCount = 0;
+	int32 HigherLayerNeighbourCount = 0;
+
 	while (OpenHeap.Num() > 0)
 	{
 		// Pop the node with lowest FScore from the heap - O(log n) instead of O(n)
@@ -40,9 +49,12 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 		// Skip if already processed (can happen with lazy deletion approach)
 		if (ClosedSet.Contains(CurrentLink))
 		{
+			DuplicatePopCount++;
 			continue;
 		}
 
+		// Track unique nodes processed
+		UniqueNodesProcessed.Add(CurrentLink);
 		ClosedSet.Add(CurrentLink);
 
 		if (CurrentLink == GoalLink)
@@ -60,41 +72,97 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
-			// Optimization: Check if the leaf is completely empty
-			// If so, treat the entire Layer 0 node as a single navigable space
-			// instead of traversing all 64 individual voxels
-			const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(currentNode.FirstChild.GetNodeIndex());
+			// Layer 0 node with leaf subdivision - use GetLeafNeighbours
+			// This returns ~6 neighbors (one per direction) instead of up to 96
+			// The previous "empty leaf optimization" was causing neighbor explosion
+			NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
+			NonEmptyLeafNeighbourCount++;
 
-			if (leafNode.IsEmpty())
-			{
-				// Empty leaf - use Layer 0 neighbors (skip 64-voxel subdivision)
-				NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
-			}
-			else
-			{
-				// Leaf contains blocking geometry - use detailed voxel-level neighbors
-				NavigationData.OctreeData.GetLeafNeighbours(CurrentLink, neighbours);
-			}
-
+			// Early filtering: skip neighbors already in closed set
 			for (const AeonixLink& neighbour : neighbours)
 			{
-				ProcessLink(neighbour);
+				if (!ClosedSet.Contains(neighbour))
+				{
+					ProcessLink(neighbour);
+				}
 			}
 		}
 		else
 		{
 			NavigationData.OctreeData.GetNeighbours(CurrentLink, neighbours);
+			HigherLayerNeighbourCount++;
+
+			// Early filtering: skip neighbors already in closed set
 			for (const AeonixLink& neighbour : neighbours)
 			{
-				ProcessLink(neighbour);
+				if (!ClosedSet.Contains(neighbour))
+				{
+					ProcessLink(neighbour);
+				}
 			}
+		}
+
+		// Track neighbor generation statistics
+		TotalNeighborsGenerated += neighbours.Num();
+		MaxNeighborsInSingleIteration = FMath::Max(MaxNeighborsInSingleIteration, neighbours.Num());
+
+		// Periodic diagnostic logging every 100 iterations
+		if (numIterations > 0 && numIterations % 100 == 0)
+		{
+			FVector CurrentPos;
+			NavigationData.GetLinkPosition(CurrentLink, CurrentPos);
+			const float DistToGoal = FVector::Dist(CurrentPos, TargetPos);
+
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Iteration %d: Heap=%d, Unique=%d, Dups=%d, Neighbors=%d, MaxNeighbors=%d, DistToGoal=%.1f"),
+				numIterations, OpenHeap.Num(), UniqueNodesProcessed.Num(), DuplicatePopCount,
+				TotalNeighborsGenerated, MaxNeighborsInSingleIteration, DistToGoal);
 		}
 
 		numIterations++;
 
 		if (numIterations > Settings.MaxIterations)
 		{
-			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding aborted, hit iteration limit, iterations : %i"), numIterations);
+			const float Distance = FVector::Dist(StartPos, TargetPos);
+			FVector CurrentPos;
+			NavigationData.GetLinkPosition(CurrentLink, CurrentPos);
+			const float DistToGoal = FVector::Dist(CurrentPos, TargetPos);
+
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Pathfinding aborted - hit iteration limit %i. Distance: %.2f units. Start: %s, Target: %s, StartLink: (L:%d N:%d S:%d), GoalLink: (L:%d N:%d S:%d), CurrentLink: (L:%d N:%d S:%d)"),
+				numIterations,
+				Distance,
+				*StartPos.ToCompactString(),
+				*TargetPos.ToCompactString(),
+				StartLink.GetLayerIndex(), StartLink.GetNodeIndex(), StartLink.GetSubnodeIndex(),
+				InGoal.GetLayerIndex(), InGoal.GetNodeIndex(), InGoal.GetSubnodeIndex(),
+				CurrentLink.GetLayerIndex(), CurrentLink.GetNodeIndex(), CurrentLink.GetSubnodeIndex());
+
+			// Detailed diagnostic information
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("  Diagnostics: HeapSize=%d, UniqueNodes=%d, DuplicatePops=%d, TotalNeighbors=%d, MaxNeighbors=%d, DistToGoal=%.1f"),
+				OpenHeap.Num(), UniqueNodesProcessed.Num(), DuplicatePopCount,
+				TotalNeighborsGenerated, MaxNeighborsInSingleIteration, DistToGoal);
+
+			// Calculate average neighbors per iteration
+			const float AvgNeighbors = numIterations > 0 ? static_cast<float>(TotalNeighborsGenerated) / numIterations : 0.0f;
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("  AvgNeighborsPerIteration=%.1f, DuplicatePopRate=%.1f%%"),
+				AvgNeighbors, numIterations > 0 ? (DuplicatePopCount * 100.0f) / (numIterations + DuplicatePopCount) : 0.0f);
+
+			// Report which neighbor generation paths were taken
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("  NeighborGenPaths: EmptyLeaf=%d, NonEmptyLeaf=%d, HigherLayer=%d"),
+				EmptyLeafNeighbourCount, NonEmptyLeafNeighbourCount, HigherLayerNeighbourCount);
+
+			// Populate failure info if requested
+			if (OutFailureInfo)
+			{
+				OutFailureInfo->bFailedDueToMaxIterations = true;
+				OutFailureInfo->StartPosition = StartPos;
+				OutFailureInfo->TargetPosition = TargetPos;
+				OutFailureInfo->StartLink = StartLink;
+				OutFailureInfo->GoalLink = InGoal;
+				OutFailureInfo->LastProcessedLink = CurrentLink;
+				OutFailureInfo->IterationCount = numIterations;
+				OutFailureInfo->StraightLineDistance = Distance;
+			}
+
 			LastIterationCount = numIterations;
 			return false;
 		}
@@ -252,10 +320,15 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 
 		FScore.Add(aNeighbour, GScore[aNeighbour] + heuristicScore);
 
-		// Add to open set if not already there, or re-add with updated score (lazy deletion approach)
+		// Only add to heap if this is a NEW node (prevents 80%+ duplicate waste)
+		// This eliminates the massive duplicate pop problem observed in stress testing
 		if (!OpenSetLookup.Contains(aNeighbour))
 		{
 			OpenSetLookup.Add(aNeighbour);
+
+			// Push to heap with calculated FScore
+			FScoreHeapPredicate HeapPredicate(FScore);
+			OpenHeap.HeapPush(aNeighbour, HeapPredicate);
 
 			if (Settings.bDebugOpenNodes)
 			{
@@ -264,10 +337,6 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 				Settings.DebugPoints.Add(pos);
 			}
 		}
-
-		// Push to heap with new score (heap will maintain ordering)
-		FScoreHeapPredicate HeapPredicate(FScore);
-		OpenHeap.HeapPush(aNeighbour, HeapPredicate);
 	}
 }
 

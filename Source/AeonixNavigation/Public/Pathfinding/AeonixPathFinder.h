@@ -37,6 +37,50 @@ struct FAeonixHeuristicSettings
 	float GlobalWeight{10.0f};
 };
 
+/** Information about pathfinding failure for debug visualization */
+USTRUCT()
+struct FAeonixPathFailureInfo
+{
+	GENERATED_BODY()
+
+	/** Whether pathfinding failed due to max iterations */
+	bool bFailedDueToMaxIterations{false};
+
+	/** Start position of the failed path */
+	FVector StartPosition{FVector::ZeroVector};
+
+	/** Target position of the failed path */
+	FVector TargetPosition{FVector::ZeroVector};
+
+	/** Start link information */
+	AeonixLink StartLink;
+
+	/** Goal link information */
+	AeonixLink GoalLink;
+
+	/** Last link that was being processed when iterations maxed out */
+	AeonixLink LastProcessedLink;
+
+	/** Final iteration count */
+	int32 IterationCount{0};
+
+	/** Straight-line distance between start and target */
+	float StraightLineDistance{0.0f};
+
+	/** Reset failure info */
+	void Reset()
+	{
+		bFailedDueToMaxIterations = false;
+		StartPosition = FVector::ZeroVector;
+		TargetPosition = FVector::ZeroVector;
+		StartLink = AeonixLink();
+		GoalLink = AeonixLink();
+		LastProcessedLink = AeonixLink();
+		IterationCount = 0;
+		StraightLineDistance = 0.0f;
+	}
+};
+
 USTRUCT(BlueprintType)
 struct FAeonixPathFinderSettings
 {
@@ -95,7 +139,7 @@ public:
 		, LastIterationCount(0){};
 
 	/* Performs an A* search from start to target navlink */
-	bool FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
+	bool FindPath(const AeonixLink& aStart, const AeonixLink& aTarget, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath, FAeonixPathFailureInfo* OutFailureInfo = nullptr);
 
 	/* Returns the number of iterations used in the last FindPath call */
 	int32 GetLastIterationCount() const { return LastIterationCount; }

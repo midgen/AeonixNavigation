@@ -64,6 +64,10 @@ class AEONIXNAVIGATION_API UBTTask_AeonixMoveTo : public UBTTask_BlackboardBase
 	UPROPERTY(Category = Node, EditAnywhere)
 		bool bUseAsyncPathfinding;
 
+	/** if true, automatically repath when path is invalidated by dynamic region changes. If false, abort the move. */
+	UPROPERTY(Category = Node, EditAnywhere, AdvancedDisplay, meta = (DisplayName = "Repath On Invalidation"))
+		bool bRepathOnInvalidation = true;
+
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual void OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult) override;

@@ -162,6 +162,81 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 			]
 		]
 
+		// Pathfinding metrics panel
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(4.0f)
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.Padding(4.0f)
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("PathfindingMetricsHeader", "Pathfinding Metrics"))
+					.Font(FAppStyle::GetFontStyle("BoldFont"))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 2.0f)
+				[
+					SNew(SHorizontalBox)
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					[
+						SNew(STextBlock)
+						.Text(this, &SAeonixNavigationTreeView::GetPathfindMetricsText)
+						.Font(FAppStyle::GetFontStyle("SmallFont"))
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Text(this, &SAeonixNavigationTreeView::GetWorkerPoolStatusText)
+						.Font(FAppStyle::GetFontStyle("SmallFont"))
+						.ColorAndOpacity(FSlateColor(FLinearColor(0.7f, 1.0f, 0.7f)))
+					]
+				]
+			]
+		]
+
+		// Generation metrics panel
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(4.0f)
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.Padding(4.0f)
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("GenerationMetricsHeader", "Generation Metrics"))
+					.Font(FAppStyle::GetFontStyle("BoldFont"))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 2.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &SAeonixNavigationTreeView::GetGenerationMetricsText)
+					.Font(FAppStyle::GetFontStyle("SmallFont"))
+				]
+			]
+		]
+
 		// Status bar
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -195,10 +270,20 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 	{
 		Subsystem->GetOnRegistrationChanged().AddSP(this, &SAeonixNavigationTreeView::OnRegistrationChanged);
 	}
+
+	// Register active timer for PIE updates (refreshes tree every 0.5 seconds during PIE)
+	PIERefreshTimerHandle = RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SAeonixNavigationTreeView::UpdateDuringPIE));
 }
 
 SAeonixNavigationTreeView::~SAeonixNavigationTreeView()
 {
+	// Unregister active timer
+	if (PIERefreshTimerHandle.IsValid())
+	{
+		UnRegisterActiveTimer(PIERefreshTimerHandle.ToSharedRef());
+		PIERefreshTimerHandle.Reset();
+	}
+
 	// Unsubscribe from registration changes
 	UAeonixSubsystem* Subsystem = GetSubsystem();
 	if (Subsystem)
@@ -592,6 +677,127 @@ FReply SAeonixNavigationTreeView::OnRegenerateModifierClicked(FAeonixTreeItemPtr
 void SAeonixNavigationTreeView::OnRegistrationChanged()
 {
 	RefreshTreeData();
+}
+
+FText SAeonixNavigationTreeView::GetPathfindMetricsText() const
+{
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return LOCTEXT("NoSubsystem", "Subsystem unavailable");
+	}
+
+	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
+
+	return FText::Format(
+		LOCTEXT("PathfindMetricsText", "Pending: {0} | Active: {1} | Completed: {2} | Failed: {3} | Cancelled: {4} | Avg Time: {5}ms"),
+		FText::AsNumber(Metrics.PendingPathfinds.load()),
+		FText::AsNumber(Metrics.ActivePathfinds.load()),
+		FText::AsNumber(Metrics.CompletedPathfindsTotal.load()),
+		FText::AsNumber(Metrics.FailedPathfindsTotal.load()),
+		FText::AsNumber(Metrics.CancelledPathfindsTotal.load()),
+		FText::AsNumber(FMath::RoundToInt(Metrics.AveragePathfindTimeMs.Load()))
+	);
+}
+
+FText SAeonixNavigationTreeView::GetWorkerPoolStatusText() const
+{
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return FText::GetEmpty();
+	}
+
+	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
+	const int32 ActiveWorkers = Metrics.ActivePathfinds.load();
+
+	if (ActiveWorkers > 0)
+	{
+		return FText::Format(
+			LOCTEXT("WorkerPoolActive", "Workers Active: {0}"),
+			FText::AsNumber(ActiveWorkers)
+		);
+	}
+
+	return LOCTEXT("WorkerPoolIdle", "Workers: Idle");
+}
+
+FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
+{
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return LOCTEXT("NoSubsystemGen", "Subsystem unavailable");
+	}
+
+	// Aggregate metrics from all registered bounding volumes
+	int32 TotalLayers = 0;
+	int32 TotalNodes = 0;
+	int32 TotalLeafNodes = 0;
+	int32 TotalDynamicRegions = 0;
+	int32 TotalMemoryBytes = 0;
+
+	const TArray<FAeonixBoundingVolumeHandle>& RegisteredVolumes = Subsystem->GetRegisteredVolumes();
+
+	for (const FAeonixBoundingVolumeHandle& VolumeHandle : RegisteredVolumes)
+	{
+		if (AAeonixBoundingVolume* Volume = VolumeHandle.VolumeHandle.Get())
+		{
+			if (Volume->HasData())
+			{
+				const FAeonixData& NavData = Volume->GetNavData();
+
+				// Count layers (take max across volumes)
+				TotalLayers = FMath::Max(TotalLayers, static_cast<int32>(NavData.OctreeData.GetNumLayers()));
+
+				// Count leaf nodes
+				TotalLeafNodes += NavData.OctreeData.LeafNodes.Num();
+
+				// Count total nodes across all layers
+				for (int32 i = 0; i < NavData.OctreeData.GetNumLayers(); ++i)
+				{
+					TotalNodes += NavData.OctreeData.GetLayer(i).Num();
+				}
+
+				// Count dynamic regions
+				TotalDynamicRegions += NavData.GetParams().DynamicRegionBoxes.Num();
+
+				// Sum memory usage
+				TotalMemoryBytes += NavData.OctreeData.GetSize();
+			}
+		}
+	}
+
+	// Get average regeneration time from load metrics
+	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
+	const float AvgRegenTimeMs = Metrics.AverageRegenTimeMs.Load();
+
+	return FText::Format(
+		LOCTEXT("GenerationMetricsText", "Layers: {0} | Nodes: {1} | Leaves: {2} | Dynamic Regions: {3} | Memory: {4} KB | Avg Regen: {5}ms"),
+		FText::AsNumber(TotalLayers),
+		FText::AsNumber(TotalNodes),
+		FText::AsNumber(TotalLeafNodes),
+		FText::AsNumber(TotalDynamicRegions),
+		FText::AsNumber(TotalMemoryBytes / 1024),
+		FText::AsNumber(FMath::RoundToInt(AvgRegenTimeMs))
+	);
+}
+
+EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurrentTime, float InDeltaTime)
+{
+	// Only auto-refresh during PIE to show dynamic changes
+	if (GEditor && GEditor->GetPIEWorldContext())
+	{
+		// Safety check: ensure subsystem is valid and not being destroyed
+		UAeonixSubsystem* Subsystem = GetSubsystem();
+		if (Subsystem && IsValid(Subsystem) && !Subsystem->HasAnyFlags(RF_BeginDestroyed))
+		{
+			RefreshTreeData();
+		}
+	}
+
+	// Continue ticking
+	return EActiveTimerReturnType::Continue;
 }
 
 #undef LOCTEXT_NAMESPACE

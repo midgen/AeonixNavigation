@@ -22,6 +22,7 @@
 #include "MassEntityManager.h"
 #include "MassEntitySubsystem.h"
 #include "HAL/PlatformProcess.h"
+#include "DrawDebugHelpers.h"
 
 void UAeonixSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -366,22 +367,42 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 	// Acquire read lock for thread-safe octree access during pathfinding
 	bool Result;
+	FAeonixPathFailureInfo FailureInfo;
 	{
 		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingSync);
 
 		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
-		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath, &FailureInfo);
 	}
 
-	OutPath.SetIsReady(true);
-	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
-
-	// Track which dynamic regions the path traverses
+	// CRITICAL FIX: Track regions BEFORE marking path ready
+	// This ensures path is registered before it can be invalidated
 	if (Result)
 	{
 		TrackPathRegions(OutPath, NavVolume);
 	}
+	else if (FailureInfo.bFailedDueToMaxIterations)
+	{
+		// Draw debug visualization for max iteration failure
+		if (UWorld* World = GetWorld())
+		{
+			// Red line from start to target
+			DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+
+			// Red sphere at start position
+			DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+
+			// Magenta sphere at target position
+			DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
+				FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
+		}
+	}
+
+	OutPath.SetIsReady(true);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 
 	return Result;
 }
@@ -469,11 +490,20 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
 	FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
 
+	// Capture region versions BEFORE pathfinding starts
+	// We'll validate these at the end to detect if regions were regenerated mid-calculation
+	TMap<FGuid, uint32> CapturedRegionVersions;
+	const FAeonixGenerationParameters& Params = NavVolume->GenerationParameters;
+	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	{
+		CapturedRegionVersions.Add(RegionPair.Key, GetRegionVersion(RegionPair.Key));
+	}
+
 	// Update metrics
 	LoadMetrics.PendingPathfinds.fetch_add(1);
 
 	// Enqueue work to worker pool
-	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
+	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions, &OutPath]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
 
@@ -520,40 +550,100 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
 
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath))
+		FAeonixPathFailureInfo FailureInfo;
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath, &FailureInfo))
 		{
-			OutPath.SetIsReady(true);
-			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
-
-			// Track which dynamic regions the path traverses
-			AsyncTask(ENamedThreads::GameThread, [NavVolume, &OutPath]()
-			{
-				if (NavVolume && NavVolume->GetWorld())
-				{
-					if (UAeonixSubsystem* Subsystem = NavVolume->GetWorld()->GetSubsystem<UAeonixSubsystem>())
-					{
-						Subsystem->TrackPathRegions(OutPath, NavVolume);
-					}
-				}
-			});
-
-			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
-
+			// CRITICAL FIX: Track regions BEFORE marking path ready
+			// This prevents race condition where path is used before tracking completes,
+			// causing invalidation to miss the path when regions regenerate
 			if (Subsystem)
 			{
-				Subsystem->LoadMetrics.CompletedPathfindsTotal.fetch_add(1);
-				const float ElapsedMs = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
-				Subsystem->LoadMetrics.UpdatePathfindTime(ElapsedMs);
+				Subsystem->TrackPathRegions(OutPath, NavVolume);
+			}
+
+			// Validate that regions didn't change during pathfinding calculation
+			// If any region was regenerated while we were calculating, mark path as invalidated
+			bool bPathStale = false;
+			if (Subsystem)
+			{
+				for (const auto& RegionVersionPair : CapturedRegionVersions)
+				{
+					const uint32 CurrentVersion = Subsystem->GetRegionVersion(RegionVersionPair.Key);
+					if (CurrentVersion != RegionVersionPair.Value)
+					{
+						UE_LOG(LogAeonixNavigation, Warning,
+							TEXT("AeonixSubsystem: Path calculated with stale data - region %s changed from version %d to %d during pathfinding"),
+							*RegionVersionPair.Key.ToString(), RegionVersionPair.Value, CurrentVersion);
+						bPathStale = true;
+						break;
+					}
+				}
+			}
+
+			if (bPathStale)
+			{
+				// Path was calculated based on outdated navigation data
+				OutPath.SetIsReady(false);
+				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Invalidated);
+
+				if (Subsystem)
+				{
+					Subsystem->LoadMetrics.CancelledPathfindsTotal.fetch_add(1);
+				}
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path invalidated (region changed during calculation)"));
+			}
+			else
+			{
+				// Path is valid - mark ready
+				OutPath.SetIsReady(true);
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+
+				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+
+				if (Subsystem)
+				{
+					Subsystem->LoadMetrics.CompletedPathfindsTotal.fetch_add(1);
+					const float ElapsedMs = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
+					Subsystem->LoadMetrics.UpdatePathfindTime(ElapsedMs);
+				}
 			}
 		}
 		else
 		{
+			// Pathfinding failed
 			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 
 			if (Subsystem)
 			{
 				Subsystem->LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+			}
+
+			// Draw debug visualization if failed due to max iterations
+			if (FailureInfo.bFailedDueToMaxIterations)
+			{
+				// Queue debug visualization to game thread
+				AsyncTask(ENamedThreads::GameThread, [FailureInfo, WeakSubsystem]()
+				{
+					if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
+					{
+						if (UWorld* World = Subsystem->GetWorld())
+						{
+							// Red line from start to target
+							DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+
+							// Red sphere at start position
+							DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+
+							// Magenta sphere at target position
+							DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+
+							UE_LOG(LogAeonixNavigation, Warning, TEXT("Async pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
+								FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
+						}
+					}
+				});
 			}
 		}
 

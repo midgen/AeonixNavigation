@@ -38,12 +38,17 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
     // Get nav volume and data
     const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForPosition(Origin);
     if (!NavVolume || !NavVolume->HasData()) return;
-    const FAeonixData& NavData = NavVolume->GetNavData();
 
     // Convert start position to AeonixLink
     AeonixLink StartLink;
     if (!AeonixMediator::GetLinkFromPosition(Origin, *NavVolume, StartLink))
         return;
+
+    // CRITICAL: Acquire read lock for thread-safe octree access
+    // EQS queries can run on background threads while dynamic regeneration
+    // is modifying the octree on the game thread
+    FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+    const FAeonixData& NavData = NavVolume->GetNavData();
 
     TSet<AeonixLink> Visited;
     TQueue<AeonixLink> Queue;

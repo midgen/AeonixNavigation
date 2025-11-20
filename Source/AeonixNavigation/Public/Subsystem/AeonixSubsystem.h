@@ -78,6 +78,9 @@ public:
 	size_t GetNumberOfRegisteredNavAgents() const;
 	size_t GetNumberOfRegisteredNavVolumes() const;
 
+	// Access to registered volumes for debug UI
+	const TArray<FAeonixBoundingVolumeHandle>& GetRegisteredVolumes() const { return RegisteredVolumes; }
+
 	// Load metrics and monitoring
 	const FAeonixLoadMetrics& GetLoadMetrics() const { return LoadMetrics; }
 	void RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds = 0.05f);

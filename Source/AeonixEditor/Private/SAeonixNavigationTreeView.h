@@ -79,6 +79,9 @@ private:
 	UAeonixSubsystem* GetSubsystem() const;
 	UWorld* GetTargetWorld() const;
 
+	// PIE auto-refresh timer
+	EActiveTimerReturnType UpdateDuringPIE(double InCurrentTime, float InDeltaTime);
+
 	// Button callbacks
 	FReply OnRefreshClicked();
 	FReply OnTerminatePathfindsClicked();
@@ -97,6 +100,7 @@ private:
 	FText GetPendingTasksText() const;
 	FText GetPathfindMetricsText() const;
 	FText GetWorkerPoolStatusText() const;
+	FText GetGenerationMetricsText() const;
 
 	// Tree state management
 	void ExpandAllItems();

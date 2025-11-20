@@ -207,6 +207,36 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 			]
 		]
 
+		// Generation metrics panel
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(4.0f)
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.Padding(4.0f)
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("GenerationMetricsHeader", "Generation Metrics"))
+					.Font(FAppStyle::GetFontStyle("BoldFont"))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(0.0f, 2.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &SAeonixNavigationTreeView::GetGenerationMetricsText)
+					.Font(FAppStyle::GetFontStyle("SmallFont"))
+				]
+			]
+		]
+
 		// Status bar
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -240,6 +270,9 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 	{
 		Subsystem->GetOnRegistrationChanged().AddSP(this, &SAeonixNavigationTreeView::OnRegistrationChanged);
 	}
+
+	// Register active timer for PIE updates (refreshes tree every 0.5 seconds during PIE)
+	RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SAeonixNavigationTreeView::UpdateDuringPIE));
 }
 
 SAeonixNavigationTreeView::~SAeonixNavigationTreeView()
@@ -680,6 +713,79 @@ FText SAeonixNavigationTreeView::GetWorkerPoolStatusText() const
 	}
 
 	return LOCTEXT("WorkerPoolIdle", "Workers: Idle");
+}
+
+FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
+{
+	UAeonixSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return LOCTEXT("NoSubsystemGen", "Subsystem unavailable");
+	}
+
+	// Aggregate metrics from all registered bounding volumes
+	int32 TotalLayers = 0;
+	int32 TotalNodes = 0;
+	int32 TotalLeafNodes = 0;
+	int32 TotalDynamicRegions = 0;
+	int32 TotalMemoryBytes = 0;
+
+	const TArray<FAeonixBoundingVolumeHandle>& RegisteredVolumes = Subsystem->GetRegisteredVolumes();
+
+	for (const FAeonixBoundingVolumeHandle& VolumeHandle : RegisteredVolumes)
+	{
+		if (AAeonixBoundingVolume* Volume = VolumeHandle.VolumeHandle.Get())
+		{
+			if (Volume->HasData())
+			{
+				const FAeonixData& NavData = Volume->GetNavData();
+
+				// Count layers (take max across volumes)
+				TotalLayers = FMath::Max(TotalLayers, static_cast<int32>(NavData.OctreeData.GetNumLayers()));
+
+				// Count leaf nodes
+				TotalLeafNodes += NavData.OctreeData.LeafNodes.Num();
+
+				// Count total nodes across all layers
+				for (int32 i = 0; i < NavData.OctreeData.GetNumLayers(); ++i)
+				{
+					TotalNodes += NavData.OctreeData.GetLayer(i).Num();
+				}
+
+				// Count dynamic regions
+				TotalDynamicRegions += NavData.GetParams().DynamicRegionBoxes.Num();
+
+				// Sum memory usage
+				TotalMemoryBytes += NavData.OctreeData.GetSize();
+			}
+		}
+	}
+
+	// Get average regeneration time from load metrics
+	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
+	const float AvgRegenTimeMs = Metrics.AverageRegenTimeMs.Load();
+
+	return FText::Format(
+		LOCTEXT("GenerationMetricsText", "Layers: {0} | Nodes: {1} | Leaves: {2} | Dynamic Regions: {3} | Memory: {4} KB | Avg Regen: {5}ms"),
+		FText::AsNumber(TotalLayers),
+		FText::AsNumber(TotalNodes),
+		FText::AsNumber(TotalLeafNodes),
+		FText::AsNumber(TotalDynamicRegions),
+		FText::AsNumber(TotalMemoryBytes / 1024),
+		FText::AsNumber(FMath::RoundToInt(AvgRegenTimeMs))
+	);
+}
+
+EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurrentTime, float InDeltaTime)
+{
+	// Only auto-refresh during PIE to show dynamic changes
+	if (GEditor && GEditor->GetPIEWorldContext())
+	{
+		RefreshTreeData();
+	}
+
+	// Continue ticking
+	return EActiveTimerReturnType::Continue;
 }
 
 #undef LOCTEXT_NAMESPACE

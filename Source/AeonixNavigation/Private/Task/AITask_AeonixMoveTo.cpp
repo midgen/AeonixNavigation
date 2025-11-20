@@ -35,7 +35,7 @@ UAITask_AeonixMoveTo::UAITask_AeonixMoveTo(const FObjectInitializer& ObjectIniti
 }
 
 UAITask_AeonixMoveTo* UAITask_AeonixMoveTo::AeonixAIMoveTo(AAIController* Controller, FVector InGoalLocation, bool bUseAsyncPathfinding, AActor* InGoalActor,
-	float AcceptanceRadius, EAIOptionFlag::Type StopOnOverlap, bool bLockAILogic, bool bUseContinuosGoalTracking)
+	float AcceptanceRadius, EAIOptionFlag::Type StopOnOverlap, bool bLockAILogic, bool bUseContinuosGoalTracking, bool bInRepathOnInvalidation)
 {
 	UAITask_AeonixMoveTo* MyTask = Controller ? UAITask::NewAITask<UAITask_AeonixMoveTo>(*Controller, EAITaskPriority::High) : nullptr;
 	if (MyTask)
@@ -63,6 +63,7 @@ UAITask_AeonixMoveTo* UAITask_AeonixMoveTo::AeonixAIMoveTo(AAIController* Contro
 
 		MyTask->SetUp(Controller, MoveReq, bUseAsyncPathfinding);
 		MyTask->SetContinuousGoalTracking(bUseContinuosGoalTracking);
+		MyTask->bRepathOnInvalidation = bInRepathOnInvalidation;
 
 		if (bLockAILogic)
 		{
@@ -94,6 +95,22 @@ void UAITask_AeonixMoveTo::SetUp(AAIController* Controller, const FAIMoveRequest
 	// Use the path instance from the navcomponent
 	AeonixPath = &NavComponent->GetPath();
 	AeonixSubsystem = Controller->GetWorld()->GetSubsystem<UAeonixSubsystem>();
+
+	// Subscribe to path invalidation events
+	if (AeonixPath)
+	{
+		PathInvalidationDelegateHandle = AeonixPath->OnPathInvalidated.AddUObject(this, &UAITask_AeonixMoveTo::OnPathInvalidated);
+	}
+
+	// Register component with subsystem for path invalidation tracking
+	if (NavComponent && AeonixSubsystem.GetInterface())
+	{
+		UAeonixSubsystem* Subsystem = Cast<UAeonixSubsystem>(AeonixSubsystem.GetInterface());
+		if (Subsystem)
+		{
+			Subsystem->RegisterComponentWithPath(NavComponent);
+		}
+	}
 }
 
 void UAITask_AeonixMoveTo::SetContinuousGoalTracking(bool bEnable)
@@ -120,6 +137,16 @@ void UAITask_AeonixMoveTo::OnPathFindComplete(EAeonixPathFindStatus Status)
 		}
 
 		RequestMove();
+	}
+	else if (Status == EAeonixPathFindStatus::Failed)
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AITask_AeonixMoveTo: Async pathfinding failed"));
+		FinishMoveTask(EPathFollowingResult::Invalid);
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("AITask_AeonixMoveTo: Unexpected pathfind status: %d"), static_cast<int32>(Status));
+		FinishMoveTask(EPathFollowingResult::Invalid);
 	}
 }
 
@@ -377,6 +404,9 @@ void UAITask_AeonixMoveTo::RequestMove()
 	{
 		UE_VLOG(this, VLogAeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
 		UE_LOG(LogAeonixNavigation, Log, TEXT("Aeonix Pathfinding successful, moving"));
+
+		// Update BOTH MoveRequestID and Result.MoveId to properly track the move request
+		MoveRequestID = RequestId;
 		Result.MoveId = RequestId;
 		Result.Code = EAeonixPathfindingRequestResult::Success;
 	}
@@ -470,6 +500,16 @@ void UAITask_AeonixMoveTo::ResetObservers()
 
 		PathUpdateDelegateHandle.Reset();
 	}
+
+	if (PathInvalidationDelegateHandle.IsValid())
+	{
+		if (AeonixPath)
+		{
+			AeonixPath->OnPathInvalidated.Remove(PathInvalidationDelegateHandle);
+		}
+
+		PathInvalidationDelegateHandle.Reset();
+	}
 }
 
 void UAITask_AeonixMoveTo::ResetTimers()
@@ -508,6 +548,16 @@ void UAITask_AeonixMoveTo::OnDestroy(bool bInOwnerFinished)
 		if (PfComp && PfComp->GetStatus() != EPathFollowingStatus::Idle)
 		{
 			PfComp->AbortMove(*this, FPathFollowingResultFlags::OwnerFinished, MoveRequestID);
+		}
+	}
+
+	// Unregister component from path invalidation tracking
+	if (NavComponent && AeonixSubsystem.GetInterface())
+	{
+		UAeonixSubsystem* Subsystem = Cast<UAeonixSubsystem>(AeonixSubsystem.GetInterface());
+		if (Subsystem)
+		{
+			Subsystem->UnregisterComponentWithPath(NavComponent);
 		}
 	}
 
@@ -562,14 +612,43 @@ void UAITask_AeonixMoveTo::OnPathEvent(FNavigationPath* InPath, ENavPathEvent::T
 	}
 }
 
+void UAITask_AeonixMoveTo::OnPathInvalidated(FAeonixNavigationPath* InvalidatedPath)
+{
+	if (!IsActive() || InvalidatedPath != AeonixPath)
+	{
+		return;
+	}
+
+	if (bRepathOnInvalidation)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AITask_AeonixMoveTo: Path invalidated by dynamic region regeneration, repathing..."));
+		ConditionalUpdatePath();
+	}
+	else
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AITask_AeonixMoveTo: Path invalidated by dynamic region regeneration, aborting move (bRepathOnInvalidation=false)"));
+		FinishMoveTask(EPathFollowingResult::Aborted);
+	}
+}
+
 void UAITask_AeonixMoveTo::ConditionalUpdatePath()
 {
-	// mark this path as waiting for repath so that PathFollowingComponent doesn't abort the move while we
-	// micro manage repathing moment
-	// note that this flag fill get cleared upon repathing end
-	if (Path.IsValid())
+	// Reset and clear the existing path
+	if (AeonixPath)
 	{
-		Path->SetManualRepathWaiting(true);
+		AeonixPath->ResetForRepath();
+	}
+
+	// Abort the existing move request first to avoid concurrent requests
+	if (MoveRequestID.IsValid())
+	{
+		UPathFollowingComponent* PFComp = OwnerController ? OwnerController->GetPathFollowingComponent() : nullptr;
+		if (PFComp && PFComp->GetStatus() != EPathFollowingStatus::Idle)
+		{
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("ConditionalUpdatePath: Aborting current move request before repathing"));
+			PFComp->AbortMove(*this, FPathFollowingResultFlags::NewRequest, MoveRequestID, EPathFollowingVelocityMode::Keep);
+		}
+		MoveRequestID = FAIRequestID::InvalidRequest;
 	}
 
 	if (MoveRequest.IsUsingPathfinding() && OwnerController && OwnerController->ShouldPostponePathUpdates())
@@ -581,15 +660,28 @@ void UAITask_AeonixMoveTo::ConditionalUpdatePath()
 	{
 		PathRetryTimerHandle.Invalidate();
 
-		ANavigationData* NavData = Path.IsValid() ? Path->GetNavigationDataUsed() : nullptr;
-		if (NavData)
+		// Use Aeonix pathfinding system instead of standard navigation repath
+		UE_LOG(LogAeonixNavigation, Log, TEXT("ConditionalUpdatePath: Repathing using Aeonix navigation"));
+
+		if (bUseAsyncPathfinding)
 		{
-			NavData->RequestRePath(Path, ENavPathUpdateType::NavigationChanged);
+			// Async pathfinding - completion callback will handle RequestMove
+			RequestPathAsync();
 		}
 		else
 		{
-			UE_VLOG(GetGameplayTasksComponent(), LogGameplayTasks, Log, TEXT("%s> unable to repath, aborting!"), *GetName());
-			FinishMoveTask(EPathFollowingResult::Aborted);
+			// Synchronous pathfinding - need to handle result immediately
+			RequestPathSynchronous();
+
+			if (Result.Code == EAeonixPathfindingRequestResult::Success)
+			{
+				RequestMove(); // Now safe - old request was aborted
+			}
+			else
+			{
+				UE_VLOG(GetGameplayTasksComponent(), LogGameplayTasks, Log, TEXT("%s> repath failed, aborting!"), *GetName());
+				FinishMoveTask(EPathFollowingResult::Aborted);
+			}
 		}
 	}
 }

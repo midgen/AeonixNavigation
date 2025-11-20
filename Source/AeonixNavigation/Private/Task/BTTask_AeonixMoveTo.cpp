@@ -246,7 +246,14 @@ FString UBTTask_AeonixMoveTo::GetStaticDescription() const
 		KeyDesc = BlackboardKey.SelectedKeyName.ToString();
 	}
 
-	return FString::Printf(TEXT("%s: %s"), *Super::GetStaticDescription(), *KeyDesc);
+	FString Description = FString::Printf(TEXT("%s: %s"), *Super::GetStaticDescription(), *KeyDesc);
+
+	if (!bRepathOnInvalidation)
+	{
+		Description += TEXT(" (abort on invalidation)");
+	}
+
+	return Description;
 }
 #if WITH_EDITOR
 FName UBTTask_AeonixMoveTo::GetNodeIconName() const
@@ -347,6 +354,7 @@ UAITask_AeonixMoveTo* UBTTask_AeonixMoveTo::PrepareMoveTask(UBehaviorTreeCompone
 	if (MoveTask)
 	{
 		MoveTask->SetUp(MoveTask->GetAIController(), MoveRequest, bUseAsyncPathfinding);
+		MoveTask->bRepathOnInvalidation = bRepathOnInvalidation;
 	}
 
 	return MoveTask;

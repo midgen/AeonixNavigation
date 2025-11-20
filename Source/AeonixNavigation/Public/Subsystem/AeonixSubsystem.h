@@ -53,10 +53,20 @@ public:
 	virtual FOnRegistrationChanged& GetOnRegistrationChanged() override { return OnRegistrationChanged; }
 	virtual void RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent) override;
 	/* IAeonixSubsystemInterface END */
-	
+
+	// Path invalidation registry
+	void RegisterPath(TSharedPtr<FAeonixNavigationPath> Path);
+	void UnregisterPath(FAeonixNavigationPath* Path);
+	void InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRegionIds);
+
+	// Component-based path tracking (for invalidation)
+	void RegisterComponentWithPath(UAeonixNavAgentComponent* Component);
+	void UnregisterComponentWithPath(UAeonixNavAgentComponent* Component);
+
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
-	
+	virtual void Deinitialize() override;
+
 	virtual bool IsTickable() const override;
 	virtual bool IsTickableInEditor() const override;
 	virtual bool IsTickableWhenPaused() const override;
@@ -103,11 +113,22 @@ private:
 	/** Update debug paths for all nav agents within a specific volume */
 	void UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume);
 
+	/** Track which dynamic regions a path traverses through */
+	void TrackPathRegions(FAeonixNavigationPath& Path, const AAeonixBoundingVolume* BoundingVolume);
+
 	/** Delegate broadcast when navigation regeneration completes */
 	FOnNavigationRegenCompleted OnNavigationRegenCompleted;
 
 	/** Delegate broadcast when registration changes */
 	FOnRegistrationChanged OnRegistrationChanged;
+
+	// Path invalidation tracking
+	FCriticalSection PathRegistryLock;
+	TSet<TWeakPtr<FAeonixNavigationPath>> ActivePaths;
+
+	// Component-based path tracking (for invalidation via dynamic regions)
+	FCriticalSection ComponentPathRegistryLock;
+	TSet<TWeakObjectPtr<UAeonixNavAgentComponent>> ComponentsWithPaths;
 
 private:
 	TArray<TUniquePtr<FAeonixPathFindRequest>> PathRequests;

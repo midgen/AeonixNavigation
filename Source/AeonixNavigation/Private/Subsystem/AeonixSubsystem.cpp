@@ -353,6 +353,12 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	OutPath.SetIsReady(true);
 	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 
+	// Track which dynamic regions the path traverses
+	if (Result)
+	{
+		TrackPathRegions(OutPath, NavVolume);
+	}
+
 	return Result;
 }
 
@@ -441,6 +447,20 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		{
 			OutPath.SetIsReady(true);
 			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+
+			// Track which dynamic regions the path traverses
+			// Need to access subsystem on game thread for thread safety
+			AsyncTask(ENamedThreads::GameThread, [NavVolume, &OutPath]()
+			{
+				if (NavVolume && NavVolume->GetWorld())
+				{
+					if (UAeonixSubsystem* Subsystem = NavVolume->GetWorld()->GetSubsystem<UAeonixSubsystem>())
+					{
+						Subsystem->TrackPathRegions(OutPath, NavVolume);
+					}
+				}
+			});
+
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 		}
 		else
@@ -889,4 +909,158 @@ bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) co
 {
 	// All the worlds, so it works in editor
 	return true;
+}
+
+void UAeonixSubsystem::Deinitialize()
+{
+	// Cancel all pending async pathfinding tasks before subsystem destruction
+	// This prevents TPromise destructor failures when PIE ends with active tasks
+	CompleteAllPendingPathfindingTasks();
+
+	Super::Deinitialize();
+}
+
+void UAeonixSubsystem::RegisterPath(TSharedPtr<FAeonixNavigationPath> Path)
+{
+	if (!Path.IsValid())
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Attempted to register invalid path"));
+		return;
+	}
+
+	FScopeLock Lock(&PathRegistryLock);
+	ActivePaths.Add(Path);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path registered - %d active paths"), ActivePaths.Num());
+}
+
+void UAeonixSubsystem::UnregisterPath(FAeonixNavigationPath* Path)
+{
+	if (!Path)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&PathRegistryLock);
+
+	// Find and remove the matching weak pointer
+	for (auto It = ActivePaths.CreateIterator(); It; ++It)
+	{
+		if (TSharedPtr<FAeonixNavigationPath> PinnedPath = It->Pin())
+		{
+			if (PinnedPath.Get() == Path)
+			{
+				It.RemoveCurrent();
+				UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path unregistered - %d active paths remaining"), ActivePaths.Num());
+				return;
+			}
+		}
+		else
+		{
+			// Clean up stale pointer while we're here
+			It.RemoveCurrent();
+		}
+	}
+}
+
+void UAeonixSubsystem::InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRegionIds)
+{
+	if (RegeneratedRegionIds.Num() == 0)
+	{
+		return;
+	}
+
+	// Component-based invalidation approach
+	TArray<UAeonixNavAgentComponent*> ComponentsToCheck;
+
+	// Lock only for copying weak object pointers
+	{
+		FScopeLock Lock(&ComponentPathRegistryLock);
+		for (auto It = ComponentsWithPaths.CreateIterator(); It; ++It)
+		{
+			if (UAeonixNavAgentComponent* Component = It->Get())
+			{
+				ComponentsToCheck.Add(Component);
+			}
+			else
+			{
+				// Clean up stale pointers
+				It.RemoveCurrent();
+			}
+		}
+	}
+	// Lock released - now safe to access components and call delegates
+
+	int32 NumInvalidated = 0;
+	for (UAeonixNavAgentComponent* Component : ComponentsToCheck)
+	{
+		FAeonixNavigationPath& Path = Component->GetPath();
+		if (Path.CheckInvalidation(RegeneratedRegionIds))
+		{
+			Path.MarkInvalid(); // Broadcasts delegate
+			NumInvalidated++;
+		}
+	}
+
+	if (NumInvalidated > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Invalidated %d paths across %d components affected by %d regenerated regions"),
+			NumInvalidated, ComponentsToCheck.Num(), RegeneratedRegionIds.Num());
+	}
+}
+
+void UAeonixSubsystem::TrackPathRegions(FAeonixNavigationPath& Path, const AAeonixBoundingVolume* BoundingVolume)
+{
+	if (!BoundingVolume)
+	{
+		return;
+	}
+
+	const FAeonixGenerationParameters& Params = BoundingVolume->GenerationParameters;
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		// No dynamic regions to track
+		return;
+	}
+
+	// Check each path point against all dynamic regions
+	const TArray<FAeonixPathPoint>& PathPoints = Path.GetPathPoints();
+	for (const FAeonixPathPoint& Point : PathPoints)
+	{
+		for (const auto& RegionPair : Params.DynamicRegionBoxes)
+		{
+			if (RegionPair.Value.IsInsideOrOn(Point.Position))
+			{
+				Path.AddTraversedRegion(RegionPair.Key);
+			}
+		}
+	}
+
+	if (Path.GetTraversedRegionIds().Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path tracks %d dynamic regions"), Path.GetTraversedRegionIds().Num());
+	}
+}
+
+void UAeonixSubsystem::RegisterComponentWithPath(UAeonixNavAgentComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&ComponentPathRegistryLock);
+	ComponentsWithPaths.Add(Component);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered component %s for path invalidation tracking"), *Component->GetName());
+}
+
+void UAeonixSubsystem::UnregisterComponentWithPath(UAeonixNavAgentComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&ComponentPathRegistryLock);
+	ComponentsWithPaths.Remove(Component);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered component %s from path invalidation tracking"), *Component->GetName());
 }

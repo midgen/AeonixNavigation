@@ -394,6 +394,9 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 	Batch.ChunkSize = Settings ? Settings->AsyncChunkSize : 75;
 	Batch.RegionIdsToProcess = RegionIds; // Set the regions to process
 
+	// Track which regions are being regenerated for path invalidation
+	CurrentlyRegeneratingRegions = RegionIds;
+
 	// Calculate affected leaf nodes for ONLY the specified regions
 	for (const FGuid& RegionId : RegionIds)
 	{
@@ -830,11 +833,23 @@ void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
 		UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
 #endif
 
+		// Invalidate paths that traverse the regenerated regions
+		if (CurrentlyRegeneratingRegions.Num() > 0 && GetWorld())
+		{
+			if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+			{
+				Subsystem->InvalidatePathsInRegions(CurrentlyRegeneratingRegions);
+			}
+		}
+
 		// Fire completion delegate
 		if (OnNavigationRegenerated.IsBound())
 		{
 			OnNavigationRegenerated.Broadcast(this);
 		}
+
+		// Clear the regenerating regions set
+		CurrentlyRegeneratingRegions.Empty();
 	}
 	else if (ResultsProcessedThisFrame > 0)
 	{

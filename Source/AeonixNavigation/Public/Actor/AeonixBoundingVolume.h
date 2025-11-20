@@ -125,6 +125,9 @@ private:
 	/** Total number of leaves in current regeneration batch (for progress tracking) */
 	int32 CurrentRegenTotalLeaves = 0;
 
+	/** Regions that are currently being regenerated (for path invalidation) */
+	TSet<FGuid> CurrentlyRegeneratingRegions;
+
 protected:
 	FAeonixData NavigationData;
 

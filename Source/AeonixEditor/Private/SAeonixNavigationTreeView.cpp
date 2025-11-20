@@ -272,11 +272,18 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 	}
 
 	// Register active timer for PIE updates (refreshes tree every 0.5 seconds during PIE)
-	RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SAeonixNavigationTreeView::UpdateDuringPIE));
+	PIERefreshTimerHandle = RegisterActiveTimer(0.5f, FWidgetActiveTimerDelegate::CreateSP(this, &SAeonixNavigationTreeView::UpdateDuringPIE));
 }
 
 SAeonixNavigationTreeView::~SAeonixNavigationTreeView()
 {
+	// Unregister active timer
+	if (PIERefreshTimerHandle.IsValid())
+	{
+		UnRegisterActiveTimer(PIERefreshTimerHandle.ToSharedRef());
+		PIERefreshTimerHandle.Reset();
+	}
+
 	// Unsubscribe from registration changes
 	UAeonixSubsystem* Subsystem = GetSubsystem();
 	if (Subsystem)
@@ -781,7 +788,12 @@ EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurre
 	// Only auto-refresh during PIE to show dynamic changes
 	if (GEditor && GEditor->GetPIEWorldContext())
 	{
-		RefreshTreeData();
+		// Safety check: ensure subsystem is valid and not being destroyed
+		UAeonixSubsystem* Subsystem = GetSubsystem();
+		if (Subsystem && IsValid(Subsystem) && !Subsystem->HasAnyFlags(RF_BeginDestroyed))
+		{
+			RefreshTreeData();
+		}
 	}
 
 	// Continue ticking

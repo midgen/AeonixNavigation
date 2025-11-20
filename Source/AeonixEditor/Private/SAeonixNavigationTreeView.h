@@ -116,4 +116,7 @@ private:
 	int32 CachedVolumeCount = 0;
 	int32 CachedModifierCount = 0;
 	int32 CachedDynamicCount = 0;
+
+	// Active timer handle for PIE auto-refresh
+	TSharedPtr<FActiveTimerHandle> PIERefreshTimerHandle;
 };

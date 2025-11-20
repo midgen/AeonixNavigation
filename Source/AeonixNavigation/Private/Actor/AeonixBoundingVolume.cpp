@@ -838,6 +838,13 @@ void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
 		{
 			if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
 			{
+				// Increment region versions for invalidation detection
+				for (const FGuid& RegionId : CurrentlyRegeneratingRegions)
+				{
+					Subsystem->IncrementRegionVersion(RegionId);
+				}
+
+				// Invalidate existing paths
 				Subsystem->InvalidatePathsInRegions(CurrentlyRegeneratingRegions);
 			}
 		}

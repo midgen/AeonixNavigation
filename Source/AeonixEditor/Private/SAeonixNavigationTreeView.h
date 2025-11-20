@@ -95,6 +95,8 @@ private:
 	// Status text
 	FText GetStatusText() const;
 	FText GetPendingTasksText() const;
+	FText GetPathfindMetricsText() const;
+	FText GetWorkerPoolStatusText() const;
 
 	// Tree state management
 	void ExpandAllItems();

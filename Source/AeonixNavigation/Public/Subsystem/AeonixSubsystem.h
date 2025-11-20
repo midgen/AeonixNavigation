@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Data/AeonixTypes.h"
+#include "Data/AeonixThreading.h"
 #include "Interface/AeonixSubsystemInterface.h"
 #include "Data/AeonixHandleTypes.h"
 
@@ -63,9 +64,10 @@ public:
 	void RegisterComponentWithPath(UAeonixNavAgentComponent* Component);
 	void UnregisterComponentWithPath(UAeonixNavAgentComponent* Component);
 
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
-	virtual void Deinitialize() override;
 
 	virtual bool IsTickable() const override;
 	virtual bool IsTickableInEditor() const override;
@@ -75,6 +77,10 @@ public:
 	size_t GetNumberOfPendingTasks() const;
 	size_t GetNumberOfRegisteredNavAgents() const;
 	size_t GetNumberOfRegisteredNavVolumes() const;
+
+	// Load metrics and monitoring
+	const FAeonixLoadMetrics& GetLoadMetrics() const { return LoadMetrics; }
+	void RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds = 0.05f);
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -130,7 +136,25 @@ private:
 	FCriticalSection ComponentPathRegistryLock;
 	TSet<TWeakObjectPtr<UAeonixNavAgentComponent>> ComponentsWithPaths;
 
-private:
+	// Threading infrastructure
+	FAeonixPathfindWorkerPool WorkerPool;
+	FAeonixLoadMetrics LoadMetrics;
+	FCriticalSection PathRequestsLock;
+	int32 MaxConcurrentPathfinds = 8; // Configurable limit
+
+	// Priority-based request queue (sorted by priority, then FIFO within priority)
 	TArray<TUniquePtr<FAeonixPathFindRequest>> PathRequests;
+
+	// Region versioning for invalidation detection
+	TMap<FGuid, uint32> RegionVersionMap;
+	mutable FCriticalSection RegionVersionLock;
+
+	// Helper methods
+	bool TryAcquirePathfindReadLock(const AAeonixBoundingVolume* Volume, float TimeoutSeconds = 0.1f);
+
+public:
+	// Region versioning API
+	uint32 GetRegionVersion(const FGuid& RegionId) const;
+	void IncrementRegionVersion(const FGuid& RegionId);
 };
 

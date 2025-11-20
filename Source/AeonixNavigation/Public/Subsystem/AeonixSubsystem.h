@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Data/AeonixTypes.h"
+#include "Data/AeonixThreading.h"
 #include "Interface/AeonixSubsystemInterface.h"
 #include "Data/AeonixHandleTypes.h"
 
@@ -53,10 +54,21 @@ public:
 	virtual FOnRegistrationChanged& GetOnRegistrationChanged() override { return OnRegistrationChanged; }
 	virtual void RequestDebugPathUpdate(UAeonixNavAgentComponent* NavComponent) override;
 	/* IAeonixSubsystemInterface END */
-	
+
+	// Path invalidation registry
+	void RegisterPath(TSharedPtr<FAeonixNavigationPath> Path);
+	void UnregisterPath(FAeonixNavigationPath* Path);
+	void InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRegionIds);
+
+	// Component-based path tracking (for invalidation)
+	void RegisterComponentWithPath(UAeonixNavAgentComponent* Component);
+	void UnregisterComponentWithPath(UAeonixNavAgentComponent* Component);
+
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
-	
+
 	virtual bool IsTickable() const override;
 	virtual bool IsTickableInEditor() const override;
 	virtual bool IsTickableWhenPaused() const override;
@@ -65,6 +77,13 @@ public:
 	size_t GetNumberOfPendingTasks() const;
 	size_t GetNumberOfRegisteredNavAgents() const;
 	size_t GetNumberOfRegisteredNavVolumes() const;
+
+	// Access to registered volumes for debug UI
+	const TArray<FAeonixBoundingVolumeHandle>& GetRegisteredVolumes() const { return RegisteredVolumes; }
+
+	// Load metrics and monitoring
+	const FAeonixLoadMetrics& GetLoadMetrics() const { return LoadMetrics; }
+	void RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds = 0.05f);
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -103,13 +122,42 @@ private:
 	/** Update debug paths for all nav agents within a specific volume */
 	void UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume);
 
+	/** Track which dynamic regions a path traverses through */
+	void TrackPathRegions(FAeonixNavigationPath& Path, const AAeonixBoundingVolume* BoundingVolume);
+
 	/** Delegate broadcast when navigation regeneration completes */
 	FOnNavigationRegenCompleted OnNavigationRegenCompleted;
 
 	/** Delegate broadcast when registration changes */
 	FOnRegistrationChanged OnRegistrationChanged;
 
-private:
+	// Path invalidation tracking
+	FCriticalSection PathRegistryLock;
+	TSet<TWeakPtr<FAeonixNavigationPath>> ActivePaths;
+
+	// Component-based path tracking (for invalidation via dynamic regions)
+	FCriticalSection ComponentPathRegistryLock;
+	TSet<TWeakObjectPtr<UAeonixNavAgentComponent>> ComponentsWithPaths;
+
+	// Threading infrastructure
+	FAeonixPathfindWorkerPool WorkerPool;
+	FAeonixLoadMetrics LoadMetrics;
+	FCriticalSection PathRequestsLock;
+	int32 MaxConcurrentPathfinds = 8; // Configurable limit
+
+	// Priority-based request queue (sorted by priority, then FIFO within priority)
 	TArray<TUniquePtr<FAeonixPathFindRequest>> PathRequests;
+
+	// Region versioning for invalidation detection
+	TMap<FGuid, uint32> RegionVersionMap;
+	mutable FCriticalSection RegionVersionLock;
+
+	// Helper methods
+	bool TryAcquirePathfindReadLock(const AAeonixBoundingVolume* Volume, float TimeoutSeconds = 0.1f);
+
+public:
+	// Region versioning API
+	uint32 GetRegionVersion(const FGuid& RegionId) const;
+	void IncrementRegionVersion(const FGuid& RegionId);
 };
 

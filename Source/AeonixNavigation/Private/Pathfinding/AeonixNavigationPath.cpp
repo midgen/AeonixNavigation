@@ -163,3 +163,31 @@ void FAeonixNavigationPath::CreateNavPath(FNavigationPath& aOutPath)
 		aOutPath.GetPathPoints().Add(point.Position);
 	}
 }
+
+void FAeonixNavigationPath::AddTraversedRegion(const FGuid& RegionId)
+{
+	TraversedRegionIds.Add(RegionId);
+}
+
+bool FAeonixNavigationPath::CheckInvalidation(const TSet<FGuid>& RegeneratedRegions) const
+{
+	// Check if any of our traversed regions were regenerated
+	for (const FGuid& RegionId : TraversedRegionIds)
+	{
+		if (RegeneratedRegions.Contains(RegionId))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FAeonixNavigationPath::MarkInvalid()
+{
+	if (bIsValid)
+	{
+		bIsValid = false;
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path invalidated - %d regions traversed"), TraversedRegionIds.Num());
+		OnPathInvalidated.Broadcast(this);
+	}
+}

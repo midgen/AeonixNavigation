@@ -79,6 +79,9 @@ private:
 	UAeonixSubsystem* GetSubsystem() const;
 	UWorld* GetTargetWorld() const;
 
+	// PIE auto-refresh timer
+	EActiveTimerReturnType UpdateDuringPIE(double InCurrentTime, float InDeltaTime);
+
 	// Button callbacks
 	FReply OnRefreshClicked();
 	FReply OnTerminatePathfindsClicked();
@@ -95,6 +98,9 @@ private:
 	// Status text
 	FText GetStatusText() const;
 	FText GetPendingTasksText() const;
+	FText GetPathfindMetricsText() const;
+	FText GetWorkerPoolStatusText() const;
+	FText GetGenerationMetricsText() const;
 
 	// Tree state management
 	void ExpandAllItems();
@@ -110,4 +116,7 @@ private:
 	int32 CachedVolumeCount = 0;
 	int32 CachedModifierCount = 0;
 	int32 CachedDynamicCount = 0;
+
+	// Active timer handle for PIE auto-refresh
+	TSharedPtr<FActiveTimerHandle> PIERefreshTimerHandle;
 };

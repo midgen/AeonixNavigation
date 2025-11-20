@@ -4,6 +4,9 @@
 
 struct FAeonixData;
 
+// Delegate for path invalidation notification
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnPathInvalidated, FAeonixNavigationPath*);
+
 UENUM(BlueprintType)
 enum class EAeonixPathPointType : uint8
 {
@@ -108,10 +111,24 @@ public:
 	// Copy the path positions into a standard navigation path
 	void CreateNavPath(FNavigationPath& aOutPath);
 
+	// Path invalidation support
+	void AddTraversedRegion(const FGuid& RegionId);
+	bool CheckInvalidation(const TSet<FGuid>& RegeneratedRegions) const;
+	void MarkInvalid();
+	bool IsValid() const { return bIsValid; }
+	const TSet<FGuid>& GetTraversedRegionIds() const { return TraversedRegionIds; }
+
+	// Delegate broadcast when path is invalidated
+	FOnPathInvalidated OnPathInvalidated;
+
 protected:
 	bool myIsReady;
 	TArray<FAeonixPathPoint> myPoints;
 #if WITH_EDITOR
 	TArray<FDebugVoxelInfo> myDebugVoxelInfo;
 #endif
+
+	// Path invalidation tracking
+	TSet<FGuid> TraversedRegionIds;
+	bool bIsValid = true;
 };

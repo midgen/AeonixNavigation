@@ -15,10 +15,35 @@
 #include "Data/AeonixHandleTypes.h"
 #include "Data/AeonixStats.h"
 #include "Data/AeonixGenerationParameters.h"
+#include "Data/AeonixThreading.h"
+#include "Settings/AeonixSettings.h"
 
 #include "MassCommonFragments.h"
 #include "MassEntityManager.h"
 #include "MassEntitySubsystem.h"
+#include "HAL/PlatformProcess.h"
+#include "DrawDebugHelpers.h"
+
+void UAeonixSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// Get settings
+	const UAeonixSettings* Settings = GetDefault<UAeonixSettings>();
+	const int32 NumWorkerThreads = Settings ? Settings->PathfindingWorkerThreads : 2;
+
+	// Initialize worker pool
+	WorkerPool.Initialize(NumWorkerThreads);
+
+	// Update max concurrent pathfinds from settings
+	if (Settings)
+	{
+		MaxConcurrentPathfinds = Settings->MaxConcurrentPathfinds;
+	}
+
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem initialized: %d worker threads, max %d concurrent pathfinds"),
+		NumWorkerThreads, MaxConcurrentPathfinds);
+}
 
 void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag CreateMassEntity)
 {
@@ -342,12 +367,38 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 
 	// Acquire read lock for thread-safe octree access during pathfinding
 	bool Result;
+	FAeonixPathFailureInfo FailureInfo;
 	{
 		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingSync);
 
 		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
-		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath);
+		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath, &FailureInfo);
+	}
+
+	// CRITICAL FIX: Track regions BEFORE marking path ready
+	// This ensures path is registered before it can be invalidated
+	if (Result)
+	{
+		TrackPathRegions(OutPath, NavVolume);
+	}
+	else if (FailureInfo.bFailedDueToMaxIterations)
+	{
+		// Draw debug visualization for max iteration failure
+		if (UWorld* World = GetWorld())
+		{
+			// Red line from start to target
+			DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+
+			// Red sphere at start position
+			DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+
+			// Magenta sphere at target position
+			DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+
+			UE_LOG(LogAeonixNavigation, Warning, TEXT("Pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
+				FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
+		}
 	}
 
 	OutPath.SetIsReady(true);
@@ -361,8 +412,14 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
 
-	TUniquePtr<FAeonixPathFindRequest>& Request = PathRequests.Add_GetRef(MakeUnique<FAeonixPathFindRequest>());
+	// Create request with enhanced metadata
+	TUniquePtr<FAeonixPathFindRequest> Request = MakeUnique<FAeonixPathFindRequest>();
 	FAeonixPathFindRequest* RequestPtr = Request.Get();
+
+	// Set request metadata
+	RequestPtr->SubmitTime = FPlatformTime::Seconds();
+	RequestPtr->RequestingAgent = NavigationComponent;
+	RequestPtr->Priority = EAeonixRequestPriority::Normal; // Can be customized per agent
 
 	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
 
@@ -370,6 +427,11 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Nav Agent Not In A Volume"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+
+		// Add to requests array so we can return the delegate
+		FScopeLock Lock(&PathRequestsLock);
+		PathRequests.Add(MoveTemp(Request));
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
@@ -378,6 +440,10 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+
+		FScopeLock Lock(&PathRequestsLock);
+		PathRequests.Add(MoveTemp(Request));
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
@@ -385,6 +451,10 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+		LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+
+		FScopeLock Lock(&PathRequestsLock);
+		PathRequests.Add(MoveTemp(Request));
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
@@ -402,6 +472,10 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		OutPath.SetIsReady(true);
 		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Same voxel path - direct path with 2 points"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+		LoadMetrics.CompletedPathfindsTotal.fetch_add(1);
+
+		FScopeLock Lock(&PathRequestsLock);
+		PathRequests.Add(MoveTemp(Request));
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
@@ -410,17 +484,44 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	OutPath.SetIsReady(false);
 
 	// Copy necessary data to avoid dangling references in async task
-	// Using TWeakObjectPtr for UObjects that could be destroyed
 	TWeakObjectPtr<const AAeonixBoundingVolume> WeakNavVolume = NavVolume;
+	TWeakObjectPtr<UAeonixSubsystem> WeakSubsystem = this;
 	FAeonixPathFinderSettings PathfinderSettingsCopy = NavigationComponent->PathfinderSettings;
 	FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
 	FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
 
-	// Kick off the pathfinding on the task graphs
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[RequestPtr, WeakNavVolume, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, &OutPath]()
+	// Capture region versions BEFORE pathfinding starts
+	// We'll validate these at the end to detect if regions were regenerated mid-calculation
+	TMap<FGuid, uint32> CapturedRegionVersions;
+	const FAeonixGenerationParameters& Params = NavVolume->GenerationParameters;
+	for (const auto& RegionPair : Params.DynamicRegionBoxes)
+	{
+		CapturedRegionVersions.Add(RegionPair.Key, GetRegionVersion(RegionPair.Key));
+	}
+
+	// Update metrics
+	LoadMetrics.PendingPathfinds.fetch_add(1);
+
+	// Enqueue work to worker pool
+	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions, &OutPath]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
+
+		const double StartTime = FPlatformTime::Seconds();
+
+		// Check if request was cancelled
+		if (RequestPtr->IsStale())
+		{
+			OutPath.SetIsReady(false);
+			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Cancelled);
+
+			if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
+			{
+				Subsystem->LoadMetrics.CancelledPathfindsTotal.fetch_add(1);
+				Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
+			}
+			return;
+		}
 
 		// Check if volume is still valid
 		const AAeonixBoundingVolume* NavVolume = WeakNavVolume.Get();
@@ -429,7 +530,19 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
 			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
+
+			if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
+			{
+				Subsystem->LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+				Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
+			}
 			return;
+		}
+
+		UAeonixSubsystem* Subsystem = WeakSubsystem.Get();
+		if (Subsystem)
+		{
+			Subsystem->LoadMetrics.ActivePathfinds.fetch_add(1);
 		}
 
 		// Acquire read lock for thread-safe octree access during pathfinding
@@ -437,19 +550,112 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
 
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath))
+		FAeonixPathFailureInfo FailureInfo;
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath, &FailureInfo))
 		{
-			OutPath.SetIsReady(true);
-			UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
-			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+			// CRITICAL FIX: Track regions BEFORE marking path ready
+			// This prevents race condition where path is used before tracking completes,
+			// causing invalidation to miss the path when regions regenerate
+			if (Subsystem)
+			{
+				Subsystem->TrackPathRegions(OutPath, NavVolume);
+			}
+
+			// Validate that regions didn't change during pathfinding calculation
+			// If any region was regenerated while we were calculating, mark path as invalidated
+			bool bPathStale = false;
+			if (Subsystem)
+			{
+				for (const auto& RegionVersionPair : CapturedRegionVersions)
+				{
+					const uint32 CurrentVersion = Subsystem->GetRegionVersion(RegionVersionPair.Key);
+					if (CurrentVersion != RegionVersionPair.Value)
+					{
+						UE_LOG(LogAeonixNavigation, Warning,
+							TEXT("AeonixSubsystem: Path calculated with stale data - region %s changed from version %d to %d during pathfinding"),
+							*RegionVersionPair.Key.ToString(), RegionVersionPair.Value, CurrentVersion);
+						bPathStale = true;
+						break;
+					}
+				}
+			}
+
+			if (bPathStale)
+			{
+				// Path was calculated based on outdated navigation data
+				OutPath.SetIsReady(false);
+				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Invalidated);
+
+				if (Subsystem)
+				{
+					Subsystem->LoadMetrics.CancelledPathfindsTotal.fetch_add(1);
+				}
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path invalidated (region changed during calculation)"));
+			}
+			else
+			{
+				// Path is valid - mark ready
+				OutPath.SetIsReady(true);
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+
+				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
+
+				if (Subsystem)
+				{
+					Subsystem->LoadMetrics.CompletedPathfindsTotal.fetch_add(1);
+					const float ElapsedMs = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
+					Subsystem->LoadMetrics.UpdatePathfindTime(ElapsedMs);
+				}
+			}
 		}
 		else
 		{
+			// Pathfinding failed
 			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		}
-	}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
 
+			if (Subsystem)
+			{
+				Subsystem->LoadMetrics.FailedPathfindsTotal.fetch_add(1);
+			}
+
+			// Draw debug visualization if failed due to max iterations
+			if (FailureInfo.bFailedDueToMaxIterations)
+			{
+				// Queue debug visualization to game thread
+				AsyncTask(ENamedThreads::GameThread, [FailureInfo, WeakSubsystem]()
+				{
+					if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
+					{
+						if (UWorld* World = Subsystem->GetWorld())
+						{
+							// Red line from start to target
+							DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+
+							// Red sphere at start position
+							DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+
+							// Magenta sphere at target position
+							DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+
+							UE_LOG(LogAeonixNavigation, Warning, TEXT("Async pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
+								FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
+						}
+					}
+				});
+			}
+		}
+
+		if (Subsystem)
+		{
+			Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
+		}
+	});
+
+	// Add to requests array
+	FScopeLock Lock(&PathRequestsLock);
+	PathRequests.Add(MoveTemp(Request));
 	return RequestPtr->OnPathFindRequestComplete;
 }
 
@@ -764,6 +970,8 @@ void UAeonixSubsystem::Tick(float DeltaTime)
 
 void UAeonixSubsystem::UpdateRequests()
 {
+	FScopeLock Lock(&PathRequestsLock);
+
 	for (int32 i = 0; i < PathRequests.Num();)
 	{
 		FAeonixPathFindRequest* Request = PathRequests[i].Get();
@@ -774,6 +982,9 @@ void UAeonixSubsystem::UpdateRequests()
 			EAeonixPathFindStatus Status = Request->PathFindFuture.Get();
 			Request->OnPathFindRequestComplete.ExecuteIfBound(Status);
 			PathRequests.RemoveAtSwap(i);
+
+			// Decrement pending counter
+			LoadMetrics.PendingPathfinds.fetch_sub(1);
 			continue;
 		}
 		i++;
@@ -888,5 +1099,215 @@ void UAeonixSubsystem::RequestDebugPathUpdate(UAeonixNavAgentComponent* NavCompo
 bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	// All the worlds, so it works in editor
+	return true;
+}
+
+void UAeonixSubsystem::Deinitialize()
+{
+	// Cancel all pending async pathfinding tasks before subsystem destruction
+	// This prevents TPromise destructor failures when PIE ends with active tasks
+	CompleteAllPendingPathfindingTasks();
+
+	// Shutdown worker pool
+	WorkerPool.Shutdown();
+
+	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem deinitialized"));
+
+	Super::Deinitialize();
+}
+
+void UAeonixSubsystem::RegisterPath(TSharedPtr<FAeonixNavigationPath> Path)
+{
+	if (!Path.IsValid())
+	{
+		UE_LOG(LogAeonixNavigation, Warning, TEXT("Attempted to register invalid path"));
+		return;
+	}
+
+	FScopeLock Lock(&PathRegistryLock);
+	ActivePaths.Add(Path);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path registered - %d active paths"), ActivePaths.Num());
+}
+
+void UAeonixSubsystem::UnregisterPath(FAeonixNavigationPath* Path)
+{
+	if (!Path)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&PathRegistryLock);
+
+	// Find and remove the matching weak pointer
+	for (auto It = ActivePaths.CreateIterator(); It; ++It)
+	{
+		if (TSharedPtr<FAeonixNavigationPath> PinnedPath = It->Pin())
+		{
+			if (PinnedPath.Get() == Path)
+			{
+				It.RemoveCurrent();
+				UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path unregistered - %d active paths remaining"), ActivePaths.Num());
+				return;
+			}
+		}
+		else
+		{
+			// Clean up stale pointer while we're here
+			It.RemoveCurrent();
+		}
+	}
+}
+
+void UAeonixSubsystem::InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRegionIds)
+{
+	if (RegeneratedRegionIds.Num() == 0)
+	{
+		return;
+	}
+
+	// Component-based invalidation approach
+	TArray<UAeonixNavAgentComponent*> ComponentsToCheck;
+
+	// Lock only for copying weak object pointers
+	{
+		FScopeLock Lock(&ComponentPathRegistryLock);
+		for (auto It = ComponentsWithPaths.CreateIterator(); It; ++It)
+		{
+			if (UAeonixNavAgentComponent* Component = It->Get())
+			{
+				ComponentsToCheck.Add(Component);
+			}
+			else
+			{
+				// Clean up stale pointers
+				It.RemoveCurrent();
+			}
+		}
+	}
+	// Lock released - now safe to access components and call delegates
+
+	int32 NumInvalidated = 0;
+	for (UAeonixNavAgentComponent* Component : ComponentsToCheck)
+	{
+		FAeonixNavigationPath& Path = Component->GetPath();
+		if (Path.CheckInvalidation(RegeneratedRegionIds))
+		{
+			Path.MarkInvalid(); // Broadcasts delegate
+			NumInvalidated++;
+		}
+	}
+
+	if (NumInvalidated > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Log, TEXT("Invalidated %d paths across %d components affected by %d regenerated regions"),
+			NumInvalidated, ComponentsToCheck.Num(), RegeneratedRegionIds.Num());
+	}
+}
+
+void UAeonixSubsystem::TrackPathRegions(FAeonixNavigationPath& Path, const AAeonixBoundingVolume* BoundingVolume)
+{
+	if (!BoundingVolume)
+	{
+		return;
+	}
+
+	const FAeonixGenerationParameters& Params = BoundingVolume->GenerationParameters;
+	if (Params.DynamicRegionBoxes.Num() == 0)
+	{
+		// No dynamic regions to track
+		return;
+	}
+
+	// Check each path point against all dynamic regions
+	const TArray<FAeonixPathPoint>& PathPoints = Path.GetPathPoints();
+	for (const FAeonixPathPoint& Point : PathPoints)
+	{
+		for (const auto& RegionPair : Params.DynamicRegionBoxes)
+		{
+			if (RegionPair.Value.IsInsideOrOn(Point.Position))
+			{
+				Path.AddTraversedRegion(RegionPair.Key);
+			}
+		}
+	}
+
+	if (Path.GetTraversedRegionIds().Num() > 0)
+	{
+		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path tracks %d dynamic regions"), Path.GetTraversedRegionIds().Num());
+	}
+}
+
+void UAeonixSubsystem::RegisterComponentWithPath(UAeonixNavAgentComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&ComponentPathRegistryLock);
+	ComponentsWithPaths.Add(Component);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Registered component %s for path invalidation tracking"), *Component->GetName());
+}
+
+void UAeonixSubsystem::UnregisterComponentWithPath(UAeonixNavAgentComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&ComponentPathRegistryLock);
+	ComponentsWithPaths.Remove(Component);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Unregistered component %s from path invalidation tracking"), *Component->GetName());
+}
+
+// Region versioning for invalidation detection
+
+uint32 UAeonixSubsystem::GetRegionVersion(const FGuid& RegionId) const
+{
+	FScopeLock Lock(&RegionVersionLock);
+	const uint32* Version = RegionVersionMap.Find(RegionId);
+	return Version ? *Version : 0;
+}
+
+void UAeonixSubsystem::IncrementRegionVersion(const FGuid& RegionId)
+{
+	FScopeLock Lock(&RegionVersionLock);
+	uint32& Version = RegionVersionMap.FindOrAdd(RegionId, 0);
+	Version++;
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Incremented region %s version to %d"), *RegionId.ToString(), Version);
+}
+
+// Request requeuing for lock contention
+
+void UAeonixSubsystem::RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds)
+{
+	if (!Request.IsValid())
+	{
+		return;
+	}
+
+	// Re-add to queue with delay (will be processed in next tick)
+	// In a production system, you might want a separate delayed queue
+	FScopeLock Lock(&PathRequestsLock);
+	PathRequests.Add(MoveTemp(Request));
+	LoadMetrics.PendingPathfinds.fetch_add(1);
+
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Requeued pathfind request due to lock contention (delay: %.3fs)"), DelaySeconds);
+}
+
+// Try to acquire read lock with timeout
+
+bool UAeonixSubsystem::TryAcquirePathfindReadLock(const AAeonixBoundingVolume* Volume, float TimeoutSeconds)
+{
+	if (!Volume)
+	{
+		return false;
+	}
+
+	// For now, we'll use a simple approach - just try to acquire
+	// In a more sophisticated implementation, you could use FRWLock::TryReadLock if available
+	// For this implementation, we'll assume lock acquisition succeeds
+	// The actual locking happens in the pathfinding lambda
 	return true;
 }

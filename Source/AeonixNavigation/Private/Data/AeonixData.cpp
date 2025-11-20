@@ -164,6 +164,10 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 	{
 		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
 	}
+
+	// Rebuild neighbor links for Layer 0 after dynamic regeneration
+	// This is critical because neighbor links become stale when leaf voxels change
+	BuildNeighbourLinks(0, DebugInterface);
 }
 
 void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
@@ -269,6 +273,10 @@ void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, cons
 	{
 		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that specified regions overlap with generated navigation."));
 	}
+
+	// Rebuild neighbor links for Layer 0 after dynamic regeneration
+	// This is critical because neighbor links become stale when leaf voxels change
+	BuildNeighbourLinks(0, DebugInterface);
 }
 
 int32 FAeonixData::GetNumNodesInLayer(layerindex_t Layer) const

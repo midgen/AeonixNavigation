@@ -303,7 +303,7 @@ TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPt
 			.ColorAndOpacity(TextColor)
 		];
 
-	// Add generation strategy icon for bounding volumes
+	// Add generation strategy icon and metrics for bounding volumes
 	if (Item->Type == EAeonixTreeItemType::BoundingVolume && Item->IsValid())
 	{
 		AAeonixBoundingVolume* Volume = Item->BoundingVolume.Get();
@@ -320,6 +320,39 @@ TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPt
 					.ToolTipText(bUsesBaked ? LOCTEXT("BakedDataTooltip", "Using Baked Data") : LOCTEXT("RuntimeGenTooltip", "Generate OnBeginPlay"))
 					.ColorAndOpacity(bUsesBaked ? FSlateColor(FLinearColor(0.2f, 0.8f, 0.2f)) : FSlateColor(FLinearColor(0.8f, 0.6f, 0.2f)))
 				];
+
+			// Add volume-specific metrics
+			if (Volume->HasData())
+			{
+				const FAeonixData& NavData = Volume->GetNavData();
+				int32 NumLayers = NavData.OctreeData.GetNumLayers();
+				int32 NumLeaves = NavData.OctreeData.LeafNodes.Num();
+				int32 NumNodes = 0;
+				for (int32 i = 0; i < NumLayers; ++i)
+				{
+					NumNodes += NavData.OctreeData.GetLayer(i).Num();
+				}
+				int32 MemoryKB = NavData.OctreeData.GetSize() / 1024;
+
+				FText MetricsText = FText::Format(
+					LOCTEXT("VolumeMetrics", "Layers: {0} | Nodes: {1} | Leaves: {2} | Memory: {3} KB"),
+					FText::AsNumber(NumLayers),
+					FText::AsNumber(NumNodes),
+					FText::AsNumber(NumLeaves),
+					FText::AsNumber(MemoryKB)
+				);
+
+				RowContent->AddSlot()
+					.AutoWidth()
+					.Padding(8.0f, 0.0f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(MetricsText)
+						.Font(FAppStyle::GetFontStyle("SmallFont"))
+						.ColorAndOpacity(FSlateColor(FLinearColor(0.6f, 0.6f, 0.6f)))
+					];
+			}
 		}
 	}
 
@@ -700,12 +733,8 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 		return LOCTEXT("NoSubsystemGen", "Subsystem unavailable");
 	}
 
-	// Aggregate metrics from all registered bounding volumes
-	int32 TotalLayers = 0;
-	int32 TotalNodes = 0;
-	int32 TotalLeafNodes = 0;
+	// Aggregate global metrics from all registered bounding volumes
 	int32 TotalDynamicRegions = 0;
-	int32 TotalMemoryBytes = 0;
 
 	const TArray<FAeonixBoundingVolumeHandle>& RegisteredVolumes = Subsystem->GetRegisteredVolumes();
 
@@ -716,24 +745,8 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 			if (Volume->HasData())
 			{
 				const FAeonixData& NavData = Volume->GetNavData();
-
-				// Count layers (take max across volumes)
-				TotalLayers = FMath::Max(TotalLayers, static_cast<int32>(NavData.OctreeData.GetNumLayers()));
-
-				// Count leaf nodes
-				TotalLeafNodes += NavData.OctreeData.LeafNodes.Num();
-
-				// Count total nodes across all layers
-				for (int32 i = 0; i < NavData.OctreeData.GetNumLayers(); ++i)
-				{
-					TotalNodes += NavData.OctreeData.GetLayer(i).Num();
-				}
-
-				// Count dynamic regions
+				// Count dynamic regions across all volumes
 				TotalDynamicRegions += NavData.GetParams().DynamicRegionBoxes.Num();
-
-				// Sum memory usage
-				TotalMemoryBytes += NavData.OctreeData.GetSize();
 			}
 		}
 	}
@@ -743,12 +756,8 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 	const float AvgRegenTimeMs = Metrics.AverageRegenTimeMs.Load();
 
 	return FText::Format(
-		LOCTEXT("GenerationMetricsText", "Layers: {0} | Nodes: {1} | Leaves: {2} | Dynamic Regions: {3} | Memory: {4} KB | Avg Regen: {5}μs"),
-		FText::AsNumber(TotalLayers),
-		FText::AsNumber(TotalNodes),
-		FText::AsNumber(TotalLeafNodes),
+		LOCTEXT("GenerationMetricsText", "Dynamic Regions: {0} | Avg Regen: {1}μs"),
 		FText::AsNumber(TotalDynamicRegions),
-		FText::AsNumber(TotalMemoryBytes / 1024),
 		FText::AsNumber(FMath::RoundToInt(AvgRegenTimeMs * 1000.0f))
 	);
 }

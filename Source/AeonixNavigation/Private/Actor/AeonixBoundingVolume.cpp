@@ -171,10 +171,20 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 		DebugManager->Clear(EAeonixDebugCategory::Octree);
 	}
 
+	// Start timing
+	const double StartTime = FPlatformTime::Seconds();
+
 	// Acquire write lock for thread-safe octree modification
 	{
 		FWriteScopeLock WriteLock(OctreeDataLock);
 		NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+	}
+
+	// Update metrics with elapsed time
+	const float ElapsedMs = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
+	if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+	{
+		Subsystem->GetLoadMetrics().UpdateRegenTime(ElapsedMs);
 	}
 
 	// Draw debug boxes showing which regions were regenerated
@@ -185,7 +195,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 			FColor::Cyan, false, 5.0f, 0, 2.0f);
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s"), *GetName());
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s (%.2fms)"), *GetName(), ElapsedMs);
 
 #if WITH_EDITOR
 	// Mark actor as modified so Unreal saves the updated navigation data
@@ -288,6 +298,9 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves"),
 		Batch.LeafIndicesToProcess.Num());
 
+	// Store start time for metrics tracking
+	AsyncRegenStartTime = FPlatformTime::Seconds();
+
 	// Dispatch async task to background thread
 	FFunctionGraphTask::CreateAndDispatchWhenReady([Batch]()
 	{
@@ -328,6 +341,9 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
 		DebugManager->Clear(EAeonixDebugCategory::Octree);
 	}
 
+	// Start timing
+	const double StartTime = FPlatformTime::Seconds();
+
 	// Acquire write lock for thread-safe octree modification
 	{
 		FWriteScopeLock WriteLock(OctreeDataLock);
@@ -335,6 +351,16 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
 		SingleRegion.Add(RegionId);
 		NavigationData.RegenerateDynamicSubregions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
 	}
+
+	// Update metrics with elapsed time
+	const float ElapsedMs = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
+	if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+	{
+		Subsystem->GetLoadMetrics().UpdateRegenTime(ElapsedMs);
+	}
+
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregion complete for region %s in volume %s (%.2fms)"),
+		*RegionId.ToString(), *GetName(), ElapsedMs);
 
 #if WITH_EDITOR
 	// Mark actor as modified so Unreal saves the updated navigation data
@@ -457,6 +483,9 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 
 	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves across %d regions"),
 		Batch.LeafIndicesToProcess.Num(), RegionIds.Num());
+
+	// Store start time for metrics tracking
+	AsyncRegenStartTime = FPlatformTime::Seconds();
 
 	// Dispatch async task to background thread
 	FFunctionGraphTask::CreateAndDispatchWhenReady([Batch]()
@@ -821,6 +850,17 @@ void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
 		const double TotalTime = FPlatformTime::Seconds() - StartTime;
 		UE_LOG(LogAeonixRegen, Display, TEXT("Dynamic regen complete: Updated %d/%d leaf nodes (%d skipped) in %.2fms"),
 			NodesUpdated, CurrentRegenTotalLeaves, SkippedNodes, TotalTime * 1000.0);
+
+		// Update metrics with total elapsed time (from async start to completion)
+		if (AsyncRegenStartTime > 0.0)
+		{
+			const float TotalElapsedMs = (FPlatformTime::Seconds() - AsyncRegenStartTime) * 1000.0f;
+			if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+			{
+				Subsystem->GetLoadMetrics().UpdateRegenTime(TotalElapsedMs);
+			}
+			AsyncRegenStartTime = 0.0; // Reset for next regen
+		}
 
 		// Clear the queue
 		PendingRegenResults.Empty();

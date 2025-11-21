@@ -14,6 +14,7 @@ UAeonixEQSFloodFillGenerator::UAeonixEQSFloodFillGenerator(const FObjectInitiali
     ItemType = UEnvQueryItemType_Point::StaticClass();
     FloodRadius.DefaultValue = 1000.0f;
     NavAgentIndex.DefaultValue = 0;
+    MinPointSpacing.DefaultValue = 0.0f;
 }
 
 void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstance) const
@@ -34,6 +35,13 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
 
     float Radius = FloodRadius.GetValue();
     int32 AgentIdx = NavAgentIndex.GetValue();
+    float MinSpacing = MinPointSpacing.GetValue();
+
+    // Set up spatial bucket filtering if MinSpacing is enabled
+    const bool bUseDensityFiltering = MinSpacing > 0.0f;
+    const float BucketSize = bUseDensityFiltering ? MinSpacing * 0.866f : 0.0f; // Optimal sphere packing
+    const float InvBucketSize = bUseDensityFiltering ? 1.0f / BucketSize : 0.0f;
+    TSet<FIntVector> OccupiedBuckets;
 
     // Get nav volume and data
     const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForPosition(Origin);
@@ -67,7 +75,33 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
             continue;
         if (FVector::DistSquared(CurrentPos, Origin) > Radius * Radius)
             continue;
-        QueryInstance.AddItemData<UEnvQueryItemType_Point>(CurrentPos);
+
+        // Apply density filtering if enabled
+        bool bAddPoint = true;
+        if (bUseDensityFiltering)
+        {
+            // Calculate spatial bucket for this point
+            const FIntVector Bucket(
+                FMath::FloorToInt(CurrentPos.X * InvBucketSize),
+                FMath::FloorToInt(CurrentPos.Y * InvBucketSize),
+                FMath::FloorToInt(CurrentPos.Z * InvBucketSize)
+            );
+
+            // Check if bucket is already occupied
+            if (OccupiedBuckets.Contains(Bucket))
+            {
+                bAddPoint = false;
+            }
+            else
+            {
+                OccupiedBuckets.Add(Bucket);
+            }
+        }
+
+        if (bAddPoint)
+        {
+            QueryInstance.AddItemData<UEnvQueryItemType_Point>(CurrentPos);
+        }
 
         // Get neighbors
         TArray<AeonixLink> Neighbors;

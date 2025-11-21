@@ -24,6 +24,10 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = Generator)
     FAIDataProviderIntValue NavAgentIndex;
 
+	/** Minimum spacing between generated points (0 = no filtering, returns all navigable points) */
+	UPROPERTY(EditDefaultsOnly, Category = Generator)
+	FAIDataProviderFloatValue MinPointSpacing;
+
 	/** context */
 	UPROPERTY(EditAnywhere, Category = Generator)
 	TSubclassOf<class UEnvQueryContext> Context;

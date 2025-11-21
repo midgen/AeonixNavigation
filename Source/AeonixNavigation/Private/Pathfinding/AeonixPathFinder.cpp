@@ -259,25 +259,11 @@ float AeonixPathFinder::GetCost(const AeonixLink& aStart, const AeonixLink& aTar
 			// Both are leaf nodes - check if they're navigating between what should be adjacent nodes
 			if (startNode.FirstChild.IsValid() && endNode.FirstChild.IsValid())
 			{
-				// Check if the start node's leaf is empty (uses the empty leaf optimization)
-				const AeonixLeafNode& startLeafNode = NavigationData.OctreeData.GetLeafNode(startNode.FirstChild.GetNodeIndex());
-
-				float maxExpectedDistance;
-				if (startLeafNode.IsEmpty())
-				{
-					// Empty leaf optimization: navigating at Layer 0 voxel level
-					// Distance can be up to the diagonal of a Layer 0 voxel
-					float layer0VoxelSize = NavigationData.GetVoxelSize(0);
-					maxExpectedDistance = layer0VoxelSize * 1.8f; // sqrt(3) ≈ 1.73, add tolerance
-				}
-				else
-				{
-					// Normal leaf-to-leaf: navigating at sub-voxel level
-					// Leaf voxel size is 1/4 of the layer 0 voxel size
-					float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
-					// Maximum distance would be diagonal between adjacent leaf voxels
-					maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
-				}
+				// Normal leaf-to-leaf: navigating at sub-voxel level
+				// Leaf voxel size is 1/4 of the layer 0 voxel size
+				float leafVoxelSize = NavigationData.GetVoxelSize(0) * 0.25f;
+				// Maximum distance would be diagonal between adjacent leaf voxels
+				float maxExpectedDistance = leafVoxelSize * 2.0f; // Allow for diagonal neighbors
 
 				if (cost > maxExpectedDistance)
 				{
@@ -346,11 +332,6 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	TArray<FAeonixPathPoint> points;
 
-#if WITH_EDITOR
-	// Track which nodes used the empty leaf optimization for debug visualization
-	TArray<bool> emptyLeafFlags;
-#endif
-
 	// Initial path building from the A* results
 	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
 	{
@@ -359,7 +340,6 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 		points.Add(pos);
 		const AeonixNode& node = NavigationData.OctreeData.GetNode(aCurrent);
-		bool bIsEmptyLeaf = false;
 
 		if (aCurrent.GetLayerIndex() == 0)
 		{
@@ -369,30 +349,14 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 			}
 			else
 			{
-				// Check if the leaf is empty (using the empty leaf optimization)
-				const AeonixLeafNode& leafNode = NavigationData.OctreeData.GetLeafNode(node.FirstChild.GetNodeIndex());
-				if (leafNode.IsEmpty())
-				{
-					// Empty leaf optimization was used - use Layer 0 node center position
-					// instead of sub-voxel position, and render at Layer 0 voxel size
-					NavigationData.GetNodePosition(0, node.Code, points[points.Num() - 1].Position);
-					points[points.Num() - 1].Layer = 1;
-					bIsEmptyLeaf = true;
-				}
-				else
-				{
-					points[points.Num() - 1].Layer = 0;
-				}
+				// Layer 0 node with leaf subdivision - use actual sub-voxel position
+				points[points.Num() - 1].Layer = 0;
 			}
 		}
 		else
 		{
 			points[points.Num() - 1].Layer = aCurrent.GetLayerIndex() + 1;
 		}
-
-#if WITH_EDITOR
-		emptyLeafFlags.Add(bIsEmptyLeaf);
-#endif
 	}
 
 	if (points.Num() > 1)
@@ -414,13 +378,11 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	TArray<FDebugVoxelInfo> debugVoxelInfo;
 	debugVoxelInfo.Reserve(points.Num() + 2); // Reserve space for potential start/end additions
 
-
-	// Add intermediate points with empty leaf flags
+	// Add intermediate points
 	for (int32 i = 0; i < points.Num(); i++)
 	{
 		const FAeonixPathPoint& point = points[i];
-		bool bWasEmptyLeaf = emptyLeafFlags.IsValidIndex(i) ? emptyLeafFlags[i] : false;
-		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer, bWasEmptyLeaf));
+		debugVoxelInfo.Add(FDebugVoxelInfo(point.Position, point.Layer, false));
 	}
 
 	// Set actual voxel positions for debug visualization

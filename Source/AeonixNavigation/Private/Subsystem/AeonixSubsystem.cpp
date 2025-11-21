@@ -1013,11 +1013,21 @@ bool UAeonixSubsystem::IsTickableWhenPaused() const
 
 void UAeonixSubsystem::CompleteAllPendingPathfindingTasks()
 {
+	FScopeLock Lock(&PathRequestsLock);  // Thread safety - prevent races with UpdateRequests()
+
 	for (int32 i = PathRequests.Num() - 1; i >= 0; --i)
 	{
 		FAeonixPathFindRequest* Request = PathRequests[i].Get();
-		Request->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-		Request->OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Failed);
+
+		// Only set promise if not already fulfilled by worker thread
+		// This prevents crashes from double-setting promises during shutdown
+		if (!Request->PathFindFuture.IsReady())
+		{
+			Request->PathFindPromise.SetValue(EAeonixPathFindStatus::Cancelled);
+		}
+
+		// Always execute delegate (safe to call even if worker already did)
+		Request->OnPathFindRequestComplete.ExecuteIfBound(EAeonixPathFindStatus::Cancelled);
 	}
 	PathRequests.Empty();
 }
@@ -1104,12 +1114,22 @@ bool UAeonixSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) co
 
 void UAeonixSubsystem::Deinitialize()
 {
-	// Cancel all pending async pathfinding tasks before subsystem destruction
-	// This prevents TPromise destructor failures when PIE ends with active tasks
-	CompleteAllPendingPathfindingTasks();
+	// STEP 1: Mark all requests as cancelled (workers check this via IsStale())
+	{
+		FScopeLock Lock(&PathRequestsLock);
+		for (TUniquePtr<FAeonixPathFindRequest>& Request : PathRequests)
+		{
+			Request->bCancelled = true;
+		}
+	}
 
-	// Shutdown worker pool
+	// STEP 2: Shutdown worker pool (waits for in-flight tasks to complete)
+	// Workers will check bCancelled and handle gracefully
 	WorkerPool.Shutdown();
+
+	// STEP 3: Clean up any requests that workers didn't finish
+	// This must happen AFTER workers are shut down to avoid race conditions
+	CompleteAllPendingPathfindingTasks();
 
 	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem deinitialized"));
 
@@ -1193,6 +1213,7 @@ void UAeonixSubsystem::InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRe
 		if (Path.CheckInvalidation(RegeneratedRegionIds))
 		{
 			Path.MarkInvalid(); // Broadcasts delegate
+			LoadMetrics.InvalidatedPathsTotal.fetch_add(1);
 			NumInvalidated++;
 		}
 	}

@@ -80,9 +80,11 @@ public:
 
 	// Access to registered volumes for debug UI
 	const TArray<FAeonixBoundingVolumeHandle>& GetRegisteredVolumes() const { return RegisteredVolumes; }
+	const TArray<UAeonixDynamicObstacleComponent*>& GetRegisteredDynamicObstacles() const { return RegisteredDynamicObstacles; }
 
 	// Load metrics and monitoring
 	const FAeonixLoadMetrics& GetLoadMetrics() const { return LoadMetrics; }
+	FAeonixLoadMetrics& GetLoadMetrics() { return LoadMetrics; }
 	void RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds = 0.05f);
 
 protected:

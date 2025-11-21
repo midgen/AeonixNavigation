@@ -1,11 +1,11 @@
 ﻿#pragma once
 
 // These types moved around in 5.6, using this to maintain compatibility across versions on main branch
-#if !defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MAJOR_VERSION < 6)
+#if !defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6)
 #include "MassEntityTypes.h"
-#else 
+#else
 #include "MassEntityHandle.h"
-#endif //!defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MAJOR_VERSION < 6)
+#endif //!defined(ENGINE_MAJOR_VERSION) || ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 6)
 
 
 #include "AeonixHandleTypes.generated.h"

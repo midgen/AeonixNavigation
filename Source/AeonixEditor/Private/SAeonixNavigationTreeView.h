@@ -96,8 +96,6 @@ private:
 	void OnRegistrationChanged();
 
 	// Status text
-	FText GetStatusText() const;
-	FText GetPendingTasksText() const;
 	FText GetPathfindMetricsText() const;
 	FText GetWorkerPoolStatusText() const;
 	FText GetGenerationMetricsText() const;
@@ -112,11 +110,9 @@ private:
 	TArray<FAeonixTreeItemPtr> RootItems;
 	TSet<FAeonixTreeItemPtr> ExpandedItems;
 
-	// Cached counts for status display
-	int32 CachedVolumeCount = 0;
-	int32 CachedModifierCount = 0;
-	int32 CachedDynamicCount = 0;
-
 	// Active timer handle for PIE auto-refresh
 	TSharedPtr<FActiveTimerHandle> PIERefreshTimerHandle;
+
+	// Track PIE state to detect transitions
+	bool bWasInPIE = false;
 };

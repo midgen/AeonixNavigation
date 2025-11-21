@@ -125,6 +125,9 @@ private:
 	/** Total number of leaves in current regeneration batch (for progress tracking) */
 	int32 CurrentRegenTotalLeaves = 0;
 
+	/** Start time of current async regeneration (for metrics tracking) */
+	double AsyncRegenStartTime = 0.0;
+
 	/** Regions that are currently being regenerated (for path invalidation) */
 	TSet<FGuid> CurrentlyRegeneratingRegions;
 

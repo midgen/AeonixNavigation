@@ -37,6 +37,7 @@ struct AEONIXNAVIGATION_API FAeonixLoadMetrics
 	std::atomic<int32> CompletedPathfindsTotal{0};
 	std::atomic<int32> FailedPathfindsTotal{0};
 	std::atomic<int32> CancelledPathfindsTotal{0};
+	std::atomic<int32> InvalidatedPathsTotal{0};
 
 	TAtomic<float> AveragePathfindTimeMs{0.0f};
 	TAtomic<float> AverageRegenTimeMs{0.0f};
@@ -89,6 +90,7 @@ struct AEONIXNAVIGATION_API FAeonixLoadMetrics
 		CompletedPathfindsTotal = 0;
 		FailedPathfindsTotal = 0;
 		CancelledPathfindsTotal = 0;
+		InvalidatedPathsTotal = 0;
 		AveragePathfindTimeMs = 0.0f;
 		AverageRegenTimeMs = 0.0f;
 		PathfindSampleCount = 0;

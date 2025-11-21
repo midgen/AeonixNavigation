@@ -659,12 +659,13 @@ FText SAeonixNavigationTreeView::GetPathfindMetricsText() const
 	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
 
 	return FText::Format(
-		LOCTEXT("PathfindMetricsText", "Pending: {0} | Active: {1} | Completed: {2} | Failed: {3} | Cancelled: {4} | Avg Time: {5}μs"),
+		LOCTEXT("PathfindMetricsText", "Pending: {0} | Active: {1} | Completed: {2} | Failed: {3} | Cancelled: {4} | Invalidated: {5} | Avg Time: {6}μs"),
 		FText::AsNumber(Metrics.PendingPathfinds.load()),
 		FText::AsNumber(Metrics.ActivePathfinds.load()),
 		FText::AsNumber(Metrics.CompletedPathfindsTotal.load()),
 		FText::AsNumber(Metrics.FailedPathfindsTotal.load()),
 		FText::AsNumber(Metrics.CancelledPathfindsTotal.load()),
+		FText::AsNumber(Metrics.InvalidatedPathsTotal.load()),
 		FText::AsNumber(FMath::RoundToInt(Metrics.AveragePathfindTimeMs.Load() * 1000.0f))
 	);
 }

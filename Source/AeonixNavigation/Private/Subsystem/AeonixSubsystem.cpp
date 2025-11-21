@@ -1213,6 +1213,7 @@ void UAeonixSubsystem::InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRe
 		if (Path.CheckInvalidation(RegeneratedRegionIds))
 		{
 			Path.MarkInvalid(); // Broadcasts delegate
+			LoadMetrics.InvalidatedPathsTotal.fetch_add(1);
 			NumInvalidated++;
 		}
 	}

@@ -7,6 +7,7 @@
 #include "Component/AeonixDynamicObstacleComponent.h"
 #include "Subsystem/AeonixSubsystem.h"
 #include "Data/AeonixHandleTypes.h"
+#include "Data/AeonixGenerationParameters.h"
 
 #include "Editor.h"
 #include "EngineUtils.h"
@@ -237,28 +238,6 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 			]
 		]
 
-		// Status bar
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(4.0f)
-		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			[
-				SNew(STextBlock)
-				.Text(this, &SAeonixNavigationTreeView::GetStatusText)
-			]
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(STextBlock)
-				.Text(this, &SAeonixNavigationTreeView::GetPendingTasksText)
-				.ColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.7f, 0.0f)))
-			]
-		]
 	];
 
 	// Initial population
@@ -323,6 +302,59 @@ TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPt
 			.Text(FText::FromString(Item->DisplayName))
 			.ColorAndOpacity(TextColor)
 		];
+
+	// Add generation strategy icon and metrics for bounding volumes
+	if (Item->Type == EAeonixTreeItemType::BoundingVolume && Item->IsValid())
+	{
+		AAeonixBoundingVolume* Volume = Item->BoundingVolume.Get();
+		if (Volume)
+		{
+			const bool bUsesBaked = Volume->GenerationParameters.GenerationStrategy == ESVOGenerationStrategy::UseBaked;
+			RowContent->AddSlot()
+				.AutoWidth()
+				.Padding(4.0f, 0.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush(bUsesBaked ? "Icons.Save" : "Icons.Refresh"))
+					.ToolTipText(bUsesBaked ? LOCTEXT("BakedDataTooltip", "Using Baked Data") : LOCTEXT("RuntimeGenTooltip", "Generate OnBeginPlay"))
+					.ColorAndOpacity(bUsesBaked ? FSlateColor(FLinearColor(0.2f, 0.8f, 0.2f)) : FSlateColor(FLinearColor(0.8f, 0.6f, 0.2f)))
+				];
+
+			// Add volume-specific metrics
+			if (Volume->HasData())
+			{
+				const FAeonixData& NavData = Volume->GetNavData();
+				int32 NumLayers = NavData.OctreeData.GetNumLayers();
+				int32 NumLeaves = NavData.OctreeData.LeafNodes.Num();
+				int32 NumNodes = 0;
+				for (int32 i = 0; i < NumLayers; ++i)
+				{
+					NumNodes += NavData.OctreeData.GetLayer(i).Num();
+				}
+				int32 MemoryKB = NavData.OctreeData.GetSize() / 1024;
+
+				FText MetricsText = FText::Format(
+					LOCTEXT("VolumeMetrics", "Layers: {0} | Nodes: {1} | Leaves: {2} | Memory: {3} KB"),
+					FText::AsNumber(NumLayers),
+					FText::AsNumber(NumNodes),
+					FText::AsNumber(NumLeaves),
+					FText::AsNumber(MemoryKB)
+				);
+
+				RowContent->AddSlot()
+					.AutoWidth()
+					.Padding(8.0f, 0.0f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(MetricsText)
+						.Font(FAppStyle::GetFontStyle("SmallFont"))
+						.ColorAndOpacity(FSlateColor(FLinearColor(0.6f, 0.6f, 0.6f)))
+					];
+			}
+		}
+	}
 
 	// Add action buttons based on item type
 	if (Item->Type == EAeonixTreeItemType::BoundingVolume && Item->IsValid())
@@ -408,9 +440,6 @@ void SAeonixNavigationTreeView::RefreshTreeData()
 {
 	RootItems.Empty();
 	ExpandedItems.Empty();
-	CachedVolumeCount = 0;
-	CachedModifierCount = 0;
-	CachedDynamicCount = 0;
 
 	UWorld* World = GetTargetWorld();
 	if (World)
@@ -452,8 +481,6 @@ void SAeonixNavigationTreeView::PopulateTreeFromWorld(UWorld* World)
 			continue;
 		}
 
-		CachedVolumeCount++;
-
 		// Create volume item
 		FString VolumeName = Volume->GetActorNameOrLabel();
 		FAeonixTreeItemPtr VolumeItem = MakeShared<FAeonixTreeItem>(EAeonixTreeItemType::BoundingVolume, VolumeName);
@@ -476,8 +503,6 @@ void SAeonixNavigationTreeView::PopulateTreeFromWorld(UWorld* World)
 
 			if (VolumeBounds.IsInsideOrOn(ModifierLocation))
 			{
-				CachedModifierCount++;
-
 				FString ModifierName = ModifierVolume->GetActorNameOrLabel();
 				FAeonixTreeItemPtr ModifierItem = MakeShared<FAeonixTreeItem>(EAeonixTreeItemType::ModifierVolume, ModifierName);
 				ModifierItem->ModifierVolume = ModifierVolume;
@@ -486,47 +511,51 @@ void SAeonixNavigationTreeView::PopulateTreeFromWorld(UWorld* World)
 			}
 		}
 
-		// Find dynamic obstacle components within this bounding volume
-		for (TActorIterator<AActor> ActorIt(World); ActorIt; ++ActorIt)
+	}
+
+	// Add registered dynamic obstacles from the subsystem to their respective volumes
+	if (Subsystem)
+	{
+		for (UAeonixDynamicObstacleComponent* DynamicComp : Subsystem->GetRegisteredDynamicObstacles())
 		{
-			AActor* Actor = *ActorIt;
+			if (!DynamicComp || !IsValid(DynamicComp))
+			{
+				continue;
+			}
+
+			AActor* Actor = DynamicComp->GetOwner();
 			if (!Actor)
 			{
 				continue;
 			}
 
-			TArray<UAeonixDynamicObstacleComponent*> DynamicComponents;
-			Actor->GetComponents<UAeonixDynamicObstacleComponent>(DynamicComponents);
-
-			for (UAeonixDynamicObstacleComponent* DynamicComp : DynamicComponents)
+			// Find which bounding volume this component belongs to
+			FVector CompLocation = Actor->GetActorLocation();
+			for (const FAeonixTreeItemPtr& VolumeItem : WorldItem->Children)
 			{
-				if (!DynamicComp)
+				if (VolumeItem->Type == EAeonixTreeItemType::BoundingVolume && VolumeItem->BoundingVolume.IsValid())
 				{
-					continue;
-				}
+					AAeonixBoundingVolume* Volume = VolumeItem->BoundingVolume.Get();
+					FBox VolumeBounds = Volume->GetComponentsBoundingBox();
 
-				// Check if this component's owner is within the bounding volume
-				FBox VolumeBounds = Volume->GetComponentsBoundingBox();
-				FVector CompLocation = Actor->GetActorLocation();
-
-				if (VolumeBounds.IsInsideOrOn(CompLocation))
-				{
-					CachedDynamicCount++;
-
-					FString CompName = FString::Printf(TEXT("%s (%s)"), *Actor->GetActorNameOrLabel(), *DynamicComp->GetName());
-					FAeonixTreeItemPtr DynamicItem = MakeShared<FAeonixTreeItem>(EAeonixTreeItemType::DynamicComponent, CompName);
-					DynamicItem->DynamicComponent = DynamicComp;
-					DynamicItem->Parent = VolumeItem;
-					VolumeItem->Children.Add(DynamicItem);
+					if (VolumeBounds.IsInsideOrOn(CompLocation))
+					{
+						FString CompName = FString::Printf(TEXT("%s (%s)"), *Actor->GetActorNameOrLabel(), *DynamicComp->GetName());
+						FAeonixTreeItemPtr DynamicItem = MakeShared<FAeonixTreeItem>(EAeonixTreeItemType::DynamicComponent, CompName);
+						DynamicItem->DynamicComponent = DynamicComp;
+						DynamicItem->Parent = VolumeItem;
+						VolumeItem->Children.Add(DynamicItem);
+						break; // Component added to a volume, move to next component
+					}
 				}
 			}
 		}
 	}
 
-	// Expand root by default
-	if (RootItems.Num() > 0)
+	// Expand all items by default
+	for (const FAeonixTreeItemPtr& Item : RootItems)
 	{
-		TreeView->SetItemExpansion(RootItems[0], true);
+		ExpandItemRecursive(Item);
 	}
 }
 
@@ -583,33 +612,6 @@ FReply SAeonixNavigationTreeView::OnCollapseAllClicked()
 {
 	CollapseAllItems();
 	return FReply::Handled();
-}
-
-FText SAeonixNavigationTreeView::GetStatusText() const
-{
-	return FText::Format(
-		LOCTEXT("StatusText", "Volumes: {0} | Modifiers: {1} | Dynamic: {2}"),
-		FText::AsNumber(CachedVolumeCount),
-		FText::AsNumber(CachedModifierCount),
-		FText::AsNumber(CachedDynamicCount)
-	);
-}
-
-FText SAeonixNavigationTreeView::GetPendingTasksText() const
-{
-	UAeonixSubsystem* Subsystem = GetSubsystem();
-	if (Subsystem)
-	{
-		size_t PendingTasks = Subsystem->GetNumberOfPendingTasks();
-		if (PendingTasks > 0)
-		{
-			return FText::Format(
-				LOCTEXT("PendingTasksText", "Pending Pathfinds: {0}"),
-				FText::AsNumber(static_cast<int32>(PendingTasks))
-			);
-		}
-	}
-	return FText::GetEmpty();
 }
 
 void SAeonixNavigationTreeView::ExpandAllItems()
@@ -690,13 +692,14 @@ FText SAeonixNavigationTreeView::GetPathfindMetricsText() const
 	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
 
 	return FText::Format(
-		LOCTEXT("PathfindMetricsText", "Pending: {0} | Active: {1} | Completed: {2} | Failed: {3} | Cancelled: {4} | Avg Time: {5}ms"),
+		LOCTEXT("PathfindMetricsText", "Pending: {0} | Active: {1} | Completed: {2} | Failed: {3} | Cancelled: {4} | Invalidated: {5} | Avg Time: {6}μs"),
 		FText::AsNumber(Metrics.PendingPathfinds.load()),
 		FText::AsNumber(Metrics.ActivePathfinds.load()),
 		FText::AsNumber(Metrics.CompletedPathfindsTotal.load()),
 		FText::AsNumber(Metrics.FailedPathfindsTotal.load()),
 		FText::AsNumber(Metrics.CancelledPathfindsTotal.load()),
-		FText::AsNumber(FMath::RoundToInt(Metrics.AveragePathfindTimeMs.Load()))
+		FText::AsNumber(Metrics.InvalidatedPathsTotal.load()),
+		FText::AsNumber(FMath::RoundToInt(Metrics.AveragePathfindTimeMs.Load() * 1000.0f))
 	);
 }
 
@@ -730,12 +733,8 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 		return LOCTEXT("NoSubsystemGen", "Subsystem unavailable");
 	}
 
-	// Aggregate metrics from all registered bounding volumes
-	int32 TotalLayers = 0;
-	int32 TotalNodes = 0;
-	int32 TotalLeafNodes = 0;
+	// Aggregate global metrics from all registered bounding volumes
 	int32 TotalDynamicRegions = 0;
-	int32 TotalMemoryBytes = 0;
 
 	const TArray<FAeonixBoundingVolumeHandle>& RegisteredVolumes = Subsystem->GetRegisteredVolumes();
 
@@ -746,24 +745,8 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 			if (Volume->HasData())
 			{
 				const FAeonixData& NavData = Volume->GetNavData();
-
-				// Count layers (take max across volumes)
-				TotalLayers = FMath::Max(TotalLayers, static_cast<int32>(NavData.OctreeData.GetNumLayers()));
-
-				// Count leaf nodes
-				TotalLeafNodes += NavData.OctreeData.LeafNodes.Num();
-
-				// Count total nodes across all layers
-				for (int32 i = 0; i < NavData.OctreeData.GetNumLayers(); ++i)
-				{
-					TotalNodes += NavData.OctreeData.GetLayer(i).Num();
-				}
-
-				// Count dynamic regions
+				// Count dynamic regions across all volumes
 				TotalDynamicRegions += NavData.GetParams().DynamicRegionBoxes.Num();
-
-				// Sum memory usage
-				TotalMemoryBytes += NavData.OctreeData.GetSize();
 			}
 		}
 	}
@@ -773,20 +756,18 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 	const float AvgRegenTimeMs = Metrics.AverageRegenTimeMs.Load();
 
 	return FText::Format(
-		LOCTEXT("GenerationMetricsText", "Layers: {0} | Nodes: {1} | Leaves: {2} | Dynamic Regions: {3} | Memory: {4} KB | Avg Regen: {5}ms"),
-		FText::AsNumber(TotalLayers),
-		FText::AsNumber(TotalNodes),
-		FText::AsNumber(TotalLeafNodes),
+		LOCTEXT("GenerationMetricsText", "Dynamic Regions: {0} | Avg Regen: {1}μs"),
 		FText::AsNumber(TotalDynamicRegions),
-		FText::AsNumber(TotalMemoryBytes / 1024),
-		FText::AsNumber(FMath::RoundToInt(AvgRegenTimeMs))
+		FText::AsNumber(FMath::RoundToInt(AvgRegenTimeMs * 1000.0f))
 	);
 }
 
 EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurrentTime, float InDeltaTime)
 {
-	// Only auto-refresh during PIE to show dynamic changes
-	if (GEditor && GEditor->GetPIEWorldContext())
+	const bool bIsInPIE = GEditor && GEditor->GetPIEWorldContext();
+
+	// Auto-refresh during PIE to show dynamic changes
+	if (bIsInPIE)
 	{
 		// Safety check: ensure subsystem is valid and not being destroyed
 		UAeonixSubsystem* Subsystem = GetSubsystem();
@@ -794,6 +775,13 @@ EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurre
 		{
 			RefreshTreeData();
 		}
+		bWasInPIE = true;
+	}
+	// Detect transition from PIE to editor - refresh to show editor world
+	else if (bWasInPIE)
+	{
+		RefreshTreeData();
+		bWasInPIE = false;
 	}
 
 	// Continue ticking

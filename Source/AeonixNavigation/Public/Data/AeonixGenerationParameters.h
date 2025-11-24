@@ -31,8 +31,8 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 	bool ShowParentChildLinks{false};
 
 	// Generation parameters
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
-	int32 VoxelPower{3};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation", meta = (ToolTip = "Controls octree subdivision depth. Higher values create more voxels for finer detail but much longer generation and pathfinding. Creates OctreeDepth+1 hierarchical layers. Layer 0 has the smallest voxels."))
+	int32 OctreeDepth{3};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
 	TEnumAsByte<ECollisionChannel> CollisionChannel{ECollisionChannel::ECC_MAX};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SVO Navigation")
@@ -77,5 +77,11 @@ struct AEONIXNAVIGATION_API FAeonixGenerationParameters
 		TArray<FGuid> RegionIds;
 		DynamicRegionBoxes.GetKeys(RegionIds);
 		return RegionIds;
+	}
+
+	/** Get the total number of hierarchical layers in the octree (OctreeDepth + 1) */
+	int32 GetNumLayers() const
+	{
+		return OctreeDepth + 1;
 	}
 };

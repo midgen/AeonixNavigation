@@ -28,7 +28,7 @@ void FAeonixData::ResetForGeneration()
 void FAeonixData::UpdateGenerationParameters(const FAeonixGenerationParameters& Params)
 {
 	GenerationParameters = Params;
-	OctreeData.NumLayers = Params.VoxelPower + 1;
+	OctreeData.NumLayers = Params.OctreeDepth + 1;
 }
 
 const FAeonixGenerationParameters& FAeonixData::GetParams() const
@@ -281,12 +281,12 @@ void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, cons
 
 int32 FAeonixData::GetNumNodesInLayer(layerindex_t Layer) const
 {
-	return FMath::Pow(FMath::Pow(2.f, (GenerationParameters.VoxelPower - (Layer))), 3);
+	return FMath::Pow(FMath::Pow(2.f, (GenerationParameters.OctreeDepth - (Layer))), 3);
 }
 
 int32 FAeonixData::GetNumNodesPerSide(layerindex_t Layer) const
 {
-	return FMath::Pow(2.f, (GenerationParameters.VoxelPower - (Layer)));
+	return FMath::Pow(2.f, (GenerationParameters.OctreeDepth - (Layer)));
 }
 
 bool FAeonixData::GetLinkPosition(const AeonixLink& Link, FVector& Position) const
@@ -319,7 +319,7 @@ bool FAeonixData::GetNodePosition(layerindex_t aLayer, mortoncode_t aCode, FVect
 
 float FAeonixData::GetVoxelSize(layerindex_t Layer) const
 {
-	return (GenerationParameters.Extents.X / FMath::Pow(2.f, GenerationParameters.VoxelPower)) * (FMath::Pow(2.0f, Layer + 1));
+	return (GenerationParameters.Extents.X / FMath::Pow(2.f, GenerationParameters.OctreeDepth)) * (FMath::Pow(2.0f, Layer + 1));
 }
 
 bool FAeonixData::IsInDebugRange(const FVector& aPosition) const

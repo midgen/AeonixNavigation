@@ -185,7 +185,7 @@ bool FAeonixNavigation_DynamicRegionStressTest::RunTest(const FString& Parameter
 	FAeonixGenerationParameters Params;
 	Params.Origin = TestOrigin;
 	Params.Extents = TestExtents;
-	Params.VoxelPower = VoxelPower;
+	Params.OctreeDepth = VoxelPower;
 	Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
 	Params.AgentRadius = 34.0f;
 

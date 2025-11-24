@@ -44,7 +44,7 @@ bool FAeonixNavigation_BenchmarkTest::RunTest(const FString& Parameters)
     FAeonixGenerationParameters Params;
     Params.Origin = FVector::ZeroVector;
     Params.Extents = FVector(500, 500, 500); // 1000x1000x1000 volume
-    Params.VoxelPower = 5; // Higher resolution for more leaf nodes
+    Params.OctreeDepth = 5; // Higher resolution for more leaf nodes
     Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
     Params.AgentRadius = 34.f;
     Params.ShowLeafVoxels = false; // Don't need debug visualization
@@ -246,7 +246,7 @@ bool FAeonixNavigation_BenchmarkEmptySpaceTest::RunTest(const FString& Parameter
     FAeonixGenerationParameters Params;
     Params.Origin = FVector::ZeroVector;
     Params.Extents = FVector(500, 500, 500);
-    Params.VoxelPower = 5; // Higher resolution for more leaf nodes and empty leaves
+    Params.OctreeDepth = 5; // Higher resolution for more leaf nodes and empty leaves
     Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
     Params.AgentRadius = 34.f;
 
@@ -476,7 +476,7 @@ bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Par
     FAeonixGenerationParameters Params;
     Params.Origin = FVector::ZeroVector;
     Params.Extents = FVector(500, 500, 500);
-    Params.VoxelPower = 5;
+    Params.OctreeDepth = 5;
     Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
     Params.AgentRadius = 34.f;
     Params.AddDynamicRegion(RegionId, DynamicRegionBox);

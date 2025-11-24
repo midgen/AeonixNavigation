@@ -33,8 +33,8 @@ namespace FAeonixBoundingVolumeVersion
 		BeforeCustomVersionWasAdded = 0,
 		// Added serialization of Origin and Extents for baked navigation data
 		SerializeGenerationBounds = 1,
-		// Added serialization of VoxelPower for baked navigation data
-		SerializeVoxelPower = 2,
+		// Added serialization of OctreeDepth for baked navigation data
+		SerializeOctreeDepth = 2,
 		// Added serialization of DynamicRegionBoxes for persistent dynamic region registration
 		SerializeDynamicRegions = 3,
 
@@ -246,7 +246,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 	{
 		const FBox& DynamicRegion = RegionPair.Value;
 		const float VoxelSize = NavigationData.GetVoxelSize(0); // Layer 0 voxel size
-		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.VoxelPower);
+		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.OctreeDepth);
 		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
 
 		// Calculate Layer 0 voxel coordinate bounds that overlap with the dynamic region
@@ -436,7 +436,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 
 		const FBox& DynamicRegion = *DynamicRegionPtr;
 		const float VoxelSize = NavigationData.GetVoxelSize(0);
-		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.VoxelPower);
+		const int32 NodesPerSide = FMath::Pow(2.f, GenerationParameters.OctreeDepth);
 		const FVector VoxelOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
 
 		// Calculate Layer 0 voxel coordinate bounds that overlap with this region
@@ -999,24 +999,24 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 		// When loading, check what version was saved to know what data is available
 		if (Ar.IsSaving())
 		{
-			// Always save with latest format (includes Origin, Extents, VoxelPower, and DynamicRegionBoxes)
+			// Always save with latest format (includes Origin, Extents, OctreeDepth, and DynamicRegionBoxes)
 			// Get the actual parameters from NavigationData (where Generate() stored them)
 			const FAeonixGenerationParameters& Params = NavigationData.GetParams();
 			FVector OriginToSave = Params.Origin;
 			FVector ExtentsToSave = Params.Extents;
-			int32 VoxelPowerToSave = Params.VoxelPower;
+			int32 OctreeDepthToSave = Params.OctreeDepth;
 			TMap<FGuid, FBox> DynamicRegionsToSave = Params.DynamicRegionBoxes;
 
 			Ar << OriginToSave;
 			Ar << ExtentsToSave;
-			Ar << VoxelPowerToSave;
+			Ar << OctreeDepthToSave;
 			Ar << DynamicRegionsToSave;
 
-			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d"),
+			UE_LOG(LogAeonixNavigation, Log, TEXT("Saving baked navigation data: %d leaf nodes, Origin=%s, Extents=%s, OctreeDepth=%d, DynamicRegions=%d"),
 				NavigationData.OctreeData.LeafNodes.Num(),
 				*OriginToSave.ToCompactString(),
 				*ExtentsToSave.ToCompactString(),
-				VoxelPowerToSave,
+				OctreeDepthToSave,
 				DynamicRegionsToSave.Num());
 		}
 		else if (Ar.IsLoading())
@@ -1025,73 +1025,73 @@ void AAeonixBoundingVolume::Serialize(FArchive& Ar)
 
 			if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeDynamicRegions)
 			{
-				// Version 3+: Load Origin, Extents, VoxelPower, and DynamicRegionBoxes
+				// Version 3+: Load Origin, Extents, OctreeDepth, and DynamicRegionBoxes
 				FVector LoadedOrigin;
 				FVector LoadedExtents;
-				int32 LoadedVoxelPower;
+				int32 LoadedOctreeDepth;
 				TMap<FGuid, FBox> LoadedDynamicRegions;
 				Ar << LoadedOrigin;
 				Ar << LoadedExtents;
-				Ar << LoadedVoxelPower;
+				Ar << LoadedOctreeDepth;
 				Ar << LoadedDynamicRegions;
 
 				// Restore all parameters to NavigationData and sync with actor's GenerationParameters
 				FAeonixGenerationParameters RestoredParams = GenerationParameters;
 				RestoredParams.Origin = LoadedOrigin;
 				RestoredParams.Extents = LoadedExtents;
-				RestoredParams.VoxelPower = LoadedVoxelPower;
+				RestoredParams.OctreeDepth = LoadedOctreeDepth;
 				RestoredParams.DynamicRegionBoxes = LoadedDynamicRegions;
 				NavigationData.UpdateGenerationParameters(RestoredParams);
 				GenerationParameters.DynamicRegionBoxes = LoadedDynamicRegions;
 
-				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d, DynamicRegions=%d), marked ready for navigation"),
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, OctreeDepth=%d, DynamicRegions=%d), marked ready for navigation"),
 					NavigationData.OctreeData.LeafNodes.Num(),
 					*LoadedOrigin.ToCompactString(),
 					*LoadedExtents.ToCompactString(),
-					LoadedVoxelPower,
+					LoadedOctreeDepth,
 					LoadedDynamicRegions.Num());
 			}
-			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeVoxelPower)
+			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeOctreeDepth)
 			{
-				// Version 2: Load Origin, Extents, and VoxelPower (no DynamicRegionBoxes)
+				// Version 2: Load Origin, Extents, and OctreeDepth (no DynamicRegionBoxes)
 				FVector LoadedOrigin;
 				FVector LoadedExtents;
-				int32 LoadedVoxelPower;
+				int32 LoadedOctreeDepth;
 				Ar << LoadedOrigin;
 				Ar << LoadedExtents;
-				Ar << LoadedVoxelPower;
+				Ar << LoadedOctreeDepth;
 
 				// Restore all parameters to NavigationData
 				FAeonixGenerationParameters RestoredParams = GenerationParameters;
 				RestoredParams.Origin = LoadedOrigin;
 				RestoredParams.Extents = LoadedExtents;
-				RestoredParams.VoxelPower = LoadedVoxelPower;
+				RestoredParams.OctreeDepth = LoadedOctreeDepth;
 				NavigationData.UpdateGenerationParameters(RestoredParams);
 
-				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded from version 2 format - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, VoxelPower=%d), marked ready for navigation"),
+				UE_LOG(LogAeonixNavigation, Log, TEXT("Baked navigation data loaded from version 2 format - %d leaf nodes with serialized bounds (Origin=%s, Extents=%s, OctreeDepth=%d), marked ready for navigation"),
 					NavigationData.OctreeData.LeafNodes.Num(),
 					*LoadedOrigin.ToCompactString(),
 					*LoadedExtents.ToCompactString(),
-					LoadedVoxelPower);
+					LoadedOctreeDepth);
 			}
 			else if (AeonixVersion >= FAeonixBoundingVolumeVersion::SerializeGenerationBounds)
 			{
-				// Version 1: Load Origin and Extents only (no VoxelPower)
+				// Version 1: Load Origin and Extents only (no OctreeDepth)
 				FVector LoadedOrigin;
 				FVector LoadedExtents;
 				Ar << LoadedOrigin;
 				Ar << LoadedExtents;
 
-				// Restore Origin/Extents, use VoxelPower from actor property
+				// Restore Origin/Extents, use OctreeDepth from actor property
 				FAeonixGenerationParameters RestoredParams = GenerationParameters;
 				RestoredParams.Origin = LoadedOrigin;
 				RestoredParams.Extents = LoadedExtents;
-				// VoxelPower comes from GenerationParameters property
+				// OctreeDepth comes from GenerationParameters property
 				NavigationData.UpdateGenerationParameters(RestoredParams);
 
-				UE_LOG(LogAeonixNavigation, Warning, TEXT("Baked navigation data loaded from version 1 format - %d leaf nodes with Origin/Extents but missing VoxelPower. Using VoxelPower=%d from actor property. Please regenerate navigation data."),
+				UE_LOG(LogAeonixNavigation, Warning, TEXT("Baked navigation data loaded from version 1 format - %d leaf nodes with Origin/Extents but missing OctreeDepth. Using OctreeDepth=%d from actor property. Please regenerate navigation data."),
 					NavigationData.OctreeData.LeafNodes.Num(),
-					RestoredParams.VoxelPower);
+					RestoredParams.OctreeDepth);
 			}
 			else
 			{

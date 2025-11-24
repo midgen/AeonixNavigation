@@ -13,6 +13,7 @@ UAeonixEQSFloodFillGenerator::UAeonixEQSFloodFillGenerator(const FObjectInitiali
 	Context = UEnvQueryContext_Querier::StaticClass();
     ItemType = UEnvQueryItemType_Point::StaticClass();
     FloodRadius.DefaultValue = 1000.0f;
+    FloodStepsMax.DefaultValue = 1000;
     NavAgentIndex.DefaultValue = 0;
     MinPointSpacing.DefaultValue = 0.0f;
 }
@@ -34,6 +35,7 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
     if (!AeonixSubsystem) return;
 
     float Radius = FloodRadius.GetValue();
+    int32 MaxSteps = FloodStepsMax.GetValue();
     int32 AgentIdx = NavAgentIndex.GetValue();
     float MinSpacing = MinPointSpacing.GetValue();
 
@@ -66,10 +68,12 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
     FVector StartPos;
     NavData.GetLinkPosition(StartLink, StartPos);
 
-    while (!Queue.IsEmpty())
+    int32 StepCount = 0;
+    while (!Queue.IsEmpty() && StepCount < MaxSteps)
     {
         AeonixLink CurrentLink;
         Queue.Dequeue(CurrentLink);
+        StepCount++;
         FVector CurrentPos;
         if (!NavData.GetLinkPosition(CurrentLink, CurrentPos))
             continue;

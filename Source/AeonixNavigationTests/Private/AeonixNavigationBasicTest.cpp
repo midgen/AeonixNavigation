@@ -48,7 +48,7 @@ bool FAeonixNavigation_GenerateDataTest::RunTest(const FString& Parameters)
     FAeonixGenerationParameters Params;
     Params.Origin = FVector::ZeroVector;
     Params.Extents = FVector(1000, 1000, 1000);
-    Params.VoxelPower = 3;
+    Params.OctreeDepth = 3;
     Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
     Params.AgentRadius = 34.f;
     NavData.UpdateGenerationParameters(Params);

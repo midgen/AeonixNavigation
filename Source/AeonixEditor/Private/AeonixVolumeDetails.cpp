@@ -43,7 +43,7 @@ void FAeonixVolumeDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder
 	TSharedPtr<IPropertyHandle> showMortonCodesProperty = DetailBuilder.GetProperty("GenerationParameters.ShowMortonCodes");
 	TSharedPtr<IPropertyHandle> showNeighbourLinksProperty = DetailBuilder.GetProperty("GenerationParameters.ShowNeighbourLinks");
 	TSharedPtr<IPropertyHandle> showParentChildLinksProperty = DetailBuilder.GetProperty("GenerationParameters.ShowParentChildLinks");
-	TSharedPtr<IPropertyHandle> voxelPowerProperty = DetailBuilder.GetProperty("GenerationParameters.VoxelPower");
+	TSharedPtr<IPropertyHandle> voxelPowerProperty = DetailBuilder.GetProperty("GenerationParameters.OctreeDepth");
 	TSharedPtr<IPropertyHandle> collisionChannelProperty = DetailBuilder.GetProperty("GenerationParameters.CollisionChannel");
 	TSharedPtr<IPropertyHandle> agentRadiusProperty = DetailBuilder.GetProperty("GenerationParameters.AgentRadius");
 	TSharedPtr<IPropertyHandle> generationStrategyProperty = DetailBuilder.GetProperty("GenerationParameters.GenerationStrategy");
@@ -54,7 +54,8 @@ void FAeonixVolumeDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder
 	showMortonCodesProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Debug Morton Codes", "Debug Morton Codes"));
 	showNeighbourLinksProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Debug Links", "Debug Links"));
 	showParentChildLinksProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Parent Child Links", "Parent Child Links"));
-	voxelPowerProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Layers", "Layers"));
+	voxelPowerProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Octree Depth", "Octree Depth"));
+	voxelPowerProperty->SetToolTipText(NSLOCTEXT("SVO Volume", "OctreeDepthTooltip", "Controls octree subdivision depth. Higher values create more voxels for finer detail but use more memory. Creates OctreeDepth+1 hierarchical layers. Layer 0 has the smallest voxels. Typical range: 3-6 for human-scale navigation."));
 	voxelPowerProperty->SetInstanceMetaData("UIMin", TEXT("1"));
 	voxelPowerProperty->SetInstanceMetaData("UIMax", TEXT("12"));
 	collisionChannelProperty->SetPropertyDisplayName(NSLOCTEXT("SVO Volume", "Collision Channel", "Collision Channel"));

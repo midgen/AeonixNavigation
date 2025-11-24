@@ -67,8 +67,8 @@ void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
 	{
 		// Log extents and parameters for debugging rendering issues
 		const FAeonixGenerationParameters& Params = Data.GetParams();
-		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixNavigationPath Debug Voxels: Origin=%s, Extents=%s, VoxelPower=%d"),
-			*Params.Origin.ToCompactString(), *Params.Extents.ToCompactString(), Params.VoxelPower);
+		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixNavigationPath Debug Voxels: Origin=%s, Extents=%s, OctreeDepth=%d"),
+			*Params.Origin.ToCompactString(), *Params.Extents.ToCompactString(), Params.OctreeDepth);
 
 		// Cache the array size to avoid issues if array changes during iteration
 		const int32 NumVoxels = myDebugVoxelInfo.Num();

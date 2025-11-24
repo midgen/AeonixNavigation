@@ -162,7 +162,7 @@ namespace AeonixAsyncRegen
 		SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicAsyncLeaf);
 
 		// Calculate voxel and leaf sizes
-		const float VoxelSizeLayer0 = (GenParams.Extents.X / FMath::Pow(2.f, GenParams.VoxelPower)) * 2.0f; // Layer 0 voxel size
+		const float VoxelSizeLayer0 = (GenParams.Extents.X / FMath::Pow(2.f, GenParams.OctreeDepth)) * 2.0f; // Layer 0 voxel size
 		const float LeafVoxelSize = VoxelSizeLayer0 * 0.25f; // Each leaf voxel is 1/4 the Layer 0 size
 		const float LeafSize = LeafVoxelSize * 4.0f; // 4x4x4 voxels
 		const FVector LeafCenter = LeafOrigin + FVector(LeafSize * 0.5f);

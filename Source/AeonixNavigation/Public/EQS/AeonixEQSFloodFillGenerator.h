@@ -16,9 +16,13 @@ class AEONIXNAVIGATION_API UAeonixEQSFloodFillGenerator : public UEnvQueryGenera
 public:
     UAeonixEQSFloodFillGenerator(const FObjectInitializer& ObjectInitialize);
 
-    // The point to start the flood fill from
+    /** Maximum distance from origin to flood fill. Points farther than this radius will not be generated. */
     UPROPERTY(EditDefaultsOnly, Category = Generator)
     FAIDataProviderFloatValue FloodRadius;
+
+    /** Maximum number of steps to explore during flood fill. Stops when either radius or step limit is reached. */
+    UPROPERTY(EditDefaultsOnly, Category = Generator)
+    FAIDataProviderIntValue FloodStepsMax;
 
     // Optionally restrict to a specific navigation agent
     UPROPERTY(EditDefaultsOnly, Category = Generator)

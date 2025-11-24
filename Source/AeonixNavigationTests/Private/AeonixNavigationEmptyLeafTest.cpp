@@ -25,7 +25,7 @@ bool FAeonixNavigation_EmptyLeafOptimizationTest::RunTest(const FString& Paramet
     FAeonixGenerationParameters Params;
     Params.Origin = FVector::ZeroVector;
     Params.Extents = FVector(500, 500, 500); // 1000x1000x1000 volume centered at origin
-    Params.VoxelPower = 4; // 16x16x16 voxels at layer 0
+    Params.OctreeDepth = 4; // 16x16x16 voxels at layer 0
     Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
     Params.AgentRadius = 34.f;
     Params.ShowLeafVoxels = true;

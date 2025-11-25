@@ -26,4 +26,9 @@ DECLARE_CYCLE_STAT(TEXT("Dynamic Async Leaf"), STAT_AeonixDynamicAsyncLeaf, STAT
 // Pathfinding Stats
 DECLARE_CYCLE_STAT(TEXT("Pathfinding Sync"), STAT_AeonixPathfindingSync, STATGROUP_Aeonix);
 DECLARE_CYCLE_STAT(TEXT("Pathfinding Async"), STAT_AeonixPathfindingAsync, STATGROUP_Aeonix);
+
+// Path Smoothing Stats
+DECLARE_CYCLE_STAT(TEXT("Path Chaikin Smoothing"), STAT_AeonixPathChaikinSmoothing, STATGROUP_Aeonix);
+DECLARE_CYCLE_STAT(TEXT("Path String Pulling"), STAT_AeonixPathStringPulling, STATGROUP_Aeonix);
+DECLARE_CYCLE_STAT(TEXT("Path Position Smoothing"), STAT_AeonixPathPositionSmoothing, STATGROUP_Aeonix);
  

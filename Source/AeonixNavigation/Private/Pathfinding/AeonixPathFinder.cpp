@@ -6,6 +6,7 @@
 #include "Data/AeonixLeafNode.h"
 #include "Data/AeonixLink.h"
 #include "Data/AeonixNode.h"
+#include "Data/AeonixStats.h"
 #include "Pathfinding/AeonixNavigationPath.h"
 
 bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoal, const FVector& StartPos, const FVector& TargetPos, FAeonixNavigationPath& Path, FAeonixPathFailureInfo* OutFailureInfo)
@@ -392,17 +393,22 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	oPath.SetDebugVoxelInfo(debugVoxelInfo);
 #endif
 
-	Smooth_Chaikin(points, Settings.SmoothingIterations);
+	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathChaikinSmoothing);
+		Smooth_Chaikin(points, Settings.SmoothingIterations);
+	}
 
 	// Apply string pulling if enabled
 	if (Settings.bUseStringPulling)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathStringPulling);
 		StringPullPath(points);
 	}
 
 	// Smooth the path by adjusting positions within voxel bounds
 	if (Settings.bSmoothPositions)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_AeonixPathPositionSmoothing);
 		SmoothPathPositions(points);
 	}
 

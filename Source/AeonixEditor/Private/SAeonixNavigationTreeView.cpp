@@ -711,18 +711,10 @@ FText SAeonixNavigationTreeView::GetWorkerPoolStatusText() const
 		return FText::GetEmpty();
 	}
 
-	const FAeonixLoadMetrics& Metrics = Subsystem->GetLoadMetrics();
-	const int32 ActiveWorkers = Metrics.ActivePathfinds.load();
-
-	if (ActiveWorkers > 0)
-	{
-		return FText::Format(
-			LOCTEXT("WorkerPoolActive", "Workers Active: {0}"),
-			FText::AsNumber(ActiveWorkers)
-		);
-	}
-
-	return LOCTEXT("WorkerPoolIdle", "Workers: Idle");
+	return FText::Format(
+		LOCTEXT("WorkerPoolCount", "Workers: {0}"),
+		FText::AsNumber(Subsystem->GetNumWorkerThreads())
+	);
 }
 
 FText SAeonixNavigationTreeView::GetGenerationMetricsText() const

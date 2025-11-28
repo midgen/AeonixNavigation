@@ -206,6 +206,20 @@ void UAeonixSubsystem::RegisterNavComponent(UAeonixNavAgentComponent* NavCompone
 
 void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag DestroyMassEntity)
 {
+	// CRITICAL: Immediately mark all pending requests for this component as invalidated
+	// This prevents worker threads from writing to the component's path after destruction
+	// Must happen BEFORE component is removed from registration
+	{
+		FScopeLock Lock(&PathRequestsLock);
+		for (TUniquePtr<FAeonixPathFindRequest>& Request : PathRequests)
+		{
+			if (Request->RequestingAgent.Get() == NavComponent)
+			{
+				Request->bAgentInvalidated.store(true, std::memory_order_release);
+			}
+		}
+	}
+
 	for (int i = 0; i < RegisteredNavAgents.Num(); i++)
 	{
 		FAeonixNavAgentHandle& Agent = RegisteredNavAgents[i];
@@ -483,6 +497,9 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	OutPath.ResetForRepath();
 	OutPath.SetIsReady(false);
 
+	// Store destination pointer for game-thread delivery (NEVER accessed from worker)
+	RequestPtr->DestinationPath = &OutPath;
+
 	// Copy necessary data to avoid dangling references in async task
 	TWeakObjectPtr<const AAeonixBoundingVolume> WeakNavVolume = NavVolume;
 	TWeakObjectPtr<UAeonixSubsystem> WeakSubsystem = this;
@@ -503,22 +520,23 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	LoadMetrics.PendingPathfinds.fetch_add(1);
 
 	// Enqueue work to worker pool
-	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions, &OutPath]()
+	// CRITICAL: No &OutPath capture - workers write to RequestPtr->WorkerPath instead
+	// Game thread will move results to DestinationPath in UpdateRequests()
+	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
 
 		const double StartTime = FPlatformTime::Seconds();
 
-		// Check if request was cancelled
+		// Check if request was cancelled (thread-safe atomic check only)
 		if (RequestPtr->IsStale())
 		{
-			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Cancelled);
 
 			if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
 			{
+				Subsystem->LoadMetrics.PendingPathfinds.fetch_sub(1);
 				Subsystem->LoadMetrics.CancelledPathfindsTotal.fetch_add(1);
-				Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
 			}
 			return;
 		}
@@ -528,13 +546,12 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		if (!NavVolume)
 		{
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
-			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 
 			if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
 			{
+				Subsystem->LoadMetrics.PendingPathfinds.fetch_sub(1);
 				Subsystem->LoadMetrics.FailedPathfindsTotal.fetch_add(1);
-				Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
 			}
 			return;
 		}
@@ -542,6 +559,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		UAeonixSubsystem* Subsystem = WeakSubsystem.Get();
 		if (Subsystem)
 		{
+			Subsystem->LoadMetrics.PendingPathfinds.fetch_sub(1);
 			Subsystem->LoadMetrics.ActivePathfinds.fetch_add(1);
 		}
 
@@ -550,17 +568,11 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 
 		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
 
+		// Write to request-owned path (SAFE - survives component destruction)
+		RequestPtr->WorkerPath.ResetForRepath();
 		FAeonixPathFailureInfo FailureInfo;
-		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, OutPath, &FailureInfo))
+		if (PathFinder.FindPath(StartNavLink, TargetNavLink, StartPosition, EndPosition, RequestPtr->WorkerPath, &FailureInfo))
 		{
-			// CRITICAL FIX: Track regions BEFORE marking path ready
-			// This prevents race condition where path is used before tracking completes,
-			// causing invalidation to miss the path when regions regenerate
-			if (Subsystem)
-			{
-				Subsystem->TrackPathRegions(OutPath, NavVolume);
-			}
-
 			// Validate that regions didn't change during pathfinding calculation
 			// If any region was regenerated while we were calculating, mark path as invalidated
 			bool bPathStale = false;
@@ -583,7 +595,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			if (bPathStale)
 			{
 				// Path was calculated based on outdated navigation data
-				OutPath.SetIsReady(false);
 				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Invalidated);
 
 				if (Subsystem)
@@ -595,9 +606,9 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			}
 			else
 			{
-				// Path is valid - mark ready
-				OutPath.SetIsReady(true);
-				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+				// Path is valid - signal ready for game thread delivery
+				RequestPtr->bPathReady.store(true, std::memory_order_release);
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Async path found with %d points"), RequestPtr->WorkerPath.GetPathPoints().Num());
 
 				RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Complete);
 
@@ -612,7 +623,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		else
 		{
 			// Pathfinding failed
-			OutPath.SetIsReady(false);
 			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
 
 			if (Subsystem)
@@ -980,11 +990,30 @@ void UAeonixSubsystem::UpdateRequests()
 		if (Request->PathFindFuture.IsReady())
 		{
 			EAeonixPathFindStatus Status = Request->PathFindFuture.Get();
+
+			// GAME THREAD DELIVERY: Move results from WorkerPath to DestinationPath
+			// This is safe because we're on game thread and can check UObject validity
+			if (Status == EAeonixPathFindStatus::Complete &&
+			    Request->bPathReady.load(std::memory_order_acquire) &&
+			    Request->RequestingAgent.IsValid() &&  // Game thread - safe to call IsValid()
+			    Request->DestinationPath)
+			{
+				// Move path data efficiently (TArray move = pointer swap)
+				*Request->DestinationPath = MoveTemp(Request->WorkerPath);
+				Request->DestinationPath->SetIsReady(true);
+
+				// Track regions for invalidation (game thread only)
+				if (const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(Request->RequestingAgent.Get()))
+				{
+					TrackPathRegions(*Request->DestinationPath, NavVolume);
+				}
+
+				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path delivered to component, marked as ready"));
+			}
+			// else: Component was destroyed or path not ready - just drop it
+
 			Request->OnPathFindRequestComplete.ExecuteIfBound(Status);
 			PathRequests.RemoveAtSwap(i);
-
-			// Decrement pending counter
-			LoadMetrics.PendingPathfinds.fetch_sub(1);
 			continue;
 		}
 		i++;

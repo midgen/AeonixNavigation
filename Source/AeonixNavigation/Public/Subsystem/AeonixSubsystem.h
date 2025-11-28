@@ -85,6 +85,7 @@ public:
 	// Load metrics and monitoring
 	const FAeonixLoadMetrics& GetLoadMetrics() const { return LoadMetrics; }
 	FAeonixLoadMetrics& GetLoadMetrics() { return LoadMetrics; }
+	int32 GetNumWorkerThreads() const { return WorkerPool.GetNumWorkers(); }
 	void RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>&& Request, float DelaySeconds = 0.05f);
 
 protected:

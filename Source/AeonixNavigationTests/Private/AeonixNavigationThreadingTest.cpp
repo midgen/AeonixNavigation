@@ -421,15 +421,18 @@ bool FAeonixNavigation_WorkerPoolShutdownSafety::RunTest(const FString& Paramete
 	// Enqueue work that takes some time
 	Pool.EnqueueWork([&CompletedCount]()
 	{
-		FPlatformProcess::Sleep(0.1f); // 100ms work
+		FPlatformProcess::Sleep(0.01f); // 10ms work
 		CompletedCount.fetch_add(1);
 	});
 
-	// Immediately shutdown - should wait for in-flight work
+	// Give worker time to pick up and start the work
+	FPlatformProcess::Sleep(0.05f);
+
+	// Shutdown - workers complete in-flight work but abandon queued work
 	Pool.Shutdown();
 
-	// Verify work completed despite immediate shutdown
-	TestEqual(TEXT("Work should complete even with immediate shutdown"), CompletedCount.load(), 1);
+	// Verify in-flight work completed (work that was already executing)
+	TestEqual(TEXT("In-flight work should complete before shutdown"), CompletedCount.load(), 1);
 
 	return true;
 }

@@ -8,6 +8,7 @@
 #include "HAL/ThreadSafeBool.h"
 #include "Containers/Queue.h"
 #include "Misc/ScopeLock.h"
+#include <atomic>
 
 #include "AeonixThreading.generated.h"
 
@@ -99,13 +100,14 @@ struct AEONIXNAVIGATION_API FAeonixLoadMetrics
 };
 
 /**
- * Pathfinding worker thread that processes work from a queue
+ * Pathfinding worker thread that processes work from its own SPSC queue.
+ * Each worker has a dedicated queue to avoid multi-consumer race conditions.
  */
 class AEONIXNAVIGATION_API FAeonixPathfindWorker : public FRunnable
 {
 public:
 	FAeonixPathfindWorker(
-		TQueue<TFunction<void()>, EQueueMode::Mpsc>* InWorkQueue,
+		TQueue<TFunction<void()>, EQueueMode::Spsc>* InWorkQueue,  // SPSC - single consumer per worker!
 		FEvent* InWorkAvailableEvent,
 		FThreadSafeBool* InShuttingDown,
 		int32 InWorkerIndex);
@@ -119,15 +121,32 @@ public:
 	virtual void Exit() override;
 
 private:
-	TQueue<TFunction<void()>, EQueueMode::Mpsc>* WorkQueue;
+	TQueue<TFunction<void()>, EQueueMode::Spsc>* WorkQueue;  // SPSC - single consumer!
 	FEvent* WorkAvailableEvent;
 	FThreadSafeBool* bShuttingDown;
 	int32 WorkerIndex;
 	FThreadSafeBool bStopRequested;
 };
 
+// Forward declaration
+struct FAeonixWorkerContext;
+
 /**
- * Worker pool for pathfinding tasks
+ * Context for a single pathfinding worker (queue + thread + event).
+ * Each worker has its own SPSC queue to avoid the MPSC multi-consumer race condition.
+ */
+struct FAeonixWorkerContext
+{
+	TUniquePtr<FAeonixPathfindWorker> Worker;
+	FRunnableThread* Thread = nullptr;  // Raw pointer - Kill() handles cleanup, destructor would double-free
+	TQueue<TFunction<void()>, EQueueMode::Spsc> WorkQueue;  // SPSC - single consumer per worker!
+	FEvent* WorkAvailableEvent = nullptr;
+};
+
+/**
+ * Worker pool with per-worker SPSC queues.
+ * Game thread round-robins work distribution across workers.
+ * This design fixes the MPSC race condition where multiple workers consumed from one queue.
  */
 class AEONIXNAVIGATION_API FAeonixPathfindWorkerPool
 {
@@ -138,7 +157,7 @@ public:
 	/** Initialize the worker pool with a specific number of threads */
 	void Initialize(int32 NumThreads = 4);
 
-	/** Enqueue work to be processed by worker threads */
+	/** Enqueue work to be processed by worker threads (round-robin distribution) */
 	void EnqueueWork(TFunction<void()>&& Work);
 
 	/** Shutdown the worker pool */
@@ -148,12 +167,11 @@ public:
 	bool IsInitialized() const { return bInitialized; }
 
 	/** Get number of worker threads */
-	int32 GetNumWorkers() const { return WorkerThreads.Num(); }
+	int32 GetNumWorkers() const { return WorkerContexts.Num(); }
 
 private:
-	TArray<TUniquePtr<FRunnableThread>> WorkerThreads;
-	TQueue<TFunction<void()>, EQueueMode::Mpsc> WorkQueue;
+	TArray<FAeonixWorkerContext> WorkerContexts;
+	std::atomic<uint32> NextWorkerIndex{0};  // Round-robin counter for work distribution
 	FThreadSafeBool bShuttingDown;
-	FEvent* WorkAvailableEvent;
-	bool bInitialized;
+	bool bInitialized = false;
 };

@@ -7,7 +7,7 @@
 // FAeonixPathfindWorker implementation
 
 FAeonixPathfindWorker::FAeonixPathfindWorker(
-	TQueue<TFunction<void()>, EQueueMode::Mpsc>* InWorkQueue,
+	TQueue<TFunction<void()>, EQueueMode::Spsc>* InWorkQueue,  // SPSC - single consumer!
 	FEvent* InWorkAvailableEvent,
 	FThreadSafeBool* InShuttingDown,
 	int32 InWorkerIndex)
@@ -77,7 +77,6 @@ void FAeonixPathfindWorker::Exit()
 
 FAeonixPathfindWorkerPool::FAeonixPathfindWorkerPool()
 	: bShuttingDown(false)
-	, WorkAvailableEvent(nullptr)
 	, bInitialized(false)
 {
 }
@@ -99,42 +98,45 @@ void FAeonixPathfindWorkerPool::Initialize(int32 NumThreads)
 	const int32 MaxThreads = FPlatformMisc::NumberOfCoresIncludingHyperthreads() - 2;
 	NumThreads = FMath::Clamp(NumThreads, 1, FMath::Max(1, MaxThreads));
 
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Initializing pathfind worker pool with %d threads"), NumThreads);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Initializing pathfind worker pool with %d threads (per-worker SPSC queues)"), NumThreads);
 
-	// Create event for signaling work availability
-	WorkAvailableEvent = FPlatformProcess::GetSynchEventFromPool(false);
+	// Pre-allocate worker contexts
+	WorkerContexts.SetNum(NumThreads);
 
-	// Create worker threads
-	WorkerThreads.Reserve(NumThreads);
+	// Create per-worker contexts (each with its own SPSC queue and event)
 	for (int32 i = 0; i < NumThreads; ++i)
 	{
-		FAeonixPathfindWorker* Worker = new FAeonixPathfindWorker(
-			&WorkQueue,
-			WorkAvailableEvent,
+		FAeonixWorkerContext& Context = WorkerContexts[i];
+
+		// Per-worker event
+		Context.WorkAvailableEvent = FPlatformProcess::GetSynchEventFromPool(false);
+
+		// Per-worker worker (references its own SPSC queue)
+		Context.Worker = MakeUnique<FAeonixPathfindWorker>(
+			&Context.WorkQueue,
+			Context.WorkAvailableEvent,
 			&bShuttingDown,
 			i);
 
-		FRunnableThread* Thread = FRunnableThread::Create(
-			Worker,
+		// Per-worker thread (raw pointer - Kill() handles cleanup)
+		Context.Thread = FRunnableThread::Create(
+			Context.Worker.Get(),
 			*FString::Printf(TEXT("AeonixPathfindWorker_%d"), i),
 			0, // Default stack size
 			TPri_BelowNormal);
 
-		if (Thread)
+		if (Context.Thread)
 		{
-			TUniquePtr<FRunnableThread> ThreadPtr(Thread);
-			WorkerThreads.Add(MoveTemp(ThreadPtr));
-			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Created pathfind worker thread %d"), i);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Created pathfind worker thread %d with dedicated SPSC queue"), i);
 		}
 		else
 		{
 			UE_LOG(LogAeonixNavigation, Error, TEXT("Failed to create pathfind worker thread %d"), i);
-			delete Worker;
 		}
 	}
 
 	bInitialized = true;
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Pathfind worker pool initialized with %d threads"), WorkerThreads.Num());
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Pathfind worker pool initialized with %d threads"), WorkerContexts.Num());
 }
 
 void FAeonixPathfindWorkerPool::EnqueueWork(TFunction<void()>&& Work)
@@ -151,8 +153,19 @@ void FAeonixPathfindWorkerPool::EnqueueWork(TFunction<void()>&& Work)
 		return;
 	}
 
-	WorkQueue.Enqueue(MoveTemp(Work));
-	WorkAvailableEvent->Trigger();
+	if (WorkerContexts.Num() == 0)
+	{
+		UE_LOG(LogAeonixNavigation, Error, TEXT("Worker pool has no workers"));
+		return;
+	}
+
+	// Round-robin distribution: atomically increment and wrap
+	const uint32 Index = NextWorkerIndex.fetch_add(1, std::memory_order_relaxed);
+	const int32 WorkerIndex = Index % WorkerContexts.Num();
+
+	FAeonixWorkerContext& Context = WorkerContexts[WorkerIndex];
+	Context.WorkQueue.Enqueue(MoveTemp(Work));
+	Context.WorkAvailableEvent->Trigger();
 }
 
 void FAeonixPathfindWorkerPool::Shutdown()
@@ -162,28 +175,42 @@ void FAeonixPathfindWorkerPool::Shutdown()
 		return;
 	}
 
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Shutting down pathfind worker pool with %d threads"), WorkerThreads.Num());
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Shutting down pathfind worker pool with %d threads"), WorkerContexts.Num());
 
 	bShuttingDown = true;
-	WorkAvailableEvent->Trigger();
 
-	// Wait for all threads to complete
-	for (TUniquePtr<FRunnableThread>& ThreadPtr : WorkerThreads)
+	// Wake all workers so they can exit
+	for (FAeonixWorkerContext& Context : WorkerContexts)
 	{
-		if (ThreadPtr.IsValid())
+		if (Context.WorkAvailableEvent)
 		{
-			ThreadPtr->WaitForCompletion();
+			Context.WorkAvailableEvent->Trigger();
 		}
 	}
 
-	WorkerThreads.Empty();
-
-	// Return event to pool
-	if (WorkAvailableEvent)
+	// Kill and delete all threads (Kill waits for completion internally)
+	for (FAeonixWorkerContext& Context : WorkerContexts)
 	{
-		FPlatformProcess::ReturnSynchEventToPool(WorkAvailableEvent);
-		WorkAvailableEvent = nullptr;
+		if (Context.Thread)
+		{
+			Context.Thread->Kill(true);  // bShouldWait = true
+			delete Context.Thread;
+			Context.Thread = nullptr;
+		}
 	}
+
+	// Return events to pool
+	for (FAeonixWorkerContext& Context : WorkerContexts)
+	{
+		if (Context.WorkAvailableEvent)
+		{
+			FPlatformProcess::ReturnSynchEventToPool(Context.WorkAvailableEvent);
+			Context.WorkAvailableEvent = nullptr;
+		}
+	}
+
+	// Clear contexts (releases Workers and Threads)
+	WorkerContexts.Empty();
 
 	bInitialized = false;
 	UE_LOG(LogAeonixNavigation, Log, TEXT("Pathfind worker pool shutdown complete"));

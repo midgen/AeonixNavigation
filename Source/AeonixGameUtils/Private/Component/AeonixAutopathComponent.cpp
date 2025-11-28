@@ -157,14 +157,45 @@ FVector UAeonixAutopathComponent::GetNextPathPoint() const
 		return FVector::ZeroVector;
 	}
 
-	// Return second point if exists (first is current position)
-	if (PathPoints.Num() > 1)
+	// Return current target waypoint based on index
+	if (CurrentPathIndex < PathPoints.Num())
 	{
-		return PathPoints[1].Position;
+		return PathPoints[CurrentPathIndex].Position;
 	}
 
-	// If only one point, return it
-	return PathPoints[0].Position;
+	// If index exceeds path, return last point (destination)
+	return PathPoints.Last().Position;
+}
+
+bool UAeonixAutopathComponent::HasReachedDestination() const
+{
+	const TArray<FAeonixPathPoint>& PathPoints = CurrentPath.GetPathPoints();
+	return PathPoints.Num() > 0 && CurrentPathIndex >= PathPoints.Num();
+}
+
+void UAeonixAutopathComponent::UpdatePathProgression(const FVector& CurrentPosition)
+{
+	const TArray<FAeonixPathPoint>& PathPoints = CurrentPath.GetPathPoints();
+
+	if (PathPoints.Num() == 0 || CurrentPathIndex >= PathPoints.Num())
+	{
+		return;
+	}
+
+	// Check distance to current target waypoint
+	const float DistSq = FVector::DistSquared(CurrentPosition, PathPoints[CurrentPathIndex].Position);
+	const float AcceptanceRadiusSq = AcceptanceRadius * AcceptanceRadius;
+
+	// Advance to next waypoint if within acceptance radius
+	if (DistSq <= AcceptanceRadiusSq)
+	{
+		CurrentPathIndex++;
+	}
+}
+
+void UAeonixAutopathComponent::ResetPathIndex()
+{
+	CurrentPathIndex = 0;
 }
 
 bool UAeonixAutopathComponent::HasValidPath() const
@@ -196,6 +227,11 @@ void UAeonixAutopathComponent::OnPathFindComplete(EAeonixPathFindStatus Status)
 	bPathRequestPending = false;
 
 	bool bSuccess = (Status == EAeonixPathFindStatus::Complete);
+
+	if (bSuccess)
+	{
+		ResetPathIndex();
+	}
 
 	// Broadcast to Blueprint
 	OnPathUpdated.Broadcast(bSuccess);

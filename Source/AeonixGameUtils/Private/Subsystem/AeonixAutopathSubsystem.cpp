@@ -211,6 +211,12 @@ void UAeonixAutopathSubsystem::ProcessAutopathSources()
 			// Update tracked source position
 			SourceLastPositionMap.Add(SourceOwner, SourceOwner->GetActorLocation());
 		}
+
+		// Update path progression for this source
+		if (Source->HasValidPath())
+		{
+			Source->UpdatePathProgression(SourceOwner->GetActorLocation());
+		}
 	}
 }
 

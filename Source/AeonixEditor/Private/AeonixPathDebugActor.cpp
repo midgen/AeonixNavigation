@@ -20,7 +20,7 @@ void AAeonixPathDebugActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	GetWorld()->GetSubsystem<UAeonixSubsystem>()->RegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Enabled);
+	GetWorld()->GetSubsystem<UAeonixSubsystem>()->RegisterNavComponent(NavAgentComponent);
 
 	GEditor->GetEditorSubsystem<UAenoixEditorDebugSubsystem>()->UpdateDebugActor(this);
 }
@@ -54,7 +54,7 @@ void AAeonixPathDebugActor::BeginDestroy()
 	// Unregister nav component from subsystem
 	if (NavAgentComponent && GetWorld() && GetWorld()->GetSubsystem<UAeonixSubsystem>())
 	{
-		GetWorld()->GetSubsystem<UAeonixSubsystem>()->UnRegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Disabled);
+		GetWorld()->GetSubsystem<UAeonixSubsystem>()->UnRegisterNavComponent(NavAgentComponent);
 	}
 
 	Super::BeginDestroy();

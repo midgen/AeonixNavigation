@@ -18,13 +18,6 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenCompleted, AAeonixBounding
 /** Delegate broadcast when registration changes (volumes, modifiers, or obstacles added/removed) */
 DECLARE_MULTICAST_DELEGATE(FOnRegistrationChanged);
 
-UENUM()
-enum class EAeonixMassEntityFlag : uint8
-{
-	Enabled,
-	Disabled
-};
-
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UAeonixSubsystemInterface : public UInterface
 {
@@ -40,17 +33,17 @@ class AEONIXNAVIGATION_API IAeonixSubsystemInterface
 
 public:
 	UFUNCTION()
-	virtual void RegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bCreateMassEntity) = 0;
+	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) = 0;
 	UFUNCTION()
-	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
+	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) = 0;
 	UFUNCTION()
 	virtual void RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) = 0;
 	UFUNCTION()
 	virtual void UnRegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) = 0;
 	UFUNCTION()
-	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bCreateMassEntity) = 0;
+	virtual void RegisterNavComponent(UAeonixNavAgentComponent* NavComponent) = 0;
 	UFUNCTION()
-	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent, EAeonixMassEntityFlag bDestroyMassEntity) = 0;
+	virtual void UnRegisterNavComponent(UAeonixNavAgentComponent* NavComponent) = 0;
 	UFUNCTION()
 	virtual void RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) = 0;
 	UFUNCTION()

@@ -37,10 +37,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "MassGameplay",
-			"Enabled": true
-		},
-		{
 			"Name": "StateTree",
 			"Enabled": true
 		}

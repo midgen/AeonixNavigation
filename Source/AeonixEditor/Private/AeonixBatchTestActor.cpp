@@ -49,7 +49,7 @@ void AAeonixBatchTestActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	// Unregister nav component from subsystem
 	if (AeonixSubsystem && NavAgentComponent)
 	{
-		AeonixSubsystem->UnRegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Disabled);
+		AeonixSubsystem->UnRegisterNavComponent(NavAgentComponent);
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -95,7 +95,7 @@ void AAeonixBatchTestActor::OnConstruction(const FTransform& Transform)
 		UAeonixSubsystem* Subsystem = World->GetSubsystem<UAeonixSubsystem>();
 		if (Subsystem)
 		{
-			Subsystem->RegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Enabled);
+			Subsystem->RegisterNavComponent(NavAgentComponent);
 			UE_LOG(LogAeonixEditor, Log, TEXT("Registered NavAgentComponent in OnConstruction"));
 		}
 		else
@@ -483,7 +483,7 @@ void AAeonixBatchTestActor::InitializeSubsystemIfNeeded()
 		else if (NavAgentComponent)
 		{
 			// Register the nav component so it has a valid nav volume
-			AeonixSubsystem->RegisterNavComponent(NavAgentComponent, EAeonixMassEntityFlag::Enabled);
+			AeonixSubsystem->RegisterNavComponent(NavAgentComponent);
 		}
 	}
 }

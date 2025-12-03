@@ -33,23 +33,6 @@ void FAeonixEditorModule::StartupModule()
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetLevelEditorCategory())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Volume"));
 
-	// Register menu extension
-	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([this]()
-	{
-		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
-		FToolMenuSection& Section = Menu->FindOrAddSection("LevelEditor");
-
-		Section.AddMenuEntry(
-			"AeonixNavigationTree",
-			LOCTEXT("AeonixNavigationTreeMenuLabel", "Aeonix Navigation"),
-			LOCTEXT("AeonixNavigationTreeMenuTooltip", "Open the Aeonix Navigation panel"),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Volume"),
-			FUIAction(FExecuteAction::CreateLambda([]()
-			{
-				FGlobalTabmanager::Get()->TryInvokeTab(AeonixNavigationTreeTabName);
-			}))
-		);
-	}));
 }
 
 void FAeonixEditorModule::ShutdownModule()

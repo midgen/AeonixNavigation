@@ -28,28 +28,11 @@ void FAeonixEditorModule::StartupModule()
 
 	// Register the navigation tree tab
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(AeonixNavigationTreeTabName, FOnSpawnTab::CreateRaw(this, &FAeonixEditorModule::SpawnNavigationTreeTab))
-		.SetDisplayName(LOCTEXT("AeonixNavigationTreeTabTitle", "Aeonix Navigation"))
+		.SetDisplayName(LOCTEXT("AeonixNavigationTreeTabTitle", "Aeonix"))
 		.SetTooltipText(LOCTEXT("AeonixNavigationTreeTabTooltip", "View and manage Aeonix navigation elements"))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetLevelEditorCategory())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Volume"));
 
-	// Register menu extension
-	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([this]()
-	{
-		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
-		FToolMenuSection& Section = Menu->FindOrAddSection("LevelEditor");
-
-		Section.AddMenuEntry(
-			"AeonixNavigationTree",
-			LOCTEXT("AeonixNavigationTreeMenuLabel", "Aeonix Navigation"),
-			LOCTEXT("AeonixNavigationTreeMenuTooltip", "Open the Aeonix Navigation panel"),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Volume"),
-			FUIAction(FExecuteAction::CreateLambda([]()
-			{
-				FGlobalTabmanager::Get()->TryInvokeTab(AeonixNavigationTreeTabName);
-			}))
-		);
-	}));
 }
 
 void FAeonixEditorModule::ShutdownModule()

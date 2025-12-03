@@ -1,6 +1,7 @@
 // Copyright 2024 Chris Ashworth
 
 #include "SAeonixNavigationTreeView.h"
+#include "AeonixBlockedVoxelVisualizer.h"
 
 #include "Actor/AeonixBoundingVolume.h"
 #include "Actor/AeonixModifierVolume.h"
@@ -13,6 +14,8 @@
 #include "EngineUtils.h"
 #include "Selection.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -118,6 +121,56 @@ void SAeonixNavigationTreeView::Construct(const FArguments& InArgs)
 				.Text(LOCTEXT("CollapseAll", "Collapse All"))
 				.ToolTipText(LOCTEXT("CollapseAllTooltip", "Collapse all items in the tree"))
 				.OnClicked(this, &SAeonixNavigationTreeView::OnCollapseAllClicked)
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(8.0f, 2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("MaxBlockedVoxels", "Max Blocked Voxels:"))
+				.Font(FAppStyle::GetFontStyle("SmallFont"))
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.0f)
+			[
+				SNew(SBox)
+				.WidthOverride(80.0f)
+				[
+					SNew(SSpinBox<int32>)
+					.MinValue(100)
+					.MaxValue(50000)
+					.Value(this, &SAeonixNavigationTreeView::GetMaxBlockedVoxelsValue)
+					.OnValueChanged(this, &SAeonixNavigationTreeView::OnMaxBlockedVoxelsChanged)
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(8.0f, 2.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("BlockedVizRange", "Range:"))
+				.Font(FAppStyle::GetFontStyle("SmallFont"))
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.0f)
+			[
+				SNew(SBox)
+				.WidthOverride(80.0f)
+				[
+					SNew(SSpinBox<float>)
+					.MinValue(0.0f)
+					.MaxValue(10000.0f)
+					.Value(this, &SAeonixNavigationTreeView::GetBlockedVizRangeValue)
+					.OnValueChanged(this, &SAeonixNavigationTreeView::OnBlockedVizRangeChanged)
+				]
 			]
 
 			+ SHorizontalBox::Slot()
@@ -359,6 +412,19 @@ TSharedRef<ITableRow> SAeonixNavigationTreeView::OnGenerateRow(FAeonixTreeItemPt
 	// Add action buttons based on item type
 	if (Item->Type == EAeonixTreeItemType::BoundingVolume && Item->IsValid())
 	{
+		// Add blocked voxel visualization checkbox
+		RowContent->AddSlot()
+			.AutoWidth()
+			.Padding(4.0f, 0.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SAeonixNavigationTreeView::IsBlockedVizEnabled, Item)
+				.OnCheckStateChanged(this, &SAeonixNavigationTreeView::OnBlockedVizToggled, Item)
+				.ToolTipText(LOCTEXT("BlockedVizTooltip", "Show blocked voxels from camera position (flood fill)"))
+			];
+
+		// Add regenerate button
 		RowContent->AddSlot()
 			.AutoWidth()
 			.Padding(4.0f, 0.0f)
@@ -776,8 +842,105 @@ EActiveTimerReturnType SAeonixNavigationTreeView::UpdateDuringPIE(double InCurre
 		bWasInPIE = false;
 	}
 
+	// Update blocked voxel visualization if active (auto-refresh as camera moves)
+	if (BlockedVizActiveVolume.IsValid())
+	{
+		FVector CurrentCameraPos = FAeonixBlockedVoxelVisualizer::GetCameraPosition();
+		// Refresh on any camera movement
+		if (FVector::DistSquared(CurrentCameraPos, LastCameraPosition) > FLT_MIN)
+		{
+			LastCameraPosition = CurrentCameraPos;
+			UpdateBlockedVoxelVisualization();
+		}
+	}
+
 	// Continue ticking
 	return EActiveTimerReturnType::Continue;
+}
+
+// Blocked voxel visualization handlers
+ECheckBoxState SAeonixNavigationTreeView::IsBlockedVizEnabled(FAeonixTreeItemPtr Item) const
+{
+	if (Item.IsValid() && Item->BoundingVolume.IsValid() &&
+		BlockedVizActiveVolume.IsValid() &&
+		BlockedVizActiveVolume.Get() == Item->BoundingVolume.Get())
+	{
+		return ECheckBoxState::Checked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void SAeonixNavigationTreeView::OnBlockedVizToggled(ECheckBoxState NewState, FAeonixTreeItemPtr Item)
+{
+	UWorld* World = GetTargetWorld();
+
+	if (NewState == ECheckBoxState::Checked && Item.IsValid() && Item->BoundingVolume.IsValid())
+	{
+		// Enable for this volume (exclusive - disables any previous)
+		BlockedVizActiveVolume = Item->BoundingVolume;
+		LastCameraPosition = FAeonixBlockedVoxelVisualizer::GetCameraPosition();
+		UpdateBlockedVoxelVisualization();
+	}
+	else
+	{
+		// Disable visualization
+		BlockedVizActiveVolume.Reset();
+		FAeonixBlockedVoxelVisualizer::ClearVisualization(World);
+	}
+
+	// Force tree refresh to update checkbox states
+	if (TreeView.IsValid())
+	{
+		TreeView->RequestTreeRefresh();
+	}
+}
+
+void SAeonixNavigationTreeView::UpdateBlockedVoxelVisualization()
+{
+	if (!BlockedVizActiveVolume.IsValid())
+	{
+		return;
+	}
+
+	UWorld* World = GetTargetWorld();
+	FAeonixBlockedVoxelVisualizer::VisualizeBlockedVoxels(
+		World,
+		BlockedVizActiveVolume.Get(),
+		MaxBlockedVoxels,
+		BlockedVizRange
+	);
+}
+
+int32 SAeonixNavigationTreeView::GetMaxBlockedVoxelsValue() const
+{
+	return MaxBlockedVoxels;
+}
+
+void SAeonixNavigationTreeView::OnMaxBlockedVoxelsChanged(int32 NewValue)
+{
+	MaxBlockedVoxels = NewValue;
+
+	// Refresh visualization if active
+	if (BlockedVizActiveVolume.IsValid())
+	{
+		UpdateBlockedVoxelVisualization();
+	}
+}
+
+float SAeonixNavigationTreeView::GetBlockedVizRangeValue() const
+{
+	return BlockedVizRange;
+}
+
+void SAeonixNavigationTreeView::OnBlockedVizRangeChanged(float NewValue)
+{
+	BlockedVizRange = NewValue;
+
+	// Refresh visualization if active
+	if (BlockedVizActiveVolume.IsValid())
+	{
+		UpdateBlockedVoxelVisualization();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

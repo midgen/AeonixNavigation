@@ -115,4 +115,23 @@ private:
 
 	// Track PIE state to detect transitions
 	bool bWasInPIE = false;
+
+	// Blocked voxel visualization
+	TWeakObjectPtr<AAeonixBoundingVolume> BlockedVizActiveVolume;
+	int32 MaxBlockedVoxels = 5000;
+	float BlockedVizRange = 500.0f;
+	FVector LastCameraPosition = FVector::ZeroVector;
+
+	// Blocked voxel visualization handlers
+	ECheckBoxState IsBlockedVizEnabled(FAeonixTreeItemPtr Item) const;
+	void OnBlockedVizToggled(ECheckBoxState NewState, FAeonixTreeItemPtr Item);
+	void UpdateBlockedVoxelVisualization();
+
+	// Max voxels control
+	int32 GetMaxBlockedVoxelsValue() const;
+	void OnMaxBlockedVoxelsChanged(int32 NewValue);
+
+	// Range control
+	float GetBlockedVizRangeValue() const;
+	void OnBlockedVizRangeChanged(float NewValue);
 };

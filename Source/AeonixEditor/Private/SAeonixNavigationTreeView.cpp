@@ -736,7 +736,7 @@ FReply SAeonixNavigationTreeView::OnRegenerateModifierClicked(FAeonixTreeItemPtr
 		if (ParentItem.IsValid() && ParentItem->BoundingVolume.IsValid())
 		{
 			// Regenerate the dynamic region for this modifier
-			ParentItem->BoundingVolume->RegenerateDynamicSubregion(Item->ModifierVolume->DynamicRegionId);
+			ParentItem->BoundingVolume->RegenerateDynamicRegion(Item->ModifierVolume->DynamicRegionId);
 		}
 	}
 	return FReply::Handled();

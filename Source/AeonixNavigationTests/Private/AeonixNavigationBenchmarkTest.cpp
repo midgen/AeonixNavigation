@@ -377,21 +377,21 @@ bool FAeonixNavigation_BenchmarkEmptySpaceTest::RunTest(const FString& Parameter
 }
 
 /**
- * Benchmark test with dynamic subregion to create empty leaf nodes
+ * Benchmark test with dynamic region to create empty leaf nodes
  * This should demonstrate the empty leaf optimization
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAeonixNavigation_BenchmarkDynamicSubregionTest,
-    "AeonixNavigation.Benchmark.DynamicSubregion",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAeonixNavigation_BenchmarkDynamicRegionTest,
+    "AeonixNavigation.Benchmark.DynamicRegion",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Parameters)
+bool FAeonixNavigation_BenchmarkDynamicRegionTest::RunTest(const FString& Parameters)
 {
     const int32 BenchmarkSeed = 12345;
     const int32 NumRuns = 100;
 
     UE_LOG(LogTemp, Display, TEXT(""));
     UE_LOG(LogTemp, Display, TEXT("========================================"));
-    UE_LOG(LogTemp, Display, TEXT("  Dynamic Subregion Benchmark"));
+    UE_LOG(LogTemp, Display, TEXT("  Dynamic Region Benchmark"));
     UE_LOG(LogTemp, Display, TEXT("========================================"));
     UE_LOG(LogTemp, Display, TEXT(""));
 
@@ -469,7 +469,7 @@ bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Par
     FTestDebugDrawInterface DebugDraw;
     FAeonixData NavData;
 
-    // Add dynamic subregion BEFORE generation (must be in params for leaf pre-allocation)
+    // Add dynamic region BEFORE generation (must be in params for leaf pre-allocation)
     FGuid RegionId = FGuid::NewGuid();
     FBox DynamicRegionBox(FVector(-200, -200, -200), FVector(200, 200, 200));
 
@@ -510,7 +510,7 @@ bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Par
     // Regenerate the dynamic region with empty collision (clears all obstacles in that area)
     TSet<FGuid> RegionsToRegen;
     RegionsToRegen.Add(RegionId);
-    NavData.RegenerateDynamicSubregions(RegionsToRegen, EmptyCollision, DebugDraw);
+    NavData.RegenerateDynamicRegions(RegionsToRegen, EmptyCollision, DebugDraw);
 
     // Count leaves after dynamic region
     int32 TotalLeaves = 0;
@@ -550,7 +550,7 @@ bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Par
     PathSettings.HeuristicSettings.NodeSizeWeight = 1.0f;
 
     // Run benchmark
-    UE_LOG(LogTemp, Display, TEXT("Running dynamic subregion benchmark..."));
+    UE_LOG(LogTemp, Display, TEXT("Running dynamic region benchmark..."));
 
     FAeonixPathfindBenchmark Benchmark;
     FAeonixPathfindBenchmarkSummary Summary = Benchmark.RunBenchmark(
@@ -563,8 +563,8 @@ bool FAeonixNavigation_BenchmarkDynamicSubregionTest::RunTest(const FString& Par
     Summary.LogSummary();
 
     // Add key metrics to test output (always visible)
-    AddInfo(FString::Printf(TEXT("=== DYNAMIC SUBREGION BENCHMARK ===")));
-    AddInfo(FString::Printf(TEXT("Tests pathfinding after dynamic subregion clears central area.")));
+    AddInfo(FString::Printf(TEXT("=== DYNAMIC REGION BENCHMARK ===")));
+    AddInfo(FString::Printf(TEXT("Tests pathfinding after dynamic region clears central area.")));
     AddInfo(FString::Printf(TEXT("Dynamic region creates empty leaf nodes where optimization applies.")));
     AddInfo(FString::Printf(TEXT("Leaf nodes: %d total, %d empty (%.1f%%) after clearing dynamic region"),
         TotalLeaves, EmptyLeaves, (TotalLeaves > 0 ? EmptyLeaves * 100.0f / TotalLeaves : 0.0f)));

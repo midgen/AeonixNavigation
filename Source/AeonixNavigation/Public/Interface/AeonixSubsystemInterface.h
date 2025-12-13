@@ -12,7 +12,7 @@ class UAeonixNavAgentComponent;
 class UAeonixDynamicObstacleComponent;
 struct FAeonixNavigationPath;
 
-/** Delegate broadcast when navigation regeneration completes (full or dynamic subregions) */
+/** Delegate broadcast when navigation regeneration completes (full or dynamic regions) */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenCompleted, AAeonixBoundingVolume*);
 
 /** Delegate broadcast when registration changes (volumes, modifiers, or obstacles added/removed) */

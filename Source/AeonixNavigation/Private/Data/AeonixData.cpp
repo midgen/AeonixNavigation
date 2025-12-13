@@ -65,11 +65,11 @@ void FAeonixData::Generate(UWorld& World, const IAeonixCollisionQueryInterface& 
 	}
 }
 
-void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
+void FAeonixData::RegenerateDynamicRegions(const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicSync);
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Processing %d dynamic region(s)"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions: Processing %d dynamic region(s)"),
 		GenerationParameters.DynamicRegionBoxes.Num());
 
 	int32 TotalNodesUpdated = 0;
@@ -157,12 +157,12 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 		RegionIndex++;
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d region(s)"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions: Complete - Updated %d total node(s) across %d region(s)"),
 		TotalNodesUpdated, GenerationParameters.DynamicRegionBoxes.Num());
 
 	if (TotalNodesUpdated == 0 && GenerationParameters.DynamicRegionBoxes.Num() > 0)
 	{
-		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicRegions: No nodes were updated! Check that dynamic regions overlap with generated navigation."));
 	}
 
 	// Rebuild neighbor links for Layer 0 after dynamic regeneration
@@ -170,11 +170,11 @@ void FAeonixData::RegenerateDynamicSubregions(const IAeonixCollisionQueryInterfa
 	BuildNeighbourLinks(0, DebugInterface);
 }
 
-void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
+void FAeonixData::RegenerateDynamicRegions(const TSet<FGuid>& RegionIds, const IAeonixCollisionQueryInterface& CollisionInterface, const IAeonixDebugDrawInterface& DebugInterface)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AeonixDynamicSync);
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Processing %d specific region(s) out of %d total"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions: Processing %d specific region(s) out of %d total"),
 		RegionIds.Num(), GenerationParameters.DynamicRegionBoxes.Num());
 
 	int32 TotalNodesUpdated = 0;
@@ -186,7 +186,7 @@ void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, cons
 		const FBox* DynamicRegionPtr = GenerationParameters.GetDynamicRegion(RegionId);
 		if (!DynamicRegionPtr)
 		{
-			UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: Region ID %s not found, skipping"),
+			UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicRegions: Region ID %s not found, skipping"),
 				*RegionId.ToString());
 			continue;
 		}
@@ -266,12 +266,12 @@ void FAeonixData::RegenerateDynamicSubregions(const TSet<FGuid>& RegionIds, cons
 		RegionIndex++;
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions: Complete - Updated %d total node(s) across %d specified region(s)"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions: Complete - Updated %d total node(s) across %d specified region(s)"),
 		TotalNodesUpdated, RegionIds.Num());
 
 	if (TotalNodesUpdated == 0 && RegionIds.Num() > 0)
 	{
-		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregions: No nodes were updated! Check that specified regions overlap with generated navigation."));
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicRegions: No nodes were updated! Check that specified regions overlap with generated navigation."));
 	}
 
 	// Rebuild neighbor links for Layer 0 after dynamic regeneration
@@ -515,7 +515,7 @@ void FAeonixData::RasterizeLeafNode(FVector& aOrigin, nodeindex_t aLeafIndex, co
 	if (!CollisionInterface.IsLeafBlocked(leafCenter, leafSize * 0.5f, GenerationParameters.CollisionChannel, GenerationParameters.AgentRadius))
 	{
 		// Entire leaf is clear - all 64 voxels are guaranteed empty
-		// The leaf node is already cleared before this function is called in RegenerateDynamicSubregions
+		// The leaf node is already cleared before this function is called in RegenerateDynamicRegions
 		// No need to do anything - early out saves 64 queries!
 		return;
 	}

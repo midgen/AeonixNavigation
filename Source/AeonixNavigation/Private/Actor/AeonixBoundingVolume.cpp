@@ -147,9 +147,9 @@ bool AAeonixBoundingVolume::Generate()
 	return true;
 }
 
-void AAeonixBoundingVolume::RegenerateDynamicSubregions()
+void AAeonixBoundingVolume::RegenerateDynamicRegions()
 {
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions called for bounding volume %s"), *GetName());
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions called for bounding volume %s"), *GetName());
 
 	// Use GenerationParameters which gets updated at runtime by AddDynamicRegion
 	if (GenerationParameters.DynamicRegionBoxes.Num() == 0)
@@ -177,7 +177,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 	// Acquire write lock for thread-safe octree modification
 	{
 		FWriteScopeLock WriteLock(OctreeDataLock);
-		NavigationData.RegenerateDynamicSubregions(*CollisionQueryInterface.GetInterface(), *this);
+		NavigationData.RegenerateDynamicRegions(*CollisionQueryInterface.GetInterface(), *this);
 	}
 
 	// Update metrics with elapsed time
@@ -195,21 +195,21 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregions()
 			FColor::Cyan, false, 5.0f, 0, 2.0f);
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregions complete for bounding volume %s (%.2fms)"), *GetName(), ElapsedMs);
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegions complete for bounding volume %s (%.2fms)"), *GetName(), ElapsedMs);
 
 #if WITH_EDITOR
 	// Mark actor as modified so Unreal saves the updated navigation data
 	Modify();
-	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic region changes marked for save"));
 #endif
 
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);
 }
 
-void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
+void AAeonixBoundingVolume::RegenerateDynamicRegionsAsync()
 {
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync called for bounding volume %s"), *GetName());
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync called for bounding volume %s"), *GetName());
 
 	// Use GenerationParameters which gets updated at runtime by AddDynamicRegion
 	if (GenerationParameters.DynamicRegionBoxes.Num() == 0)
@@ -295,7 +295,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 		}
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync: Dispatching async task for %d leaves"),
 		Batch.LeafIndicesToProcess.Num());
 
 	// Store start time for metrics tracking
@@ -314,17 +314,17 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync()
 			FColor::Magenta, false, 5.0f, 0, 2.0f);
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Async task dispatched, returning to game thread"));
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync: Async task dispatched, returning to game thread"));
 }
 
-void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
+void AAeonixBoundingVolume::RegenerateDynamicRegion(const FGuid& RegionId)
 {
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregion called for region %s in volume %s"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegion called for region %s in volume %s"),
 		*RegionId.ToString(), *GetName());
 
 	if (!GenerationParameters.GetDynamicRegion(RegionId))
 	{
-		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregion: Region %s not found in volume %s"),
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicRegion: Region %s not found in volume %s"),
 			*RegionId.ToString(), *GetName());
 		return;
 	}
@@ -349,7 +349,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
 		FWriteScopeLock WriteLock(OctreeDataLock);
 		TSet<FGuid> SingleRegion;
 		SingleRegion.Add(RegionId);
-		NavigationData.RegenerateDynamicSubregions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
+		NavigationData.RegenerateDynamicRegions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
 	}
 
 	// Update metrics with elapsed time
@@ -359,34 +359,34 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregion(const FGuid& RegionId)
 		Subsystem->GetLoadMetrics().UpdateRegenTime(ElapsedMs);
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregion complete for region %s in volume %s (%.2fms)"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegion complete for region %s in volume %s (%.2fms)"),
 		*RegionId.ToString(), *GetName(), ElapsedMs);
 
 #if WITH_EDITOR
 	// Mark actor as modified so Unreal saves the updated navigation data
 	Modify();
-	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+	UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic region changes marked for save"));
 #endif
 
 	// Broadcast that navigation has been regenerated
 	OnNavigationRegenerated.Broadcast(this);
 }
 
-void AAeonixBoundingVolume::RegenerateDynamicSubregionAsync(const FGuid& RegionId)
+void AAeonixBoundingVolume::RegenerateDynamicRegionAsync(const FGuid& RegionId)
 {
 	TSet<FGuid> SingleRegion;
 	SingleRegion.Add(RegionId);
-	RegenerateDynamicSubregionsAsync(SingleRegion);
+	RegenerateDynamicRegionsAsync(SingleRegion);
 }
 
-void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& RegionIds)
+void AAeonixBoundingVolume::RegenerateDynamicRegionsAsync(const TSet<FGuid>& RegionIds)
 {
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync called for %d specific region(s) in volume %s"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync called for %d specific region(s) in volume %s"),
 		RegionIds.Num(), *GetName());
 
 	if (RegionIds.Num() == 0)
 	{
-		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicSubregionsAsync: No regions specified"));
+		UE_LOG(LogAeonixRegen, Warning, TEXT("RegenerateDynamicRegionsAsync: No regions specified"));
 		return;
 	}
 
@@ -481,7 +481,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 		}
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Dispatching async task for %d leaves across %d regions"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync: Dispatching async task for %d leaves across %d regions"),
 		Batch.LeafIndicesToProcess.Num(), RegionIds.Num());
 
 	// Store start time for metrics tracking
@@ -503,7 +503,7 @@ void AAeonixBoundingVolume::RegenerateDynamicSubregionsAsync(const TSet<FGuid>& 
 		}
 	}
 
-	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicSubregionsAsync: Selective async task dispatched for %d region(s)"),
+	UE_LOG(LogAeonixRegen, Display, TEXT("RegenerateDynamicRegionsAsync: Selective async task dispatched for %d region(s)"),
 		RegionIds.Num());
 }
 
@@ -760,13 +760,13 @@ void AAeonixBoundingVolume::TryProcessDirtyRegions()
 		// Synchronous regeneration (same as manual button click)
 		for (const FGuid& RegionId : RegionsToProcess)
 		{
-			RegenerateDynamicSubregion(RegionId);
+			RegenerateDynamicRegion(RegionId);
 		}
 	}
 	else
 	{
 		// Async regeneration for runtime
-		RegenerateDynamicSubregionsAsync(RegionsToProcess);
+		RegenerateDynamicRegionsAsync(RegionsToProcess);
 	}
 
 	// Remove processed regions from dirty set
@@ -870,7 +870,7 @@ void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
 #if WITH_EDITOR
 		// Mark actor as modified so Unreal saves the updated navigation data
 		Modify();
-		UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic subregion changes marked for save"));
+		UE_LOG(LogAeonixRegen, Log, TEXT("Dynamic region changes marked for save"));
 #endif
 
 		// Invalidate paths that traverse the regenerated regions
@@ -1161,7 +1161,7 @@ void AAeonixBoundingVolume::BeginPlay()
 		{
 			UE_LOG(LogAeonixNavigation, Log, TEXT("Auto-regenerating %d dynamic region(s) after level load for bounding volume %s"),
 				GenerationParameters.DynamicRegionBoxes.Num(), *GetName());
-			RegenerateDynamicSubregionsAsync();
+			RegenerateDynamicRegionsAsync();
 		}
 	}
 

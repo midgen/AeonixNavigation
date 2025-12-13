@@ -12,7 +12,7 @@
 // Forward declarations
 class AAeonixBoundingVolume;
 
-/** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
+/** Delegate broadcast when navigation is regenerated (full or dynamic regions) */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenerated, AAeonixBoundingVolume*);
 
 /**
@@ -41,11 +41,11 @@ public:
 
 	void UpdateBounds();
 	bool Generate();
-	void RegenerateDynamicSubregions();
-	void RegenerateDynamicSubregionsAsync();
-	void RegenerateDynamicSubregion(const FGuid& RegionId);
-	void RegenerateDynamicSubregionAsync(const FGuid& RegionId);
-	void RegenerateDynamicSubregionsAsync(const TSet<FGuid>& RegionIds);
+	void RegenerateDynamicRegions();
+	void RegenerateDynamicRegionsAsync();
+	void RegenerateDynamicRegion(const FGuid& RegionId);
+	void RegenerateDynamicRegionAsync(const FGuid& RegionId);
+	void RegenerateDynamicRegionsAsync(const TSet<FGuid>& RegionIds);
 	bool HasData() const;
 	void ClearData();
 
@@ -80,7 +80,7 @@ public:
 	/** Get the read-write lock for thread-safe octree access */
 	FRWLock& GetOctreeDataLock() const { return OctreeDataLock; }
 
-	/** Delegate broadcast when navigation is regenerated (full or dynamic subregions) */
+	/** Delegate broadcast when navigation is regenerated (full or dynamic regions) */
 	FOnNavigationRegenerated OnNavigationRegenerated;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix")

@@ -204,7 +204,7 @@ bool FAeonixNavigation_DynamicRegionStressTest::RunTest(const FString& Parameter
 
 	// Regenerate dynamic region to simulate the problem scenario
 	UE_LOG(LogTemp, Display, TEXT("Regenerating dynamic region..."));
-	NavData.RegenerateDynamicSubregions(MockCollision, MockDebug);
+	NavData.RegenerateDynamicRegions(MockCollision, MockDebug);
 	UE_LOG(LogTemp, Display, TEXT("Dynamic region regenerated."));
 
 	// Setup pathfinder

@@ -13,7 +13,7 @@ class IAeonixCollisionQueryInterface;
 class FPhysScene_Chaos;
 
 /**
- * Data structure for async dynamic subregion regeneration batch
+ * Data structure for async dynamic region regeneration batch
  */
 struct FAeonixAsyncRegenBatch
 {
@@ -72,12 +72,12 @@ struct FAeonixLeafRasterResult
 };
 
 /**
- * Namespace for async dynamic subregion regeneration functions
+ * Namespace for async dynamic region regeneration functions
  */
 namespace AeonixAsyncRegen
 {
 	/**
-	 * Execute async dynamic subregion regeneration on background thread with chunked physics scene locking
+	 * Execute async dynamic region regeneration on background thread with chunked physics scene locking
 	 * @param Batch The batch data containing all information needed for regeneration
 	 */
 	void ExecuteAsyncRegen(const FAeonixAsyncRegenBatch& Batch);

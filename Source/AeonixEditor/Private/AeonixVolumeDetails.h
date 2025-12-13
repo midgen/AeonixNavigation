@@ -21,7 +21,7 @@ public:
 
 	FReply OnClearVolumeClick();
 
-	FReply OnRegenerateDynamicSubregions();
+	FReply OnRegenerateDynamicRegions();
 
 private:
 	TWeakObjectPtr<AAeonixBoundingVolume> myVolume;

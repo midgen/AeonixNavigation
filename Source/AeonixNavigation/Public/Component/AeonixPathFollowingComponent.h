@@ -14,12 +14,7 @@ struct AEONIXNAVIGATION_API FAeonixFlightSettings
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-	float MaxSpeed = 1200.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-	float TurnRate = 180.0f;
-
+	// How close to target before considering waypoint reached
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 	float AcceptanceRadius = 100.0f;
 };
@@ -52,12 +47,10 @@ protected:
 	virtual void FollowAeonixPath();
 	virtual FVector GetTargetLocation() const;
 	virtual void UpdateMovement(float DeltaTime);
-	virtual void UpdateRotation(float DeltaTime);
 
 private:
 	// Current path state
 	int32 CurrentWaypointIndex;
-	FVector LastVelocity;
 
 	// Cached path reference
 	const FAeonixNavigationPath* CurrentAeonixPath;

@@ -13,7 +13,19 @@ struct AEONIXNAVIGATION_API FAeonixFlyingSettings
 
 	// Maximum flight speed in units per second
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying Movement")
-	float MaxSpeed = 1200.0f;
+	float MaxSpeed = 150.f;
+
+	// Acceleration when input is applied (units/sec^2)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying Movement", meta=(ClampMin="0.0"))
+	float Acceleration = 100.0f;
+
+	// Deceleration when no input / stopping (units/sec^2)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying Movement", meta=(ClampMin="0.0"))
+	float Deceleration = 100.0f;
+
+	// Rotation speed in degrees per second
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying Movement", meta=(ClampMin="0.0"))
+	float TurnRate = 180.0f;
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -27,18 +39,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix Flying Movement")
 	FAeonixFlyingSettings FlyingSettings;
 
-	// Movement properties
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float MaxSpeed;
-
 	// Movement interface
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed) override;
 	virtual bool CanStartPathFollowing() const override;
+	virtual void StopMovementImmediately() override;
 
 	UFUNCTION(BlueprintCallable, Category = "Aeonix Flying Movement")
 	FVector GetCurrentVelocity() const { return Velocity; }
 
 	UFUNCTION(BlueprintCallable, Category = "Aeonix Flying Movement")
 	float GetCurrentSpeed() const { return Velocity.Size(); }
+
+private:
+	// Target velocity from path following (we accelerate toward this)
+	FVector TargetVelocity = FVector::ZeroVector;
 };

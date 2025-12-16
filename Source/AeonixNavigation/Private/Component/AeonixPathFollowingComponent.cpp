@@ -14,7 +14,6 @@
 
 UAeonixPathFollowingComponent::UAeonixPathFollowingComponent()
 	: CurrentWaypointIndex(0)
-	, LastVelocity(FVector::ZeroVector)
 	, CurrentAeonixPath(nullptr)
 	, bProcessingMovementThisFrame(false)
 	, LastProcessedFrameNumber(0)
@@ -86,7 +85,6 @@ void UAeonixPathFollowingComponent::FollowPathSegment(float DeltaTime)
 	if (GetStatus() == EPathFollowingStatus::Moving)
 	{
 		UpdateMovement(DeltaTime);
-		UpdateRotation(DeltaTime);
 	}
 }
 
@@ -232,14 +230,11 @@ void UAeonixPathFollowingComponent::UpdateMovement(float DeltaTime)
 	const FVector TargetLocation = GetTargetLocation();
 	const FVector DirectionToTarget = (TargetLocation - CurrentLocation).GetSafeNormal();
 
-	// Simple constant speed movement
-	const FVector DesiredVelocity = DirectionToTarget * FlightSettings.MaxSpeed;
-
 	// Check if we have our custom flying movement component
 	if (UAeonixFlyingMovementComponent* FlyingMovement = OwnerPawn->FindComponentByClass<UAeonixFlyingMovementComponent>())
 	{
-		FlyingMovement->RequestDirectMove(DesiredVelocity, false);
-		LastVelocity = DesiredVelocity;
+		// Pass direction and let movement component decide speed
+		FlyingMovement->RequestDirectMove(DirectionToTarget, true);
 	}
 	else
 	{
@@ -250,42 +245,10 @@ void UAeonixPathFollowingComponent::UpdateMovement(float DeltaTime)
 			return;
 		}
 
-		PawnMovementComp->Velocity = DesiredVelocity;
-		LastVelocity = PawnMovementComp->Velocity;
+		// Use the movement component's own max speed
+		const FVector FallbackVelocity = DirectionToTarget * PawnMovementComp->GetMaxSpeed();
+		PawnMovementComp->RequestDirectMove(FallbackVelocity, true);
 	}
-}
-
-void UAeonixPathFollowingComponent::UpdateRotation(float DeltaTime)
-{
-	AActor* Owner = GetOwner();
-	APawn* OwnerPawn = Cast<APawn>(Owner);
-	if (!OwnerPawn)
-	{
-		if (AController* Controller = Cast<AController>(Owner))
-		{
-			OwnerPawn = Controller->GetPawn();
-		}
-	}
-	if (!OwnerPawn)
-	{
-		return;
-	}
-
-	const FVector CurrentVelocity = LastVelocity;
-	if (CurrentVelocity.IsNearlyZero())
-	{
-		return;
-	}
-
-	// Simple rotation towards velocity direction
-	const FVector VelocityDirection = CurrentVelocity.GetSafeNormal();
-	const FRotator DesiredRotation = VelocityDirection.Rotation();
-
-	// Smooth rotation interpolation
-	const float TurnRateRadians = FMath::DegreesToRadians(FlightSettings.TurnRate);
-	const FRotator NewRotation = FMath::RInterpTo(OwnerPawn->GetActorRotation(), DesiredRotation, DeltaTime, TurnRateRadians);
-
-	OwnerPawn->SetActorRotation(NewRotation);
 }
 
 const FAeonixPathPoint* UAeonixPathFollowingComponent::GetCurrentWaypoint() const

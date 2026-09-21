@@ -351,6 +351,213 @@ bool FAeonixData::IsAnyMemberBlocked(layerindex_t aLayer, mortoncode_t aCode) co
 	return false;
 }
 
+bool FAeonixData::GetLinkForPosition(const FVector& aPosition, AeonixLink& oLink) const
+{
+	// Check against the bounds the octree was generated with, not any live actor bounds (issue #54).
+	const FBox GenerationBounds(GenerationParameters.Origin - GenerationParameters.Extents, GenerationParameters.Origin + GenerationParameters.Extents);
+	if (!GenerationBounds.IsInsideOrOn(aPosition))
+	{
+		return false;
+	}
+
+	const int32 NumLayers = OctreeData.GetNumLayers();
+	if (NumLayers <= 0)
+	{
+		return false;
+	}
+
+	// The z-order origin of the volume (where code == 0)
+	const FVector zOrigin = GenerationParameters.Origin - GenerationParameters.Extents;
+	const FVector localPos = aPosition - zOrigin;
+
+	int layerIndex = NumLayers - 1;
+	nodeindex_t nodeIndex = 0;
+	bool bScanWholeLayer = true; // Only the top layer has no parent to narrow the search
+
+	while (layerIndex >= 0 && layerIndex < NumLayers)
+	{
+		const TArray<AeonixNode>& layer = OctreeData.GetLayer(layerIndex);
+		const float voxelSize = GetVoxelSize(layerIndex);
+
+		FIntVector voxel;
+		voxel.X = FMath::FloorToInt(localPos.X / voxelSize);
+		voxel.Y = FMath::FloorToInt(localPos.Y / voxelSize);
+		voxel.Z = FMath::FloorToInt(localPos.Z / voxelSize);
+
+		// A point exactly on the max face floors to NodesPerSide, one past the grid. Treat that
+		// as the last voxel so boundary points still resolve; anything further out is outside.
+		const int32 nodesPerSide = GetNumNodesPerSide(layerIndex);
+		if (voxel.X < 0 || voxel.Y < 0 || voxel.Z < 0 ||
+			voxel.X > nodesPerSide || voxel.Y > nodesPerSide || voxel.Z > nodesPerSide)
+		{
+			return false;
+		}
+		voxel.X = FMath::Min(voxel.X, nodesPerSide - 1);
+		voxel.Y = FMath::Min(voxel.Y, nodesPerSide - 1);
+		voxel.Z = FMath::Min(voxel.Z, nodesPerSide - 1);
+
+		const mortoncode_t code = morton3D_64_encode(voxel.X, voxel.Y, voxel.Z);
+
+		// Find the node with this code. A parent's 8 children are allocated contiguously
+		// from FirstChild.NodeIndex, so below the top layer only that range needs checking.
+		nodeindex_t foundIndex = INDEX_NONE;
+		if (bScanWholeLayer)
+		{
+			if (!GetIndexForCode(layerIndex, code, foundIndex))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			const nodeindex_t endIndex = FMath::Min(nodeIndex + 8, layer.Num());
+			for (nodeindex_t j = nodeIndex; j < endIndex; j++)
+			{
+				if (layer[j].Code == code)
+				{
+					foundIndex = j;
+					break;
+				}
+			}
+			if (foundIndex == INDEX_NONE)
+			{
+				// Absent from the octree means blocked at this resolution.
+				return false;
+			}
+		}
+
+		const AeonixNode& node = layer[foundIndex];
+
+		// No child nodes, so this is our nav position
+		if (!node.FirstChild.IsValid())
+		{
+			oLink.LayerIndex = layerIndex;
+			oLink.NodeIndex = foundIndex;
+			oLink.SubnodeIndex = 0;
+			return true;
+		}
+
+		// Leaf node: find the sub-voxel
+		if (layerIndex == 0)
+		{
+			const AeonixLeafNode& leaf = OctreeData.GetLeafNode(node.FirstChild.NodeIndex);
+			FVector nodePosition;
+			GetNodePosition(layerIndex, node.Code, nodePosition);
+			const FVector nodeOrigin = nodePosition - FVector(voxelSize * 0.5f);
+			const FVector nodeLocalPos = aPosition - nodeOrigin;
+			const float leafVoxelSize = voxelSize * 0.25f;
+			FIntVector coord;
+			coord.X = FMath::Clamp(FMath::FloorToInt(nodeLocalPos.X / leafVoxelSize), 0, 3);
+			coord.Y = FMath::Clamp(FMath::FloorToInt(nodeLocalPos.Y / leafVoxelSize), 0, 3);
+			coord.Z = FMath::Clamp(FMath::FloorToInt(nodeLocalPos.Z / leafVoxelSize), 0, 3);
+
+			const mortoncode_t leafIndex = morton3D_64_encode(coord.X, coord.Y, coord.Z);
+			if (leaf.GetNode(leafIndex))
+			{
+				return false; // Blocked sub-voxel
+			}
+
+			oLink.LayerIndex = 0;
+			oLink.NodeIndex = foundIndex;
+			oLink.SubnodeIndex = leafIndex;
+			return true;
+		}
+
+		// Descend into the children
+		layerIndex = node.FirstChild.GetLayerIndex();
+		nodeIndex = node.FirstChild.GetNodeIndex();
+		bScanWholeLayer = false;
+	}
+
+	return false;
+}
+
+bool FAeonixData::GetLinkBounds(const AeonixLink& aLink, FBox& oBounds) const
+{
+	FVector centre;
+	if (!GetLinkPosition(aLink, centre))
+	{
+		return false;
+	}
+
+	const AeonixNode& node = OctreeData.GetNode(aLink);
+	const bool bIsSubVoxel = aLink.GetLayerIndex() == 0 && node.FirstChild.IsValid();
+	const float halfSize = bIsSubVoxel ? GetVoxelSize(0) * 0.125f : GetVoxelSize(aLink.GetLayerIndex()) * 0.5f;
+
+	oBounds = FBox(centre - FVector(halfSize), centre + FVector(halfSize));
+	return true;
+}
+
+bool FAeonixData::HasLineOfSight(const FVector& aStart, const FVector& aEnd) const
+{
+	SCOPE_CYCLE_COUNTER(STAT_AeonixLineOfSight);
+
+	const FVector delta = aEnd - aStart;
+	const float length = delta.Size();
+
+	AeonixLink link;
+	if (length <= KINDA_SMALL_NUMBER)
+	{
+		return GetLinkForPosition(aStart, link);
+	}
+
+	const FVector dir = delta / length;
+
+	// Step a small distance past each exit face so the next lookup lands inside the next cell
+	// rather than on the shared boundary. Scaled to the leaf sub-voxel so it never skips one.
+	const float leafSize = GetVoxelSize(0) * 0.25f;
+	const float epsilon = FMath::Max(leafSize * 0.001f, 0.01f);
+
+	// Cells crossed cannot exceed the number of leaf sub-voxels along the segment, with a
+	// margin. This only guards against a pathological failure to advance.
+	const int32 maxSteps = FMath::CeilToInt(length / leafSize) * 3 + 8;
+
+	float t = 0.f;
+	AeonixLink previousLink;
+	for (int32 step = 0; step < maxSteps; ++step)
+	{
+		const FVector pos = aStart + dir * t;
+		if (!GetLinkForPosition(pos, link))
+		{
+			return false;
+		}
+
+		FBox bounds;
+		if (!GetLinkBounds(link, bounds))
+		{
+			return false;
+		}
+
+		// Distance along the ray to the nearest exit face of this cell
+		float tExit = FLT_MAX;
+		for (int32 axis = 0; axis < 3; ++axis)
+		{
+			const float d = dir[axis];
+			if (FMath::Abs(d) > KINDA_SMALL_NUMBER)
+			{
+				const float face = d > 0.f ? bounds.Max[axis] : bounds.Min[axis];
+				tExit = FMath::Min(tExit, (face - pos[axis]) / d);
+			}
+		}
+
+		// If we failed to make progress (numerical edge case on a boundary), push a little harder
+		if (link == previousLink || tExit < 0.f)
+		{
+			tExit = 0.f;
+		}
+		previousLink = link;
+
+		t += FMath::Max(tExit, 0.f) + epsilon;
+		if (t >= length)
+		{
+			// The end point lies inside this free cell
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool FAeonixData::GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodeindex_t& oIndex) const
 {
 	const TArray<AeonixNode>& layer = OctreeData.GetLayer(aLayer);

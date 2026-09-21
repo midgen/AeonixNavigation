@@ -31,4 +31,5 @@ DECLARE_CYCLE_STAT(TEXT("Pathfinding Async"), STAT_AeonixPathfindingAsync, STATG
 DECLARE_CYCLE_STAT(TEXT("Path Chaikin Smoothing"), STAT_AeonixPathChaikinSmoothing, STATGROUP_Aeonix);
 DECLARE_CYCLE_STAT(TEXT("Path String Pulling"), STAT_AeonixPathStringPulling, STATGROUP_Aeonix);
 DECLARE_CYCLE_STAT(TEXT("Path Position Smoothing"), STAT_AeonixPathPositionSmoothing, STATGROUP_Aeonix);
+DECLARE_CYCLE_STAT(TEXT("Line Of Sight"), STAT_AeonixLineOfSight, STATGROUP_Aeonix);
  

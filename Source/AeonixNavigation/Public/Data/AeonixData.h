@@ -36,6 +36,22 @@ public:
 	/** Binary search a layer for a morton code. Returns false if no node has that code. */
 	bool GetIndexForCode(layerindex_t aLayer, mortoncode_t aCode, nodeindex_t& oIndex) const;
 
+	/**
+	 * Resolve a world position to the free voxel that contains it.
+	 * Returns false if the position is outside the generation bounds or inside a blocked voxel.
+	 */
+	bool GetLinkForPosition(const FVector& aPosition, AeonixLink& oLink) const;
+
+	/** World-space bounds of the voxel a link refers to (leaf sub-voxel bounds for subdivided layer 0 nodes). */
+	bool GetLinkBounds(const AeonixLink& aLink, FBox& oBounds) const;
+
+	/**
+	 * True if the straight segment from aStart to aEnd passes only through free voxels.
+	 * Walks the segment cell by cell through the octree, so the cost scales with the number
+	 * of voxels crossed rather than the segment length. Leaving the volume counts as blocked.
+	 */
+	bool HasLineOfSight(const FVector& aStart, const FVector& aEnd) const;
+
 	//~ Begin UObject
 	//void Serialize(FArchive& Ar) override;
 	//~ End UObject 

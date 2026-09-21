@@ -601,3 +601,66 @@ bool FAeonixNavigation_BenchmarkDynamicRegionTest::RunTest(const FString& Parame
 
     return true;
 }
+
+/**
+ * Benchmark with the default post-processing passes enabled (optimise, string pulling,
+ * position smoothing). The raw benchmark above disables these, so it cannot show the cost
+ * of changes to the post-processing stage. Same world and seed as the raw benchmark so the
+ * two can be compared directly.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAeonixNavigation_BenchmarkPostProcessedTest,
+    "AeonixNavigation.Benchmark.PostProcessed",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FAeonixNavigation_BenchmarkPostProcessedTest::RunTest(const FString& Parameters)
+{
+    const int32 BenchmarkSeed = 12345;
+    const int32 NumRuns = 100;
+
+    FTestPartialObstacleCollisionQueryInterface ObstacleCollision;
+    FSilentDebugDrawInterface DebugDraw;
+    FAeonixData NavData;
+
+    FAeonixGenerationParameters Params;
+    Params.Origin = FVector::ZeroVector;
+    Params.Extents = FVector(500, 500, 500);
+    Params.OctreeDepth = 5;
+    Params.CollisionChannel = ECollisionChannel::ECC_WorldStatic;
+    Params.AgentRadius = 34.f;
+    Params.ShowLeafVoxels = false;
+    Params.ShowMortonCodes = false;
+    NavData.UpdateGenerationParameters(Params);
+
+    UWorld* DummyWorld = nullptr;
+    NavData.Generate(*DummyWorld, ObstacleCollision, DebugDraw);
+
+    // Defaults: bOptimizePath, bUseStringPulling and bSmoothPositions all on.
+    FAeonixPathFinderSettings PathSettings;
+    PathSettings.MaxIterations = 10000;
+    PathSettings.bUseUnitCost = false;
+    PathSettings.HeuristicSettings.EuclideanWeight = 1.0f;
+    PathSettings.HeuristicSettings.GlobalWeight = 10.0f;
+    PathSettings.HeuristicSettings.NodeSizeWeight = 1.0f;
+
+    FAeonixPathfindBenchmark Benchmark;
+    FAeonixPathfindBenchmarkSummary Summary = Benchmark.RunBenchmark(BenchmarkSeed, NumRuns, NavData, PathSettings);
+    Summary.LogSummary();
+
+    AddInfo(FString::Printf(TEXT("=== POST-PROCESSED BENCHMARK (optimise + string pulling + smoothing) ===")));
+    AddInfo(FString::Printf(TEXT("Seed: %d | Runs: %d | Success: %d (%.1f%%)"),
+        Summary.Seed, Summary.TotalRuns, Summary.SuccessfulRuns, Summary.GetSuccessRate()));
+    if (Summary.SuccessfulRuns > 0)
+    {
+        AddInfo(FString::Printf(TEXT("Iterations: Avg=%.1f, Min=%d, Max=%d, StdDev=%.1f"),
+            Summary.AvgIterations, Summary.MinIterations, Summary.MaxIterations, Summary.StdDevIterations));
+        AddInfo(FString::Printf(TEXT("Time (ms): Avg=%.3f, Min=%.3f, Max=%.3f, StdDev=%.3f"),
+            Summary.AvgTimeMs, Summary.MinTimeMs, Summary.MaxTimeMs, Summary.StdDevTimeMs));
+        AddInfo(FString::Printf(TEXT("Path Length: Avg=%.1f | Direct Distance: Avg=%.1f"),
+            Summary.AvgPathLength, Summary.AvgDirectDistance));
+        AddInfo(FString::Printf(TEXT("Total benchmark time: %.1fms"), Summary.TotalTimeMs));
+    }
+
+    TestTrue(TEXT("Benchmark should complete all runs"), Summary.TotalRuns == NumRuns);
+    TestTrue(TEXT("Benchmark should have at least some successful pathfinds"), Summary.SuccessfulRuns > 0);
+    return true;
+}

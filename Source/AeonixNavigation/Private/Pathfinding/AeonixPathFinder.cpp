@@ -363,8 +363,29 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 
 	if (points.Num() > 1)
 	{
-		points[0].Position = aTargetPos;
-		points[points.Num() - 1].Position = aStartPos;
+		// Replace the endpoint voxel centres with the requested positions, but only where the
+		// segment from the neighbouring voxel to that position stays in free space. The requested
+		// position can sit anywhere inside a large endpoint voxel, and a straight line from the
+		// neighbour's centre to it can clip a blocked sibling on the way (issue #53). In that
+		// case keep the centre and add the requested position as an extra point.
+		if (NavigationData.HasLineOfSight(points[1].Position, aTargetPos))
+		{
+			points[0].Position = aTargetPos;
+		}
+		else
+		{
+			points.Insert(FAeonixPathPoint(aTargetPos, points[0].Layer), 0);
+		}
+
+		const int32 lastIdx = points.Num() - 1;
+		if (NavigationData.HasLineOfSight(points[lastIdx - 1].Position, aStartPos))
+		{
+			points[lastIdx].Position = aStartPos;
+		}
+		else
+		{
+			points.Emplace(aStartPos, points[lastIdx].Layer);
+		}
 	}
 	else // Start and goal are the same voxel, so the path is just the two requested positions.
 	{
@@ -528,6 +549,13 @@ void AeonixPathFinder::StringPullPath(TArray<FAeonixPathPoint>& pathPoints)
 				}
 			}
 			
+			// The distance test above is a cheap heuristic. It says nothing about geometry, so
+			// confirm the straightened segment actually stays in free voxels before accepting it.
+			if (canConnect && !NavigationData.HasLineOfSight(apexPos, pathPoints[testIdx].Position))
+			{
+				canConnect = false;
+			}
+
 			if (canConnect)
 			{
 				furthestVisible = testIdx;
@@ -671,9 +699,16 @@ void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 		{
 			FVector moveDirection = (projectedPoint - currentPoint->Position).GetSafeNormal();
 			FVector newPosition = currentPoint->Position + (moveDirection * actualMoveDistance);
-			
-			// Apply the adjusted position
-			currentPoint->Position = newPosition;
+
+			// Moving the point changes the two segments that meet at it. With mixed voxel sizes
+			// the union of neighbouring cells is not convex, so a point slid to the edge of its
+			// voxel can produce a segment that clips a blocked sibling (issue #53). Only apply
+			// the move if both resulting segments stay in free space.
+			if (NavigationData.HasLineOfSight(prevPoint->Position, newPosition) &&
+			    NavigationData.HasLineOfSight(newPosition, nextPoint->Position))
+			{
+				currentPoint->Position = newPosition;
+			}
 		}
 	}
 }

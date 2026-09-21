@@ -329,35 +329,36 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 
 void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath)
 {
-	FAeonixPathPoint pos;
-
 	TArray<FAeonixPathPoint> points;
 
-	// Initial path building from the A* results
-	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
+	// Records the voxel centre and layer for a link on the came-from chain.
+	auto AddLinkPoint = [this, &points](const AeonixLink& aLink)
 	{
-		aCurrent = aCameFrom[aCurrent];
-		NavigationData.GetLinkPosition(aCurrent, pos.Position);
+		FAeonixPathPoint& point = points.AddDefaulted_GetRef();
+		NavigationData.GetLinkPosition(aLink, point.Position);
 
-		points.Add(pos);
-		const AeonixNode& node = NavigationData.OctreeData.GetNode(aCurrent);
-
-		if (aCurrent.GetLayerIndex() == 0)
+		if (aLink.GetLayerIndex() == 0)
 		{
-			if (!node.HasChildren())
-			{
-				points[points.Num() - 1].Layer = 1;
-			}
-			else
-			{
-				// Layer 0 node with leaf subdivision - use actual sub-voxel position
-				points[points.Num() - 1].Layer = 0;
-			}
+			const AeonixNode& node = NavigationData.OctreeData.GetNode(aLink);
+			// Layer 0 node with leaf subdivision - use actual sub-voxel position
+			point.Layer = node.HasChildren() ? 0 : 1;
 		}
 		else
 		{
-			points[points.Num() - 1].Layer = aCurrent.GetLayerIndex() + 1;
+			point.Layer = aLink.GetLayerIndex() + 1;
 		}
+	};
+
+	// Initial path building from the A* results, walking backwards from the goal.
+	// The goal link itself must be recorded before advancing, otherwise the first
+	// recorded point is the goal's predecessor and gets overwritten by aTargetPos below,
+	// dropping the voxel adjacent to the goal from the path (issue #63).
+	AddLinkPoint(aCurrent);
+
+	while (aCameFrom.Contains(aCurrent) && !(aCurrent == aCameFrom[aCurrent]))
+	{
+		aCurrent = aCameFrom[aCurrent];
+		AddLinkPoint(aCurrent);
 	}
 
 	if (points.Num() > 1)
@@ -365,11 +366,8 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 		points[0].Position = aTargetPos;
 		points[points.Num() - 1].Position = aStartPos;
 	}
-	else // If start and end are in the same voxel, just use the start and target positions.
+	else // Start and goal are the same voxel, so the path is just the two requested positions.
 	{
-		if (points.Num() == 0)
-			points.Emplace();
-
 		points[0].Position = aTargetPos;
 		points.Emplace(aStartPos, StartLink.GetLayerIndex());
 	}

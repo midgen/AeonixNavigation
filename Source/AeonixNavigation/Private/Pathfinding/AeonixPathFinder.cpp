@@ -213,8 +213,10 @@ float AeonixPathFinder::CalculateHeuristic(const AeonixLink& aStart, const Aeoni
 	// 3. Node size component (applies to all components)
 	if (Settings.HeuristicSettings.NodeSizeWeight > 0.0f)
 	{
-		// Higher layer index = larger voxel = should have lower score to be preferred
-		float nodeSizeMultiplier = (1.0f - (static_cast<float>(aTarget.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.HeuristicSettings.NodeSizeWeight);
+		// Higher layer index = larger voxel = should have lower score to be preferred.
+		// Scale by the layer of the node being scored (aStart), not the goal: the goal is constant
+		// for the whole search, so using its layer would apply the same multiplier to every candidate.
+		float nodeSizeMultiplier = (1.0f - (static_cast<float>(aStart.GetLayerIndex()) / static_cast<float>(NavigationData.OctreeData.GetNumLayers())) * Settings.HeuristicSettings.NodeSizeWeight);
 		totalScore *= nodeSizeMultiplier;
 	}
 

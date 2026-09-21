@@ -12,6 +12,7 @@
 #include "Pathfinding/AeonixNavigationPath.h"
 #include "Misc/AutomationTest.h"
 #include "AeonixNavigation.h"
+#include "../Public/AeonixNavigationTestMocks.h"
 
 // Mock collision interface with a half-volume blocked region
 class FDynamicRegionMockCollision : public IAeonixCollisionQueryInterface
@@ -49,103 +50,7 @@ public:
 	}
 };
 
-// Mock debug interface (silent)
-class FSilentDebugDrawInterface : public IAeonixDebugDrawInterface
-{
-public:
-	virtual void AeonixDrawDebugString(const FVector& Position, const FString& String, const FColor& Color) const override {}
-	virtual void AeonixDrawDebugBox(const FVector& Position, const float Size, const FColor& Color) const override {}
-	virtual void AeonixDrawDebugLine(const FVector& Start, const FVector& End, const FColor& Color, float Thickness = 0.0f) const override {}
-	virtual void AeonixDrawDebugDirectionalArrow(const FVector& Start, const FVector& End, const FColor& Color, float ArrowSize = 0.0f) const override {}
-};
 
-// Helper function to get a link from a position (simplified from AeonixMediator::GetLinkFromPosition)
-static bool GetLinkFromPosition(const FVector& Position, const FAeonixData& NavData, AeonixLink& OutLink)
-{
-	const FAeonixGenerationParameters& Params = NavData.GetParams();
-	const FVector& Origin = Params.Origin;
-	const FVector& Extent = Params.Extents;
-
-	// Check if position is within bounds
-	const FBox Bounds(Origin - Extent, Origin + Extent);
-	if (!Bounds.IsInside(Position))
-	{
-		return false;
-	}
-
-	// Z-order origin (where code == 0)
-	const FVector ZOrigin = Origin - Extent;
-	const FVector LocalPos = Position - ZOrigin;
-
-	// Start from top layer and descend
-	int32 LayerIndex = NavData.OctreeData.GetNumLayers() - 1;
-	nodeindex_t NodeIndex = 0;
-
-	while (LayerIndex >= 0 && LayerIndex < NavData.OctreeData.GetNumLayers())
-	{
-		const TArray<AeonixNode>& Layer = NavData.OctreeData.GetLayer(LayerIndex);
-		const float VoxelSize = NavData.GetVoxelSize(LayerIndex);
-
-		// Calculate XYZ coordinates
-		const int32 X = FMath::FloorToInt(LocalPos.X / VoxelSize);
-		const int32 Y = FMath::FloorToInt(LocalPos.Y / VoxelSize);
-		const int32 Z = FMath::FloorToInt(LocalPos.Z / VoxelSize);
-		const mortoncode_t Code = morton3D_64_encode(X, Y, Z);
-
-		// Find node with this code
-		for (nodeindex_t j = NodeIndex; j < Layer.Num(); j++)
-		{
-			const AeonixNode& Node = Layer[j];
-			if (Node.Code == Code)
-			{
-				// No children - this is the link
-				if (!Node.FirstChild.IsValid())
-				{
-					OutLink.LayerIndex = LayerIndex;
-					OutLink.NodeIndex = j;
-					OutLink.SubnodeIndex = 0;
-					return true;
-				}
-
-				// Leaf node - find subnode
-				if (LayerIndex == 0)
-				{
-					const AeonixLeafNode& Leaf = NavData.OctreeData.GetLeafNode(Node.FirstChild.NodeIndex);
-
-					// Get node world position
-					FVector NodePosition;
-					NavData.GetNodePosition(LayerIndex, Node.Code, NodePosition);
-					const FVector NodeOrigin = NodePosition - FVector(VoxelSize * 0.5f);
-					const FVector NodeLocalPos = Position - NodeOrigin;
-
-					// Calculate leaf voxel coordinates
-					const int32 LeafX = FMath::FloorToInt(NodeLocalPos.X / (VoxelSize * 0.25f));
-					const int32 LeafY = FMath::FloorToInt(NodeLocalPos.Y / (VoxelSize * 0.25f));
-					const int32 LeafZ = FMath::FloorToInt(NodeLocalPos.Z / (VoxelSize * 0.25f));
-					const mortoncode_t LeafIndex = morton3D_64_encode(LeafX, LeafY, LeafZ);
-
-					// Check if blocked
-					if (Leaf.GetNode(LeafIndex))
-					{
-						return false; // Blocked
-					}
-
-					OutLink.LayerIndex = 0;
-					OutLink.NodeIndex = j;
-					OutLink.SubnodeIndex = LeafIndex;
-					return true;
-				}
-
-				// Has children - descend
-				LayerIndex = Layer[j].FirstChild.GetLayerIndex();
-				NodeIndex = Layer[j].FirstChild.GetNodeIndex();
-				break;
-			}
-		}
-	}
-
-	return false;
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FAeonixNavigation_DynamicRegionStressTest,

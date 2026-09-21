@@ -7,6 +7,7 @@
 #include "Data/AeonixOctreeData.h"
 #include "Interface/AeonixCollisionQueryInterface.h"
 #include "Interface/AeonixDebugDrawInterface.h"
+#include "Pathfinding/AeonixNavigationPath.h"
 #include "Engine/EngineTypes.h"
 #include "Math/Vector.h"
 #include "Containers/Array.h"
@@ -282,6 +283,38 @@ inline bool GetLinkFromPosition(const FVector& Position, const FAeonixData& NavD
 				LayerIndex = Layer[j].FirstChild.GetLayerIndex();
 				NodeIndex = Layer[j].FirstChild.GetNodeIndex();
 				break;
+			}
+		}
+	}
+
+	return false;
+}
+
+// Walks every segment of a path, sampling at half a leaf voxel, and reports the first segment
+// that passes through a position the octree does not resolve to a free voxel.
+// Returns true if a blocked segment was found and fills the out parameters.
+inline bool FindBlockedPathSegment(const FAeonixData& NavData, const TArray<FAeonixPathPoint>& Points,
+	int32& OutSegmentEndIndex, FVector& OutBlockedSample)
+{
+	const float LeafSize = NavData.GetVoxelSize(0) * 0.25f;
+	const float StepSize = LeafSize * 0.5f;
+
+	for (int32 i = 1; i < Points.Num(); ++i)
+	{
+		const FVector& A = Points[i - 1].Position;
+		const FVector& B = Points[i].Position;
+		const float Length = FVector::Dist(A, B);
+		const int32 NumSteps = FMath::Max(1, FMath::CeilToInt(Length / StepSize));
+
+		for (int32 s = 0; s <= NumSteps; ++s)
+		{
+			const FVector Sample = FMath::Lerp(A, B, static_cast<float>(s) / static_cast<float>(NumSteps));
+			AeonixLink SampleLink;
+			if (!GetLinkFromPosition(Sample, NavData, SampleLink))
+			{
+				OutSegmentEndIndex = i;
+				OutBlockedSample = Sample;
+				return true;
 			}
 		}
 	}

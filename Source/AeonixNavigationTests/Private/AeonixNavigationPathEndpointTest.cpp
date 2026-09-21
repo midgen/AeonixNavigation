@@ -182,33 +182,17 @@ bool FAeonixNavigation_PathEndpointVoxelTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Point after the start is the centre of a voxel adjacent to the start voxel"), bAdjacent);
 	}
 
-	// 4. Every raw segment must stay inside free voxels. Sample at half a leaf voxel so no cell is skipped.
+	// 4. Every raw segment must stay inside free voxels.
 	{
-		const float LeafSize = NavData.GetVoxelSize(0) * 0.25f;
-		const float StepSize = LeafSize * 0.5f;
-		int32 BlockedSegments = 0;
-
-		for (int32 i = 1; i < Points.Num(); ++i)
+		int32 BlockedSegmentEnd = -1;
+		FVector BlockedSample;
+		const bool bBlocked = FindBlockedPathSegment(NavData, Points, BlockedSegmentEnd, BlockedSample);
+		if (bBlocked)
 		{
-			const FVector& A = Points[i - 1].Position;
-			const FVector& B = Points[i].Position;
-			const float Length = FVector::Dist(A, B);
-			const int32 NumSteps = FMath::Max(1, FMath::CeilToInt(Length / StepSize));
-
-			for (int32 s = 0; s <= NumSteps; ++s)
-			{
-				const FVector Sample = FMath::Lerp(A, B, static_cast<float>(s) / static_cast<float>(NumSteps));
-				AeonixLink SampleLink;
-				if (!GetLinkFromPosition(Sample, NavData, SampleLink))
-				{
-					AddError(FString::Printf(TEXT("Segment %d -> %d passes through blocked space at %s"), i - 1, i, *Sample.ToString()));
-					BlockedSegments++;
-					break;
-				}
-			}
+			AddError(FString::Printf(TEXT("Segment %d -> %d passes through blocked space at %s"),
+				BlockedSegmentEnd - 1, BlockedSegmentEnd, *BlockedSample.ToString()));
 		}
-
-		TestEqual(TEXT("No raw path segment passes through a blocked voxel"), BlockedSegments, 0);
+		TestFalse(TEXT("No raw path segment passes through a blocked voxel"), bBlocked);
 	}
 
 	return true;

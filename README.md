@@ -1,6 +1,6 @@
 # Aeonix Navigation
 
-A voxel-based 3D pathfinding plugin for Unreal Engine 5.5, 5.6, and 5.7.
+A voxel-based 3D pathfinding plugin for Unreal Engine 5.5, 5.6, 5.7, and 5.8.
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/midgen/AeonixNavigation?style=for-the-badge&logo=unrealengine)![GitHub branch status](https://img.shields.io/github/checks-status/midgen/AeonixNavigation/main?style=for-the-badge&logo=unrealengine)
 

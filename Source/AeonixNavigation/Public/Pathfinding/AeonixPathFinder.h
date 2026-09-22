@@ -30,7 +30,7 @@ struct FAeonixHeuristicSettings
 
 	/** Weight factor that increases score for higher layer nodes (e.g. larger voxels). Can reduce iterations considerably */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))
-	float NodeSizeWeight{1.0f};
+	float NodeSizeWeight{0.0f};
 
 	/** Global multiplier applied to the final combined heuristic score */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Heuristics", meta=(ClampMin="0.0"))

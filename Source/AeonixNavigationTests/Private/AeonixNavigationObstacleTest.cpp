@@ -53,6 +53,10 @@ bool FAeonixNavigation_ObstacleNavigationTest::RunTest(const FString& Parameters
     PathSettings.bUseStringPulling = true;
     PathSettings.HeuristicSettings.EuclideanWeight = 1.0f;
     PathSettings.HeuristicSettings.GlobalWeight = 10.0f;
+    // This test asserts the path threads the narrow gap between the obstacles. With the node size
+    // heuristic active the search rightly prefers the large open voxels around the obstacles
+    // instead, so disable it here to keep the gap assertion meaningful.
+    PathSettings.HeuristicSettings.NodeSizeWeight = 0.0f;
 
     AeonixPathFinder PathFinder(NavData, PathSettings);
 

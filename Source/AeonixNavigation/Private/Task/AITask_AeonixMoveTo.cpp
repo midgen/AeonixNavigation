@@ -438,7 +438,7 @@ void UAITask_AeonixMoveTo::LogPathHelper()
 	if (!AeonixNavAgent)
 		return;
 
-	const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForAgent(AeonixNavAgent);
+	const IAeonixNavVolumeInterface* NavVolume = AeonixSubsystem->GetVolumeForAgent(AeonixNavAgent);
 	
 	FVisualLogger& Vlog = FVisualLogger::Get();
 	if (Vlog.IsRecording() && AeonixPath->GetPathPoints().Num())

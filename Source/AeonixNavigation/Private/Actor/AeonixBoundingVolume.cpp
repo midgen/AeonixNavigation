@@ -102,9 +102,15 @@ bool AAeonixBoundingVolume::Generate()
 
 	UpdateBounds();
 
+	// In-flight async pathfinds hold links into the octree being replaced
+	if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+	{
+		Subsystem->CancelPathRequestsForVolume(*this);
+	}
+
 	// Acquire write lock for thread-safe octree modification
 	{
-		FWriteScopeLock WriteLock(OctreeDataLock);
+		FWriteScopeLock WriteLock(*OctreeDataLock);
 		NavigationData.Generate(*GetWorld(), *CollisionQueryInterface.GetInterface(), *this);
 	}
 
@@ -176,7 +182,7 @@ void AAeonixBoundingVolume::RegenerateDynamicRegions()
 
 	// Acquire write lock for thread-safe octree modification
 	{
-		FWriteScopeLock WriteLock(OctreeDataLock);
+		FWriteScopeLock WriteLock(*OctreeDataLock);
 		NavigationData.RegenerateDynamicRegions(*CollisionQueryInterface.GetInterface(), *this);
 	}
 
@@ -346,7 +352,7 @@ void AAeonixBoundingVolume::RegenerateDynamicRegion(const FGuid& RegionId)
 
 	// Acquire write lock for thread-safe octree modification
 	{
-		FWriteScopeLock WriteLock(OctreeDataLock);
+		FWriteScopeLock WriteLock(*OctreeDataLock);
 		TSet<FGuid> SingleRegion;
 		SingleRegion.Add(RegionId);
 		NavigationData.RegenerateDynamicRegions(SingleRegion, *CollisionQueryInterface.GetInterface(), *this);
@@ -809,7 +815,7 @@ void AAeonixBoundingVolume::ProcessPendingRegenResults(float DeltaTime)
 	int32 SkippedNodes = 0;
 
 	// Acquire write lock to update leaf nodes
-	FWriteScopeLock WriteLock(OctreeDataLock);
+	FWriteScopeLock WriteLock(*OctreeDataLock);
 	FAeonixOctreeData& OctreeData = NavigationData.OctreeData;
 
 	// Process results until time budget is exhausted
@@ -940,7 +946,14 @@ void AAeonixBoundingVolume::AeonixDrawDebugDirectionalArrow(const FVector& Start
 
 void AAeonixBoundingVolume::ClearData()
 {
-	NavigationData.ResetForGeneration();
+	if (UAeonixSubsystem* Subsystem = GetWorld()->GetSubsystem<UAeonixSubsystem>())
+	{
+		Subsystem->CancelPathRequestsForVolume(*this);
+	}
+	{
+		FWriteScopeLock WriteLock(*OctreeDataLock);
+		NavigationData.ResetForGeneration();
+	}
 
 	// Clear only octree debug visualization using the debug manager (doesn't affect other systems)
 	if (UAeonixDebugDrawManager* DebugManager = GetWorld()->GetSubsystem<UAeonixDebugDrawManager>())

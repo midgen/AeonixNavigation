@@ -7,6 +7,8 @@
 #include "AeonixNavigation.h"
 #include "Actor/AeonixBoundingVolume.h"
 #include "Actor/AeonixModifierVolume.h"
+#include "Interface/AeonixNavVolumeInterface.h"
+#include "Pathfinding/AeonixPathFinder.h"
 #include "Component/AeonixNavAgentComponent.h"
 #include "Component/AeonixDynamicObstacleComponent.h"
 #include "Task/AeonixFindPathTask.h"
@@ -41,11 +43,16 @@ void UAeonixSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		NumWorkerThreads, MaxConcurrentPathfinds);
 }
 
-void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::RegisterVolume(IAeonixNavVolumeInterface* Volume)
 {
+	if (!Volume)
+	{
+		return;
+	}
+
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
-		if (Handle.VolumeHandle == Volume)
+		if (Handle.Get() == Volume)
 		{
 			return;
 		}
@@ -54,24 +61,31 @@ void UAeonixSubsystem::RegisterVolume(AAeonixBoundingVolume* Volume)
 	RegisteredVolumes.Emplace(Volume);
 
 	// Subscribe to the volume's regeneration events for subsystem orchestration
-	Volume->OnNavigationRegenerated.AddUObject(this, &UAeonixSubsystem::OnBoundingVolumeRegenerated);
-	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem subscribed to volume %s regeneration events"), *Volume->GetName());
+	Volume->GetOnNavigationRegenerated().AddUObject(this, &UAeonixSubsystem::OnBoundingVolumeRegenerated);
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem subscribed to volume %s regeneration events"), *Volume->GetVolumeName());
 
 	// Notify listeners that registration changed
 	OnRegistrationChanged.Broadcast();
 }
 
-void UAeonixSubsystem::UnRegisterVolume(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::UnRegisterVolume(IAeonixNavVolumeInterface* Volume)
 {
-	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
+	if (!Volume)
 	{
-		if (Handle.VolumeHandle == Volume)
-		{
-			// Unsubscribe from the volume's regeneration events
-			Volume->OnNavigationRegenerated.RemoveAll(this);
-			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem unsubscribed from volume %s regeneration events"), *Volume->GetName());
+		return;
+	}
 
-			RegisteredVolumes.RemoveSingle(Handle);
+	for (int32 i = 0; i < RegisteredVolumes.Num(); i++)
+	{
+		if (RegisteredVolumes[i].Get() == Volume)
+		{
+			CancelPathRequestsForVolume(*Volume);
+
+			// Unsubscribe from the volume's regeneration events
+			Volume->GetOnNavigationRegenerated().RemoveAll(this);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Subsystem unsubscribed from volume %s regeneration events"), *Volume->GetVolumeName());
+
+			RegisteredVolumes.RemoveAt(i);
 
 			// Notify listeners that registration changed
 			OnRegistrationChanged.Broadcast();
@@ -181,6 +195,7 @@ void UAeonixSubsystem::UnRegisterNavComponent(UAeonixNavAgentComponent* NavCompo
 			break;
 		}
 	}
+	AgentToVolumeMap.Remove(NavComponent);
 }
 
 void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent)
@@ -217,12 +232,13 @@ void UAeonixSubsystem::RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* 
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle && Handle.VolumeHandle->IsPointInside(CurrentPosition))
+			AAeonixBoundingVolume* BoundingVolume = Cast<AAeonixBoundingVolume>(Handle.VolumeHandle.GetObject());
+			if (BoundingVolume && BoundingVolume->IsPointInside(CurrentPosition))
 			{
-				FoundVolume = Handle.VolumeHandle;
+				FoundVolume = BoundingVolume;
 
 				// Check which dynamic regions within this volume we're inside
-				const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
+				const FAeonixGenerationParameters& Params = BoundingVolume->GenerationParameters;
 				for (const auto& RegionPair : Params.DynamicRegionBoxes)
 				{
 					if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
@@ -278,13 +294,14 @@ void UAeonixSubsystem::UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent
 	}
 }
 
-const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVector& Position)
+const IAeonixNavVolumeInterface* UAeonixSubsystem::GetVolumeForPosition(const FVector& Position)
 {
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
-		if (Handle.VolumeHandle->IsPointInside(Position))
+		const IAeonixNavVolumeInterface* Volume = Handle.Get();
+		if (Volume && Volume->IsPointInside(Position))
 		{
-			return Handle.VolumeHandle;
+			return Volume;
 		}
 	}
 
@@ -293,24 +310,48 @@ const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForPosition(const FVecto
 
 bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* NavigationComponent, const FVector& End, FAeonixNavigationPath& OutPath)
 {
-	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
+	const IAeonixNavVolumeInterface* NavVolume = GetVolumeForAgent(NavigationComponent);
 
 	if (!NavVolume)
 	{
 		return false;
 	}
 
+	const FVector NavStart = NavVolume->WorldToNav(NavigationComponent->GetPathfindingStartPosition());
+	const FVector NavEnd = NavVolume->WorldToNav(NavigationComponent->GetPathfindingEndPosition(End));
+	return FindPathInVolume(*NavVolume, NavStart, NavEnd, NavigationComponent->PathfinderSettings, OutPath);
+}
+
+void UAeonixSubsystem::CancelPathRequestsForVolume(const IAeonixNavVolumeInterface& Volume)
+{
+	const UObject* VolumeObject = Volume.GetVolumeObject();
+	{
+		FScopeLock Lock(&PathRequestsLock);
+		for (TUniquePtr<FAeonixPathFindRequest>& Request : PathRequests)
+		{
+			if (Request->NavVolumeObject.Get() == VolumeObject)
+			{
+				Request->bCancelled.store(true, std::memory_order_release);
+			}
+		}
+	}
+
+	// Waits out any worker already reading; one that takes the lock after this sees its request cancelled
+	FWriteScopeLock Drain(Volume.GetOctreeDataLock());
+}
+
+bool UAeonixSubsystem::FindPathInVolume(const IAeonixNavVolumeInterface& Volume, const FVector& NavStart, const FVector& NavEnd, const FAeonixPathFinderSettings& Settings, FAeonixNavigationPath& OutPath)
+{
 	AeonixLink StartNavLink;
 	AeonixLink TargetNavLink;
 
-	// Get the nav link from our volume
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingStartPosition(), *NavVolume, StartNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavStart, Volume, StartNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		return false;
 	}
 
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingEndPosition(End), *NavVolume, TargetNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavEnd, Volume, TargetNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		return false;
@@ -322,32 +363,37 @@ bool UAeonixSubsystem::FindPathImmediateAgent(UAeonixNavAgentComponent* Navigati
 	bool Result;
 	FAeonixPathFailureInfo FailureInfo;
 	{
-		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+		FReadScopeLock ReadLock(Volume.GetOctreeDataLock());
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingSync);
 
-		AeonixPathFinder pathFinder(NavVolume->GetNavData(), NavigationComponent->PathfinderSettings);
-		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavigationComponent->GetPathfindingStartPosition(), NavigationComponent->GetPathfindingEndPosition(End), OutPath, &FailureInfo);
+		AeonixPathFinder pathFinder(Volume.GetNavData(), Settings);
+		Result = pathFinder.FindPath(StartNavLink, TargetNavLink, NavStart, NavEnd, OutPath, &FailureInfo);
 	}
+
+	OutPath.BindToVolume(Volume);
 
 	// CRITICAL FIX: Track regions BEFORE marking path ready
 	// This ensures path is registered before it can be invalidated
 	if (Result)
 	{
-		TrackPathRegions(OutPath, NavVolume);
+		TrackPathRegions(OutPath, &Volume);
 	}
 	else if (FailureInfo.bFailedDueToMaxIterations)
 	{
 		// Draw debug visualization for max iteration failure
 		if (UWorld* World = GetWorld())
 		{
+			const FVector FailureStart = Volume.NavToWorld(FailureInfo.StartPosition);
+			const FVector FailureTarget = Volume.NavToWorld(FailureInfo.TargetPosition);
+
 			// Red line from start to target
-			DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+			DrawDebugLine(World, FailureStart, FailureTarget, FColor::Red, false, 10.0f, 0, 5.0f);
 
 			// Red sphere at start position
-			DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+			DrawDebugSphere(World, FailureStart, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
 
 			// Magenta sphere at target position
-			DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+			DrawDebugSphere(World, FailureTarget, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
 
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("Pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
 				FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
@@ -374,7 +420,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	RequestPtr->RequestingAgent = NavigationComponent;
 	RequestPtr->Priority = EAeonixRequestPriority::Normal; // Can be customized per agent
 
-	const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(NavigationComponent);
+	const IAeonixNavVolumeInterface* NavVolume = GetVolumeForAgent(NavigationComponent);
 
 	if (!NavVolume)
 	{
@@ -388,8 +434,12 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
+	RequestPtr->NavVolumeObject = NavVolume->GetVolumeObject();
+	const FVector StartPosition = NavVolume->WorldToNav(NavigationComponent->GetPathfindingStartPosition());
+	const FVector EndPosition = NavVolume->WorldToNav(NavigationComponent->GetPathfindingEndPosition(End));
+
 	// Get the nav link from our volume
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingStartPosition(), *NavVolume, StartNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(StartPosition, *NavVolume, StartNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find start nav link"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
@@ -400,7 +450,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		return RequestPtr->OnPathFindRequestComplete;
 	}
 
-	if (!AeonixMediator::GetLinkFromPosition(NavigationComponent->GetPathfindingEndPosition(End), *NavVolume, TargetNavLink))
+	if (!AeonixMediator::GetLinkFromPosition(EndPosition, *NavVolume, TargetNavLink))
 	{
 		UE_LOG(LogAeonixNavigation, Error, TEXT("Path finder failed to find target nav link"));
 		RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
@@ -416,11 +466,9 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 		// Same voxel - create direct path with start and end points
 		OutPath.ResetForRepath();
 
-		FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
-		FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
-
 		OutPath.AddPoint(FAeonixPathPoint(StartPosition, StartNavLink.GetLayerIndex()));
 		OutPath.AddPoint(FAeonixPathPoint(EndPosition, StartNavLink.GetLayerIndex()));
+		OutPath.BindToVolume(*NavVolume);
 
 		OutPath.SetIsReady(true);
 		UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Same voxel path - direct path with 2 points"));
@@ -440,16 +488,17 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	RequestPtr->DestinationPath = &OutPath;
 
 	// Copy necessary data to avoid dangling references in async task
-	TWeakObjectPtr<const AAeonixBoundingVolume> WeakNavVolume = NavVolume;
+	// The interface pointer is only dereferenced while the weak object pointer says the volume is alive
+	TWeakObjectPtr<const UObject> WeakNavVolume = NavVolume->GetVolumeObject();
+	const IAeonixNavVolumeInterface* RawNavVolume = NavVolume;
+	TSharedRef<FRWLock, ESPMode::ThreadSafe> SharedOctreeLock = NavVolume->GetSharedOctreeDataLock();
 	TWeakObjectPtr<UAeonixSubsystem> WeakSubsystem = this;
 	FAeonixPathFinderSettings PathfinderSettingsCopy = NavigationComponent->PathfinderSettings;
-	FVector StartPosition = NavigationComponent->GetPathfindingStartPosition();
-	FVector EndPosition = NavigationComponent->GetPathfindingEndPosition(End);
 
 	// Capture region versions BEFORE pathfinding starts
 	// We'll validate these at the end to detect if regions were regenerated mid-calculation
 	TMap<FGuid, uint32> CapturedRegionVersions;
-	const FAeonixGenerationParameters& Params = NavVolume->GenerationParameters;
+	const FAeonixGenerationParameters& Params = NavVolume->GetGenerationParameters();
 	for (const auto& RegionPair : Params.DynamicRegionBoxes)
 	{
 		CapturedRegionVersions.Add(RegionPair.Key, GetRegionVersion(RegionPair.Key));
@@ -461,7 +510,7 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	// Enqueue work to worker pool
 	// CRITICAL: No &OutPath capture - workers write to RequestPtr->WorkerPath instead
 	// Game thread will move results to DestinationPath in UpdateRequests()
-	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions]()
+	WorkerPool.EnqueueWork([RequestPtr, WeakNavVolume, RawNavVolume, SharedOctreeLock, WeakSubsystem, PathfinderSettingsCopy, StartNavLink, TargetNavLink, StartPosition, EndPosition, CapturedRegionVersions]()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AeonixPathfindingAsync);
 
@@ -480,21 +529,6 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			return;
 		}
 
-		// Check if volume is still valid
-		const AAeonixBoundingVolume* NavVolume = WeakNavVolume.Get();
-		if (!NavVolume)
-		{
-			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixSubsystem: Nav volume destroyed during async pathfinding"));
-			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Failed);
-
-			if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
-			{
-				Subsystem->LoadMetrics.PendingPathfinds.fetch_sub(1);
-				Subsystem->LoadMetrics.FailedPathfindsTotal.fetch_add(1);
-			}
-			return;
-		}
-
 		UAeonixSubsystem* Subsystem = WeakSubsystem.Get();
 		if (Subsystem)
 		{
@@ -502,10 +536,22 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			Subsystem->LoadMetrics.ActivePathfinds.fetch_add(1);
 		}
 
-		// Acquire read lock for thread-safe octree access during pathfinding
-		FReadScopeLock ReadLock(NavVolume->GetOctreeDataLock());
+		// Acquire read lock for thread-safe octree access during pathfinding. The volume is only read under it:
+		// CancelPathRequestsForVolume cancels this request then drains the lock before the volume is rebuilt or
+		// destroyed, so a request still live once the lock is held has a live, unchanged volume.
+		FReadScopeLock ReadLock(*SharedOctreeLock);
+		if (RequestPtr->IsStale())
+		{
+			RequestPtr->PathFindPromise.SetValue(EAeonixPathFindStatus::Cancelled);
+			if (Subsystem)
+			{
+				Subsystem->LoadMetrics.ActivePathfinds.fetch_sub(1);
+				Subsystem->LoadMetrics.CancelledPathfindsTotal.fetch_add(1);
+			}
+			return;
+		}
 
-		AeonixPathFinder PathFinder(NavVolume->GetNavData(), PathfinderSettingsCopy);
+		AeonixPathFinder PathFinder(RawNavVolume->GetNavData(), PathfinderSettingsCopy);
 
 		// Write to request-owned path (SAFE - survives component destruction)
 		RequestPtr->WorkerPath.ResetForRepath();
@@ -573,20 +619,24 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 			if (FailureInfo.bFailedDueToMaxIterations)
 			{
 				// Queue debug visualization to game thread
-				AsyncTask(ENamedThreads::GameThread, [FailureInfo, WeakSubsystem]()
+				AsyncTask(ENamedThreads::GameThread, [FailureInfo, WeakSubsystem, WeakNavVolume, RawNavVolume]()
 				{
 					if (UAeonixSubsystem* Subsystem = WeakSubsystem.Get())
 					{
-						if (UWorld* World = Subsystem->GetWorld())
+						if (UWorld* World = Subsystem->GetWorld(); World && WeakNavVolume.IsValid())
 						{
+							FAeonixPathFailureInfo WorldFailureInfo = FailureInfo;
+							WorldFailureInfo.StartPosition = RawNavVolume->NavToWorld(FailureInfo.StartPosition);
+							WorldFailureInfo.TargetPosition = RawNavVolume->NavToWorld(FailureInfo.TargetPosition);
+
 							// Red line from start to target
-							DrawDebugLine(World, FailureInfo.StartPosition, FailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
+							DrawDebugLine(World, WorldFailureInfo.StartPosition, WorldFailureInfo.TargetPosition, FColor::Red, false, 10.0f, 0, 5.0f);
 
 							// Red sphere at start position
-							DrawDebugSphere(World, FailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
+							DrawDebugSphere(World, WorldFailureInfo.StartPosition, 50.0f, 12, FColor::Red, false, 10.0f, 0, 3.0f);
 
 							// Magenta sphere at target position
-							DrawDebugSphere(World, FailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
+							DrawDebugSphere(World, WorldFailureInfo.TargetPosition, 50.0f, 12, FColor::Magenta, false, 10.0f, 0, 3.0f);
 
 							UE_LOG(LogAeonixNavigation, Warning, TEXT("Async pathfinding visualization: Max iterations (%d) reached. Distance: %.2f units. Check viewport for red line and spheres (10 sec duration)."),
 								FailureInfo.IterationCount, FailureInfo.StraightLineDistance);
@@ -608,25 +658,16 @@ FAeonixPathFindRequestCompleteDelegate& UAeonixSubsystem::FindPathAsyncAgent(UAe
 	return RequestPtr->OnPathFindRequestComplete;
 }
 
-const AAeonixBoundingVolume* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
+const IAeonixNavVolumeInterface* UAeonixSubsystem::GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
 {
-	if (!AgentToVolumeMap.Contains(NavigationComponent))
-	{
-		return nullptr;
-	}
-	
-	return AgentToVolumeMap[NavigationComponent];
+	const TWeakInterfacePtr<IAeonixNavVolumeInterface>* Volume = AgentToVolumeMap.Find(NavigationComponent);
+	return Volume ? Volume->Get() : nullptr;
 }
 
-AAeonixBoundingVolume* UAeonixSubsystem::GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
+IAeonixNavVolumeInterface* UAeonixSubsystem::GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent)
 {
-	if (!AgentToVolumeMap.Contains(NavigationComponent))
-	{
-		return nullptr;
-	}
-
-	// debug shenanigans, this is fine
-	return const_cast<AAeonixBoundingVolume*>(AgentToVolumeMap[NavigationComponent]);
+	const TWeakInterfacePtr<IAeonixNavVolumeInterface>* Volume = AgentToVolumeMap.Find(NavigationComponent);
+	return Volume ? Volume->Get() : nullptr;
 }
 
 void UAeonixSubsystem::UpdateComponents()
@@ -646,17 +687,18 @@ void UAeonixSubsystem::UpdateComponents()
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle->IsPointInside(AgentHandle.NavAgentComponent->GetAgentPosition()))
+			IAeonixNavVolumeInterface* Volume = Handle.Get();
+			if (Volume && Volume->IsPointInside(AgentHandle.NavAgentComponent->GetAgentPosition()))
 			{
-				AgentToVolumeMap.Add(AgentHandle.NavAgentComponent, Handle.VolumeHandle);
+				AgentToVolumeMap.Add(AgentHandle.NavAgentComponent, TWeakInterfacePtr<IAeonixNavVolumeInterface>(Volume));
 				bIsInValidVolume = true;
 				break;
 			}
 		}
 
-		if (!bIsInValidVolume && AgentToVolumeMap.Contains(AgentHandle.NavAgentComponent))
+		if (!bIsInValidVolume)
 		{
-			AgentToVolumeMap[AgentHandle.NavAgentComponent] = nullptr;
+			AgentToVolumeMap.Remove(AgentHandle.NavAgentComponent);
 		}
 	}
 
@@ -716,12 +758,13 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle && Handle.VolumeHandle->IsPointInside(CurrentPosition))
+			AAeonixBoundingVolume* BoundingVolume = Cast<AAeonixBoundingVolume>(Handle.VolumeHandle.GetObject());
+			if (BoundingVolume && BoundingVolume->IsPointInside(CurrentPosition))
 			{
-				NewBoundingVolume = Handle.VolumeHandle;
+				NewBoundingVolume = BoundingVolume;
 
 				// Check which dynamic regions within this volume we're inside
-				const FAeonixGenerationParameters& Params = Handle.VolumeHandle->GenerationParameters;
+				const FAeonixGenerationParameters& Params = BoundingVolume->GenerationParameters;
 				for (const auto& RegionPair : Params.DynamicRegionBoxes)
 				{
 					if (RegionPair.Value.IsInsideOrOn(CurrentPosition))
@@ -805,10 +848,10 @@ void UAeonixSubsystem::ProcessDynamicObstacles(float DeltaTime)
 	// and process any pending regeneration results with time budget
 	for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 	{
-		if (Handle.VolumeHandle)
+		if (AAeonixBoundingVolume* BoundingVolume = Cast<AAeonixBoundingVolume>(Handle.VolumeHandle.GetObject()))
 		{
-			Handle.VolumeHandle->TryProcessDirtyRegions();
-			Handle.VolumeHandle->ProcessPendingRegenResults(DeltaTime);
+			BoundingVolume->TryProcessDirtyRegions();
+			BoundingVolume->ProcessPendingRegenResults(DeltaTime);
 		}
 	}
 }
@@ -833,12 +876,12 @@ void UAeonixSubsystem::UpdateSpatialRelationships()
 
 		for (FAeonixBoundingVolumeHandle& Handle : RegisteredVolumes)
 		{
-			if (Handle.VolumeHandle)
+			if (AAeonixBoundingVolume* BoundingVolume = Cast<AAeonixBoundingVolume>(Handle.VolumeHandle.GetObject()))
 			{
-				const bool bIsInside = Handle.VolumeHandle->IsPointInside(ModifierLocation);
+				const bool bIsInside = BoundingVolume->IsPointInside(ModifierLocation);
 				if (bIsInside)
 				{
-					CurrentBoundingVolume = Handle.VolumeHandle;
+					CurrentBoundingVolume = BoundingVolume;
 					break;
 				}
 			}
@@ -930,6 +973,13 @@ void UAeonixSubsystem::UpdateRequests()
 		{
 			EAeonixPathFindStatus Status = Request->PathFindFuture.Get();
 
+			// Worker paths are in nav space: one whose volume has gone can't be placed in the world
+			const IAeonixNavVolumeInterface* NavVolume = Cast<IAeonixNavVolumeInterface>(Request->NavVolumeObject.Get());
+			if (Status == EAeonixPathFindStatus::Complete && !NavVolume)
+			{
+				Status = EAeonixPathFindStatus::Failed;
+			}
+
 			// GAME THREAD DELIVERY: Move results from WorkerPath to DestinationPath
 			// This is safe because we're on game thread and can check UObject validity
 			if (Status == EAeonixPathFindStatus::Complete &&
@@ -941,11 +991,9 @@ void UAeonixSubsystem::UpdateRequests()
 				*Request->DestinationPath = MoveTemp(Request->WorkerPath);
 				Request->DestinationPath->SetIsReady(true);
 
-				// Track regions for invalidation (game thread only)
-				if (const AAeonixBoundingVolume* NavVolume = GetVolumeForAgent(Request->RequestingAgent.Get()))
-				{
-					TrackPathRegions(*Request->DestinationPath, NavVolume);
-				}
+				// Bind and track regions on the game thread
+				Request->DestinationPath->BindToVolume(*NavVolume);
+				TrackPathRegions(*Request->DestinationPath, NavVolume);
 
 				UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path delivered to component, marked as ready"));
 			}
@@ -1015,14 +1063,14 @@ size_t UAeonixSubsystem::GetNumberOfRegisteredNavVolumes() const
 	return RegisteredVolumes.Num();
 }
 
-void UAeonixSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::OnBoundingVolumeRegenerated(IAeonixNavVolumeInterface* Volume)
 {
 	if (!Volume)
 	{
 		return;
 	}
 
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Subsystem: Navigation regenerated for volume %s - broadcasting and updating debug paths"), *Volume->GetName());
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Subsystem: Navigation regenerated for volume %s - broadcasting and updating debug paths"), *Volume->GetVolumeName());
 
 	// Broadcast to external subscribers (like EditorDebugSubsystem)
 	OnNavigationRegenCompleted.Broadcast(Volume);
@@ -1031,7 +1079,7 @@ void UAeonixSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume
 	UpdateDebugPathsForVolume(Volume);
 }
 
-void UAeonixSubsystem::UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume)
+void UAeonixSubsystem::UpdateDebugPathsForVolume(IAeonixNavVolumeInterface* Volume)
 {
 	if (!Volume)
 	{
@@ -1047,9 +1095,9 @@ void UAeonixSubsystem::UpdateDebugPathsForVolume(AAeonixBoundingVolume* Volume)
 		}
 
 		// Check if this agent is in the regenerated volume
-		if (const AAeonixBoundingVolume** AgentVolume = AgentToVolumeMap.Find(AgentHandle.NavAgentComponent))
+		if (const TWeakInterfacePtr<IAeonixNavVolumeInterface>* AgentVolume = AgentToVolumeMap.Find(AgentHandle.NavAgentComponent))
 		{
-			if (*AgentVolume == Volume)
+			if (AgentVolume->Get() == Volume)
 			{
 				// Check if this agent has debug path rendering enabled
 				if (AgentHandle.NavAgentComponent->bEnablePathDebugRendering)
@@ -1193,14 +1241,14 @@ void UAeonixSubsystem::InvalidatePathsInRegions(const TSet<FGuid>& RegeneratedRe
 	}
 }
 
-void UAeonixSubsystem::TrackPathRegions(FAeonixNavigationPath& Path, const AAeonixBoundingVolume* BoundingVolume)
+void UAeonixSubsystem::TrackPathRegions(FAeonixNavigationPath& Path, const IAeonixNavVolumeInterface* Volume)
 {
-	if (!BoundingVolume)
+	if (!Volume)
 	{
 		return;
 	}
 
-	const FAeonixGenerationParameters& Params = BoundingVolume->GenerationParameters;
+	const FAeonixGenerationParameters& Params = Volume->GetGenerationParameters();
 	if (Params.DynamicRegionBoxes.Num() == 0)
 	{
 		// No dynamic regions to track
@@ -1213,7 +1261,7 @@ void UAeonixSubsystem::TrackPathRegions(FAeonixNavigationPath& Path, const AAeon
 	{
 		for (const auto& RegionPair : Params.DynamicRegionBoxes)
 		{
-			if (RegionPair.Value.IsInsideOrOn(Point.Position))
+			if (RegionPair.Value.IsInsideOrOn(Point.NavPosition))
 			{
 				Path.AddTraversedRegion(RegionPair.Key);
 			}
@@ -1287,7 +1335,7 @@ void UAeonixSubsystem::RequeuePathfindRequest(TUniquePtr<FAeonixPathFindRequest>
 
 // Try to acquire read lock with timeout
 
-bool UAeonixSubsystem::TryAcquirePathfindReadLock(const AAeonixBoundingVolume* Volume, float TimeoutSeconds)
+bool UAeonixSubsystem::TryAcquirePathfindReadLock(const IAeonixNavVolumeInterface* Volume, float TimeoutSeconds)
 {
 	if (!Volume)
 	{

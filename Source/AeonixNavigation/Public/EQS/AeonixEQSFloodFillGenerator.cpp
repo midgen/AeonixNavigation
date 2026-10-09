@@ -4,7 +4,7 @@
 #include "NavigationSystem.h"
 #include "Data/AeonixData.h"
 #include "Subsystem/AeonixSubsystem.h"
-#include "Actor/AeonixBoundingVolume.h"
+#include "Interface/AeonixNavVolumeInterface.h"
 #include "Util/AeonixMediator.h"
 #include "Data/AeonixLink.h"
 
@@ -46,12 +46,16 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
     TSet<FIntVector> OccupiedBuckets;
 
     // Get nav volume and data
-    const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForPosition(Origin);
+    const IAeonixNavVolumeInterface* NavVolume = AeonixSubsystem->GetVolumeForPosition(Origin);
     if (!NavVolume || !NavVolume->HasData()) return;
+
+    // The flood fill runs in nav space; distances are unchanged by the rigid nav-to-world transform
+    const FTransform NavToWorld = NavVolume->GetNavToWorld();
+    const FVector NavOrigin = NavToWorld.InverseTransformPosition(Origin);
 
     // Convert start position to AeonixLink
     AeonixLink StartLink;
-    if (!AeonixMediator::GetLinkFromPosition(Origin, *NavVolume, StartLink))
+    if (!AeonixMediator::GetLinkFromPosition(NavOrigin, *NavVolume, StartLink))
         return;
 
     // CRITICAL: Acquire read lock for thread-safe octree access
@@ -77,7 +81,7 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
         FVector CurrentPos;
         if (!NavData.GetLinkPosition(CurrentLink, CurrentPos))
             continue;
-        if (FVector::DistSquared(CurrentPos, Origin) > Radius * Radius)
+        if (FVector::DistSquared(CurrentPos, NavOrigin) > Radius * Radius)
             continue;
 
         // Apply density filtering if enabled
@@ -104,7 +108,7 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
 
         if (bAddPoint)
         {
-            QueryInstance.AddItemData<UEnvQueryItemType_Point>(CurrentPos);
+            QueryInstance.AddItemData<UEnvQueryItemType_Point>(NavToWorld.TransformPosition(CurrentPos));
         }
 
         // Get neighbors
@@ -125,7 +129,7 @@ void UAeonixEQSFloodFillGenerator::GenerateItems(FEnvQueryInstance& QueryInstanc
             FVector NeighborPos;
             if (!NavData.GetLinkPosition(Neighbor, NeighborPos))
                 continue;
-            if (FVector::DistSquared(NeighborPos, Origin) > Radius * Radius)
+            if (FVector::DistSquared(NeighborPos, NavOrigin) > Radius * Radius)
                 continue;
             Visited.Add(Neighbor);
             Queue.Enqueue(Neighbor);

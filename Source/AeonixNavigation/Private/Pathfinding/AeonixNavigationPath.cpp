@@ -4,7 +4,9 @@
 #include "Debug/AeonixDebugDrawManager.h"
 #include "DrawDebugHelpers.h"
 #include "NavigationData.h"
-#include "Actor/AeonixBoundingVolume.h"
+#include "Interface/AeonixNavVolumeInterface.h"
+#include "Data/AeonixData.h"
+#include "Data/AeonixDefines.h"
 #include "AeonixNavigation.h"
 
 void FAeonixNavigationPath::AddPoint(const FAeonixPathPoint& aPoint)
@@ -17,6 +19,9 @@ void FAeonixNavigationPath::ResetForRepath()
 	UE_LOG(LogAeonixNavigation, Verbose, TEXT("AeonixNavigationPath: ResetForRepath called, clearing %d points"), myPoints.Num());
 	myPoints.Empty();
 	myIsReady = false;
+	NavVolume.Reset();
+	NavToWorldAtPlan = FTransform::Identity;
+	bBoundToVolume = false;
 }
 
 void FAeonixNavigationPath::DebugDraw(UWorld* World, const FAeonixData& Data)
@@ -185,4 +190,49 @@ void FAeonixNavigationPath::MarkInvalid()
 		UE_LOG(LogAeonixNavigation, Verbose, TEXT("Path invalidated - %d regions traversed"), TraversedRegionIds.Num());
 		OnPathInvalidated.Broadcast(this);
 	}
+}
+
+void FAeonixNavigationPath::BindToVolume(const IAeonixNavVolumeInterface& Volume)
+{
+	NavVolume = TWeakInterfacePtr<IAeonixNavVolumeInterface>(const_cast<IAeonixNavVolumeInterface*>(&Volume));
+	NavToWorldAtPlan = Volume.GetNavToWorld();
+	bBoundToVolume = true;
+
+	for (FAeonixPathPoint& Point : myPoints)
+	{
+		Point.NavPosition = Point.Position;
+		Point.Position = NavToWorldAtPlan.TransformPosition(Point.NavPosition);
+#if WITH_EDITOR
+		Point.NodePosition = NavToWorldAtPlan.TransformPosition(Point.NodePosition);
+#endif
+	}
+
+#if WITH_EDITOR
+	for (FDebugVoxelInfo& VoxelInfo : myDebugVoxelInfo)
+	{
+		VoxelInfo.Position = NavToWorldAtPlan.TransformPosition(VoxelInfo.Position);
+	}
+#endif
+}
+
+FTransform FAeonixNavigationPath::GetNavToWorld() const
+{
+	if (const IAeonixNavVolumeInterface* Volume = NavVolume.Get())
+	{
+		return Volume->GetNavToWorld();
+	}
+	return NavToWorldAtPlan;
+}
+
+FVector FAeonixNavigationPath::GetPointWorldPosition(int32 Index) const
+{
+	if (!myPoints.IsValidIndex(Index))
+	{
+		return FVector::ZeroVector;
+	}
+	if (!bBoundToVolume)
+	{
+		return myPoints[Index].Position;
+	}
+	return GetNavToWorld().TransformPosition(myPoints[Index].NavPosition);
 }

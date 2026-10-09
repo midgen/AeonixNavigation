@@ -24,6 +24,26 @@ bool UAeonixCollisionSubsystem::IsLeafBlocked(const FVector& Position, const flo
 	return GetWorld()->OverlapBlockingTestByChannel(Position, FQuat::Identity, CollisionChannel, FCollisionShape::MakeBox(FVector(LeafSize + AgentRadius)), Params);
 }
 
+bool UAeonixCollisionSubsystem::IsBlockedOriented(const FVector& Position, const FQuat& Rotation, const float VoxelSize, ECollisionChannel CollisionChannel, const float AgentRadius) const
+{
+	FCollisionQueryParams Params;
+	Params.bFindInitialOverlaps = true;
+	Params.bTraceComplex = false;
+	Params.TraceTag = "AeonixLeafRasterize";
+
+	return GetWorld()->OverlapBlockingTestByChannel(Position, Rotation, CollisionChannel, FCollisionShape::MakeBox(FVector(VoxelSize + AgentRadius)), Params);
+}
+
+bool UAeonixCollisionSubsystem::IsLeafBlockedOriented(const FVector& Position, const FQuat& Rotation, const float LeafSize, ECollisionChannel CollisionChannel, const float AgentRadius) const
+{
+	FCollisionQueryParams Params;
+	Params.bFindInitialOverlaps = true;
+	Params.bTraceComplex = false;
+	Params.TraceTag = "AeonixWholeLeafTest";
+
+	return GetWorld()->OverlapBlockingTestByChannel(Position, Rotation, CollisionChannel, FCollisionShape::MakeBox(FVector(LeafSize + AgentRadius)), Params);
+}
+
 bool UAeonixCollisionSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	// All the worlds, so it works in editor

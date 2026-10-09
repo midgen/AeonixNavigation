@@ -1,8 +1,9 @@
-﻿#pragma once
+#pragma once
+
+#include "Interface/AeonixNavVolumeInterface.h"
 
 #include "AeonixHandleTypes.generated.h"
 
-class AAeonixBoundingVolume;
 class AAeonixModifierVolume;
 class UAeonixNavAgentComponent;
 
@@ -12,12 +13,14 @@ struct FAeonixBoundingVolumeHandle
 	GENERATED_BODY()
 
 	FAeonixBoundingVolumeHandle(){}
-	FAeonixBoundingVolumeHandle(AAeonixBoundingVolume* Volume) : VolumeHandle(Volume) {}
+	FAeonixBoundingVolumeHandle(IAeonixNavVolumeInterface* Volume) : VolumeHandle(Volume ? Volume->GetVolumeObject() : nullptr) {}
 
 	bool operator==(const FAeonixBoundingVolumeHandle& Volume ) const { return Volume.VolumeHandle == VolumeHandle; }
 
+	IAeonixNavVolumeInterface* Get() const { return VolumeHandle.GetInterface(); }
+
 	UPROPERTY()
-	TObjectPtr<AAeonixBoundingVolume> VolumeHandle;
+	TScriptInterface<IAeonixNavVolumeInterface> VolumeHandle;
 
 	UPROPERTY()
 	TArray<TObjectPtr<AAeonixModifierVolume>> ModifierVolumes;

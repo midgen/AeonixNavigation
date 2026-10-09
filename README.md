@@ -36,6 +36,30 @@ Main Features:
   - (Optional) Check 'Debug Leaf Voxels' to render blocked voxels (may need to increase the debug render distance) 
 - Click **Generate** button to create navigation data
 
+### 1b. Or: a Volume That Moves With an Actor
+
+For navigation around something that moves (a ship, a vehicle), add an **AeonixVolumeComponent** to the
+actor instead. It is a cube (set **Half Extent**) whose navigation data lives in the component's own frame,
+so it stays valid as the owner moves and rotates without regenerating.
+
+- **Collision Source**: a component on the same actor implementing `IAeonixCollisionQueryInterface` that
+  answers blocking queries (e.g. from a voxel grid or a custom shape). Leave empty to use world physics on
+  the **Collision Channel**. Override `IsBlockedOriented` / `IsLeafBlockedOriented` for exact rotated
+  boxes (the defaults test an enclosing axis-aligned box) and `GetBlockingBounds` to enable **Fit**.
+- **Fit** centres and sizes the cube around the source's blocking bounds plus **Fit Padding**, picking the
+  smallest **Octree Depth** whose leaf voxels are no larger than **Target Leaf Voxel Size**.
+- **Bake** generates and saves into an **AeonixNavDataAsset** (created beside the Blueprint if unset),
+  loaded on BeginPlay when the strategy is Use Baked. The buttons work on a Blueprint's component
+  template too: they run on the Blueprint editor's preview instance (so **Generate** with the debug
+  toggles draws the octree in its viewport) and copy the result back. The preview actor is rebuilt when
+  a property changes, so press Generate again after editing.
+- Paths planned in it keep nav-space points (`FAeonixPathPoint::NavPosition`);
+  `FAeonixNavigationPath::GetPointWorldPosition` re-projects them through the volume's current transform,
+  and `UAeonixPathFollowingComponent` follows them that way. `UAeonixFlyingMovementComponent` rides the
+  volume it is in (**Ride Nav Volume**). For agents that move in the volume's frame themselves,
+  `UAeonixSubsystem::FindPathInVolume` paths between nav-space points with no agent.
+- Dynamic regions are not supported on a component volume.
+
 ### 2. Add Component to AI
 
 - Open your AI Controller or Character Blueprint
@@ -75,6 +99,9 @@ Use **AAeonixPathDebugActor** (editor-only) to test pathfinding:
 ## Key Classes
 
 - `AAeonixBoundingVolume`: Defines navigable 3D space
+- `UAeonixVolumeComponent`: A navigable cube that moves with its owner
+- `IAeonixNavVolumeInterface`: What the subsystem, pathfinding and tools see of either volume
+- `UAeonixNavDataAsset`: Baked navigation data for a volume component
 - `UAeonixNavAgentComponent`: Enables AI to use navigation
 - `UAeonixSubsystem`: World subsystem managing navigation and pathfinding
 - `AeonixPathFinder`: A* pathfinding implementation

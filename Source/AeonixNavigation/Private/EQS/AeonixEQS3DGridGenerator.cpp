@@ -4,7 +4,7 @@
 #include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
 #include "EnvironmentQuery/Items/EnvQueryItemType_Point.h"
 #include "Subsystem/AeonixSubsystem.h"
-#include "Actor/AeonixBoundingVolume.h"
+#include "Interface/AeonixNavVolumeInterface.h"
 #include "Util/AeonixMediator.h"
 #include "Data/AeonixData.h"
 #include "AeonixNavigation.h"
@@ -57,7 +57,7 @@ void UAeonixEQS3DGridGenerator::GenerateItems(FEnvQueryInstance& QueryInstance) 
 	// Get Aeonix subsystem for navigation validation
 	UWorld* World = QueryInstance.World;
 	UAeonixSubsystem* AeonixSubsystem = nullptr;
-	AAeonixBoundingVolume* NavVolume = nullptr;
+	const IAeonixNavVolumeInterface* NavVolume = nullptr;
 
 	if (bOnlyNavigablePoints || bProjectToNavigation)
 	{
@@ -75,7 +75,7 @@ void UAeonixEQS3DGridGenerator::GenerateItems(FEnvQueryInstance& QueryInstance) 
 		}
 
 		// Find the bounding volume containing the origin
-		NavVolume = const_cast<AAeonixBoundingVolume*>(AeonixSubsystem->GetVolumeForPosition(Origin));
+		NavVolume = AeonixSubsystem->GetVolumeForPosition(Origin);
 		if (!NavVolume)
 		{
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixEQS3DGridGenerator: Origin not inside any navigation volume"));
@@ -113,7 +113,7 @@ void UAeonixEQS3DGridGenerator::GenerateItems(FEnvQueryInstance& QueryInstance) 
 				if (bOnlyNavigablePoints && NavVolume)
 				{
 					AeonixLink Link;
-					if (!AeonixMediator::GetLinkFromPosition(TestPoint, *NavVolume, Link))
+					if (!AeonixMediator::GetLinkFromPosition(NavVolume->WorldToNav(TestPoint), *NavVolume, Link))
 					{
 						// Point is not in navigable space
 						continue;
@@ -125,7 +125,7 @@ void UAeonixEQS3DGridGenerator::GenerateItems(FEnvQueryInstance& QueryInstance) 
 						FVector ProjectedPos;
 						if (NavVolume->GetNavData().GetLinkPosition(Link, ProjectedPos))
 						{
-							GeneratedPoints.Add(FNavLocation(ProjectedPos));
+							GeneratedPoints.Add(FNavLocation(NavVolume->NavToWorld(ProjectedPos)));
 						}
 						else
 						{

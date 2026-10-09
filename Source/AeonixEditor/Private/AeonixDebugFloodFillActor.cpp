@@ -81,7 +81,7 @@ void AAeonixDebugFloodFillActor::EndPlay(const EEndPlayReason::Type EndPlayReaso
 	Super::EndPlay(EndPlayReason);
 }
 
-void AAeonixDebugFloodFillActor::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+void AAeonixDebugFloodFillActor::OnBoundingVolumeRegenerated(IAeonixNavVolumeInterface* Volume)
 {
 	if (!Volume || !bAutoUpdateOnRegeneration)
 		return;
@@ -139,7 +139,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	}
 
 	// Get the volume for this actor's position
-	const AAeonixBoundingVolume* NavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
+	const IAeonixNavVolumeInterface* NavVolume = AeonixSubsystem->GetVolumeForPosition(GetActorLocation());
 	if (!NavVolume || !NavVolume->HasData())
 	{
 		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: No navigation volume found at actor location"));
@@ -150,7 +150,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 
 	// Convert actor position to AeonixLink
 	AeonixLink StartLink;
-	if (!AeonixMediator::GetLinkFromPosition(GetActorLocation(), *NavVolume, StartLink))
+	if (!AeonixMediator::GetLinkFromPosition(NavVolume->WorldToNav(GetActorLocation()), *NavVolume, StartLink))
 	{
 		UE_LOG(LogAeonixNavigation, Warning, TEXT("AeonixDebugFloodFillActor: Failed to get link from position"));
 		return;
@@ -176,7 +176,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 	}
 
 	// Draw start marker (bright yellow sphere)
-	DebugManager->AddSphere(StartPos, 50.0f, 16, FColor::Yellow, EAeonixDebugCategory::Tests);
+	DebugManager->AddSphere(NavVolume->NavToWorld(StartPos), 50.0f, 16, FColor::Yellow, EAeonixDebugCategory::Tests);
 
 	// Breadth-first flood fill
 	TSet<AeonixLink> Visited;
@@ -281,7 +281,7 @@ void AAeonixDebugFloodFillActor::PerformFloodFill()
 				continue;
 
 			// Draw connection line
-			DebugManager->AddLine(CurrentPos, NeighborPos, CurrentColor, LineThickness, EAeonixDebugCategory::Tests);
+			DebugManager->AddLine(NavVolume->NavToWorld(CurrentPos), NavVolume->NavToWorld(NeighborPos), CurrentColor, LineThickness, EAeonixDebugCategory::Tests);
 		}
 
 		DrawnSet.Add(CurrentLink);

@@ -221,3 +221,8 @@ bool UAeonixDebugDrawManager::IsCategoryVisible(EAeonixDebugCategory Category) c
 	const bool* Visible = CategoryVisibility.Find(Category);
 	return Visible ? *Visible : true;
 }
+
+bool UAeonixDebugDrawManager::DoesSupportWorldType(const EWorldType::Type WorldType) const
+{
+	return Super::DoesSupportWorldType(WorldType) || WorldType == EWorldType::EditorPreview;
+}

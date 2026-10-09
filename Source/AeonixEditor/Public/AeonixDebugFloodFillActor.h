@@ -53,7 +53,7 @@ public:
 
 private:
 	/** Handler for when a bounding volume regenerates its navigation */
-	void OnBoundingVolumeRegenerated(class AAeonixBoundingVolume* Volume);
+	void OnBoundingVolumeRegenerated(class IAeonixNavVolumeInterface* Volume);
 
 	/** Bind to all bounding volumes in the level */
 	void BindToBoundingVolumes();

@@ -1,10 +1,11 @@
 #include "Util/AeonixMediator.h"
 #include "Data/AeonixLink.h"
-#include "Actor/AeonixBoundingVolume.h"
+#include "Interface/AeonixNavVolumeInterface.h"
+#include "Data/AeonixData.h"
 
 #include "DrawDebugHelpers.h"
 
-bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, AeonixLink& oLink)
+bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const IAeonixNavVolumeInterface& aVolume, AeonixLink& oLink)
 {
 	if (!aVolume.HasData())
 	{
@@ -13,11 +14,11 @@ bool AeonixMediator::GetLinkFromPosition(const FVector& aPosition, const AAeonix
 
 	// The lookup lives on the nav data so it can be used without a volume actor
 	// (pathfinder line-of-sight checks, async tasks, tests). It checks against the bounds
-	// the octree was generated with rather than the actor's live bounds (issue #54).
+	// the octree was generated with rather than the volume's live bounds (issue #54).
 	return aVolume.GetNavData().GetLinkForPosition(aPosition, oLink);
 }
 
-bool AeonixMediator::GetVolumeXYZ(const FVector& aPosition, const AAeonixBoundingVolume& aVolume, const int aLayer, FIntVector& oXYZ)
+bool AeonixMediator::GetVolumeXYZ(const FVector& aPosition, const IAeonixNavVolumeInterface& aVolume, const int aLayer, FIntVector& oXYZ)
 {
 	const FAeonixData& NavData = aVolume.GetNavData();
 	const FAeonixGenerationParameters& Params = NavData.GetParams();

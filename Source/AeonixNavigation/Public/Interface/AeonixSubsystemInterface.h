@@ -7,13 +7,13 @@
 #include "AeonixSubsystemInterface.generated.h"
 
 class AAeonixModifierVolume;
-class AAeonixBoundingVolume;
+class IAeonixNavVolumeInterface;
 class UAeonixNavAgentComponent;
 class UAeonixDynamicObstacleComponent;
 struct FAeonixNavigationPath;
 
 /** Delegate broadcast when navigation regeneration completes (full or dynamic regions) */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenCompleted, AAeonixBoundingVolume*);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenCompleted, IAeonixNavVolumeInterface*);
 
 /** Delegate broadcast when registration changes (volumes, modifiers, or obstacles added/removed) */
 DECLARE_MULTICAST_DELEGATE(FOnRegistrationChanged);
@@ -32,10 +32,8 @@ class AEONIXNAVIGATION_API IAeonixSubsystemInterface
 	GENERATED_BODY()
 
 public:
-	UFUNCTION()
-	virtual void RegisterVolume(AAeonixBoundingVolume* Volume) = 0;
-	UFUNCTION()
-	virtual void UnRegisterVolume(AAeonixBoundingVolume* Volume) = 0;
+	virtual void RegisterVolume(IAeonixNavVolumeInterface* Volume) = 0;
+	virtual void UnRegisterVolume(IAeonixNavVolumeInterface* Volume) = 0;
 	UFUNCTION()
 	virtual void RegisterModifierVolume(AAeonixModifierVolume* ModifierVolume) = 0;
 	UFUNCTION()
@@ -48,13 +46,11 @@ public:
 	virtual void RegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) = 0;
 	UFUNCTION()
 	virtual void UnRegisterDynamicObstacle(UAeonixDynamicObstacleComponent* ObstacleComponent) = 0;
-	UFUNCTION()
-	virtual const AAeonixBoundingVolume* GetVolumeForPosition(const FVector& Position) = 0;
+	/** First registered volume containing a world position */
+	virtual const IAeonixNavVolumeInterface* GetVolumeForPosition(const FVector& Position) = 0;
 
-	UFUNCTION()
-	virtual const AAeonixBoundingVolume* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
-	UFUNCTION()
-	virtual AAeonixBoundingVolume* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
+	virtual const IAeonixNavVolumeInterface* GetVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
+	virtual IAeonixNavVolumeInterface* GetMutableVolumeForAgent(const UAeonixNavAgentComponent* NavigationComponent) = 0;
 
 	UFUNCTION(BlueprintCallable, Category="Aeonix")
 	virtual FAeonixPathFindRequestCompleteDelegate& FindPathAsyncAgent(UAeonixNavAgentComponent* NavAgentComponent, const FVector& End, FAeonixNavigationPath& OutPath) = 0;

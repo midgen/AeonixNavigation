@@ -7,6 +7,9 @@
 
 #include "AenoixEditorDebugSubsystem.generated.h"
 
+class AAeonixBoundingVolume;
+class IAeonixNavVolumeInterface;
+
 USTRUCT()
 struct FAeonixFailedPath
 {
@@ -64,7 +67,7 @@ class AEONIXEDITOR_API UAenoixEditorDebugSubsystem : public UEditorSubsystem,  p
 	// Delegate subscription methods for automatic path update on navigation regeneration
 	void BindToBoundingVolumes();
 	void UnbindFromBoundingVolumes();
-	void OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume);
+	void OnBoundingVolumeRegenerated(IAeonixNavVolumeInterface* Volume);
 
 public:
 	UFUNCTION(BlueprintCallable, Category="Aeonix")

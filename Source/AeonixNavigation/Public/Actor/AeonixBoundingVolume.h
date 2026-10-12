@@ -3,23 +3,20 @@
 #include "Data/AeonixData.h"
 #include "Data/AeonixAsyncRegen.h"
 #include "Interface/AeonixDebugDrawInterface.h"
+#include "Interface/AeonixNavVolumeInterface.h"
 #include "Interface/AeonixSubsystemInterface.h"
 
 #include "GameFramework/Volume.h"
 
 #include "AeonixBoundingVolume.generated.h"
 
-// Forward declarations
-class AAeonixBoundingVolume;
-
-/** Delegate broadcast when navigation is regenerated (full or dynamic regions) */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnNavigationRegenerated, AAeonixBoundingVolume*);
+using FOnNavigationRegenerated = FOnAeonixNavVolumeRegenerated;
 
 /**
  *  AeonixVolume is a bounding volume that forms a navigable area
  */
 UCLASS(hidecategories = (Tags, Cooking, Actor, HLOD, Mobile, LOD))
-class AEONIXNAVIGATION_API AAeonixBoundingVolume : public AVolume, public IAeonixDebugDrawInterface
+class AEONIXNAVIGATION_API AAeonixBoundingVolume : public AVolume, public IAeonixDebugDrawInterface, public IAeonixNavVolumeInterface
 {
 	GENERATED_BODY()
 
@@ -39,15 +36,29 @@ public:
 	void Serialize(FArchive& Ar) override;
 	//~ End UObject 
 
+	//~ Begin IAeonixNavVolumeInterface
+	const FAeonixData& GetNavData() const override { return NavigationData; }
+	FAeonixData& GetMutableNavData() override { return NavigationData; }
+	TSharedRef<FRWLock, ESPMode::ThreadSafe> GetSharedOctreeDataLock() const override { return OctreeDataLock; }
+	bool HasData() const override;
+	bool IsReadyForNavigation() const override { return bIsReadyForNavigation; }
+	/** Check if a point is inside this volume using bounding box (more reliable than EncompassesPoint in PIE) */
+	bool IsPointInside(const FVector& Point) const override;
+	/** The octree is generated in world space */
+	FTransform GetNavToWorld() const override { return FTransform::Identity; }
+	const FAeonixGenerationParameters& GetGenerationParameters() const override { return GenerationParameters; }
+	FOnAeonixNavVolumeRegenerated& GetOnNavigationRegenerated() override { return OnNavigationRegenerated; }
+	bool Generate() override;
+	void ClearData() override;
+	bool SupportsDynamicRegions() const override { return true; }
+	//~ End IAeonixNavVolumeInterface
+
 	void UpdateBounds();
-	bool Generate();
 	void RegenerateDynamicRegions();
 	void RegenerateDynamicRegionsAsync();
 	void RegenerateDynamicRegion(const FGuid& RegionId);
 	void RegenerateDynamicRegionAsync(const FGuid& RegionId);
 	void RegenerateDynamicRegionsAsync(const TSet<FGuid>& RegionIds);
-	bool HasData() const;
-	void ClearData();
 
 	// Called by editor subsystem to set the debug filter box
 	void SetDebugFilterBox(const FBox& FilterBox);
@@ -70,15 +81,6 @@ public:
 
 	// Called by subsystem to process pending regeneration results with time budget
 	void ProcessPendingRegenResults(float DeltaTime);
-
-	const FAeonixData& GetNavData() const { return NavigationData; }
-	FAeonixData& GetMutableNavData() { return NavigationData; }
-
-	/** Check if a point is inside this volume using bounding box (more reliable than EncompassesPoint in PIE) */
-	bool IsPointInside(const FVector& Point) const;
-
-	/** Get the read-write lock for thread-safe octree access */
-	FRWLock& GetOctreeDataLock() const { return OctreeDataLock; }
 
 	/** Delegate broadcast when navigation is regenerated (full or dynamic regions) */
 	FOnNavigationRegenerated OnNavigationRegenerated;
@@ -105,7 +107,7 @@ private:
 	bool bNeedsLegacyBoundsUpdate{false};
 
 	/** Read-write lock for thread-safe access to octree data during async pathfinding */
-	mutable FRWLock OctreeDataLock;
+	TSharedRef<FRWLock, ESPMode::ThreadSafe> OctreeDataLock = MakeShared<FRWLock, ESPMode::ThreadSafe>();
 
 	/** Dirty regions awaiting regeneration (throttling) */
 	TSet<FGuid> DirtyRegionIds;

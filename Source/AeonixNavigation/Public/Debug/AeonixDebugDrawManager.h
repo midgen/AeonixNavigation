@@ -245,4 +245,8 @@ private:
 
 	// Helper to redraw all stored primitives as persistent lines
 	void RedrawAllPrimitives();
+
+protected:
+	// Blueprint editor viewports too, so a volume component previewed there can draw its octree
+	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 };

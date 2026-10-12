@@ -13,6 +13,9 @@ struct AEONIXNAVIGATION_API FAeonixCustomVersion
 		// Major refactor of plugin
 		V2Refactor = 1,
 
+		// UAeonixNavDataAsset: baked octree stored in its own asset
+		NavDataAsset = 2,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

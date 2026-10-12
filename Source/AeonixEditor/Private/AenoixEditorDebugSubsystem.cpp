@@ -46,15 +46,14 @@ void UAenoixEditorDebugSubsystem::UpdateDebugActor(AAeonixPathDebugActor* DebugA
 		BindToBoundingVolumes();
 
 		UE_LOG(LogAeonixEditor, Log, TEXT("Both START and END actors set, attempting pathfinding..."));
-		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
+		if (IAeonixNavVolumeInterface* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
 		{
 			// Don't attempt pathfinding if the volume isn't ready (prevents hangs during asset loading)
-			if (!Volume->bIsReadyForNavigation)
+			if (!Volume->IsReadyForNavigation())
 			{
 				UE_LOG(LogAeonixEditor, Warning, TEXT("Volume not ready for navigation - skipping pathfinding"));
 				return;
 			}
-			Volume->UpdateBounds();
 			UE_LOG(LogAeonixEditor, Log, TEXT("Requesting pathfind from %s to %s"), *StartDebugActor->GetActorLocation().ToString(), *EndDebugActor->GetActorLocation().ToString());
 			FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
 			PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
@@ -125,14 +124,13 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 	if (StartDebugActor.IsValid() && EndDebugActor.IsValid() && !bIsPathPending && !CurrentDebugPath.IsReady())
 	{
 		// this is just needed to deal with the lifetime of things in the editor world
-		if (AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
+		if (IAeonixNavVolumeInterface* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent))
 		{
 			// Don't attempt pathfinding if the volume isn't ready (prevents hangs during asset loading)
-			if (!Volume->bIsReadyForNavigation)
+			if (!Volume->IsReadyForNavigation())
 			{
 				return;
 			}
-			Volume->UpdateBounds();
 		}
 		FAeonixPathFindRequestCompleteDelegate& PathRequestCompleteDelegate = AeonixSubsystem->FindPathAsyncAgent(StartDebugActor->NavAgentComponent, EndDebugActor->GetActorLocation(), CurrentDebugPath);
 		PathRequestCompleteDelegate.BindDynamic(this, &UAenoixEditorDebugSubsystem::OnPathFindComplete);
@@ -167,8 +165,8 @@ void UAenoixEditorDebugSubsystem::Tick(float DeltaTime)
 			FScopeLock Lock(&PathMutex);
 
 			// Get the volume and validate it before drawing
-			AAeonixBoundingVolume* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent);
-			if (Volume && IsValid(Volume))
+			IAeonixNavVolumeInterface* Volume = AeonixSubsystem->GetMutableVolumeForAgent(StartDebugActor->NavAgentComponent);
+			if (Volume && IsValid(Volume->GetVolumeObject()))
 			{
 				// Draw the current path if ready, otherwise draw the cached path
 				if (CurrentDebugPath.IsReady())
@@ -356,7 +354,7 @@ void UAenoixEditorDebugSubsystem::UnbindFromBoundingVolumes()
 	UE_LOG(LogAeonixEditor, Verbose, TEXT("Debug path subsystem unbound from subsystem regeneration delegate"));
 }
 
-void UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated(AAeonixBoundingVolume* Volume)
+void UAenoixEditorDebugSubsystem::OnBoundingVolumeRegenerated(IAeonixNavVolumeInterface* Volume)
 {
 	if (!Volume || !StartDebugActor.IsValid() || !EndDebugActor.IsValid())
 	{

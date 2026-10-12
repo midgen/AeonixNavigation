@@ -6,7 +6,6 @@
 
 #include "AeonixTypes.generated.h"
 
-class AAeonixBoundingVolume;
 class UAeonixNavAgentComponent;
 
 UENUM()
@@ -37,6 +36,7 @@ struct FAeonixPathFindRequest
 	std::atomic<bool> bCancelled{false};
 	std::atomic<bool> bAgentInvalidated{false};  // Set by game thread when agent is unregistered
 	TWeakObjectPtr<UAeonixNavAgentComponent> RequestingAgent;
+	TWeakObjectPtr<UObject> NavVolumeObject;  // Volume the path is planned in; the delivered path is bound to it on the game thread
 	TMap<FGuid, uint32> RegionVersionSnapshot; // For invalidation detection
 
 	// Deferred delivery: workers write to WorkerPath, game thread moves to DestinationPath

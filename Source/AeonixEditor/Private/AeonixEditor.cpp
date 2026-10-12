@@ -1,5 +1,6 @@
 #include "AeonixEditor/AeonixEditor.h"
 #include "AeonixEditor/Private/AeonixVolumeDetails.h"
+#include "AeonixVolumeComponentDetails.h"
 #include "SAeonixNavigationTreeView.h"
 
 #include "PropertyEditorModule.h"
@@ -25,6 +26,7 @@ void FAeonixEditorModule::StartupModule()
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	PropertyModule.RegisterCustomClassLayout("AeonixBoundingVolume", FOnGetDetailCustomizationInstance::CreateStatic(&FAeonixVolumeDetails::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("AeonixVolumeComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FAeonixVolumeComponentDetails::MakeInstance));
 
 	// Register the navigation tree tab
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(AeonixNavigationTreeTabName, FOnSpawnTab::CreateRaw(this, &FAeonixEditorModule::SpawnNavigationTreeTab))
@@ -45,6 +47,7 @@ void FAeonixEditorModule::ShutdownModule()
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.UnregisterCustomClassLayout("AeonixBoundingVolume");
+		PropertyModule.UnregisterCustomClassLayout("AeonixVolumeComponent");
 	}
 }
 

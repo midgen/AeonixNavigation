@@ -206,7 +206,8 @@ FVector UAeonixPathFollowingComponent::GetTargetLocation() const
 		return FVector::ZeroVector;
 	}
 
-	return CurrentWaypoint->Position;
+	// Re-projected each call so a path planned in a moving volume follows it
+	return CurrentAeonixPath->GetPointWorldPosition(CurrentWaypointIndex);
 }
 
 void UAeonixPathFollowingComponent::UpdateMovement(float DeltaTime)

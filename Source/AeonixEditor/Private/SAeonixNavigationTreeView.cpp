@@ -798,7 +798,7 @@ FText SAeonixNavigationTreeView::GetGenerationMetricsText() const
 
 	for (const FAeonixBoundingVolumeHandle& VolumeHandle : RegisteredVolumes)
 	{
-		if (AAeonixBoundingVolume* Volume = VolumeHandle.VolumeHandle.Get())
+		if (const IAeonixNavVolumeInterface* Volume = VolumeHandle.Get())
 		{
 			if (Volume->HasData())
 			{

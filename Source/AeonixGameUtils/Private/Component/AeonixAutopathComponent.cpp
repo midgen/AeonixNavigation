@@ -140,9 +140,9 @@ TArray<FVector> UAeonixAutopathComponent::GetPathPoints() const
 	const TArray<FAeonixPathPoint>& PathPoints = CurrentPath.GetPathPoints();
 	Result.Reserve(PathPoints.Num());
 
-	for (const FAeonixPathPoint& Point : PathPoints)
+	for (int32 i = 0; i < PathPoints.Num(); i++)
 	{
-		Result.Add(Point.Position);
+		Result.Add(CurrentPath.GetPointWorldPosition(i));
 	}
 
 	return Result;
@@ -160,11 +160,11 @@ FVector UAeonixAutopathComponent::GetNextPathPoint() const
 	// Return current target waypoint based on index
 	if (CurrentPathIndex < PathPoints.Num())
 	{
-		return PathPoints[CurrentPathIndex].Position;
+		return CurrentPath.GetPointWorldPosition(CurrentPathIndex);
 	}
 
 	// If index exceeds path, return last point (destination)
-	return PathPoints.Last().Position;
+	return CurrentPath.GetPointWorldPosition(PathPoints.Num() - 1);
 }
 
 bool UAeonixAutopathComponent::HasReachedDestination() const
@@ -183,7 +183,7 @@ void UAeonixAutopathComponent::UpdatePathProgression(const FVector& CurrentPosit
 	}
 
 	// Check distance to current target waypoint
-	const float DistSq = FVector::DistSquared(CurrentPosition, PathPoints[CurrentPathIndex].Position);
+	const float DistSq = FVector::DistSquared(CurrentPosition, CurrentPath.GetPointWorldPosition(CurrentPathIndex));
 	const float AcceptanceRadiusSq = AcceptanceRadius * AcceptanceRadius;
 
 	// Advance to next waypoint if within acceptance radius
@@ -218,7 +218,7 @@ bool UAeonixAutopathComponent::GetPathPointAtIndex(int32 Index, FVector& OutPosi
 		return false;
 	}
 
-	OutPosition = PathPoints[Index].Position;
+	OutPosition = CurrentPath.GetPointWorldPosition(Index);
 	return true;
 }
 

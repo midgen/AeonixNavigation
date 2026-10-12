@@ -4,6 +4,7 @@
 
 #include "GameFramework/PawnMovementComponent.h"
 #include "CoreMinimal.h"
+#include "UObject/WeakInterfacePtr.h"
 #include "AeonixFlyingMovementComponent.generated.h"
 
 USTRUCT(BlueprintType)
@@ -28,6 +29,8 @@ struct AEONIXNAVIGATION_API FAeonixFlyingSettings
 	float TurnRate = 180.0f;
 };
 
+class IAeonixNavVolumeInterface;
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class AEONIXNAVIGATION_API UAeonixFlyingMovementComponent : public UPawnMovementComponent
 {
@@ -38,6 +41,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix Flying Movement")
 	FAeonixFlyingSettings FlyingSettings;
+
+	/** Carry the pawn with the nav volume it is in when that volume moves (a UAeonixVolumeComponent on a moving actor). No effect in world-space volumes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aeonix Flying Movement")
+	bool bRideNavVolume = true;
 
 	// Movement interface
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -54,4 +61,10 @@ public:
 private:
 	// Target velocity from path following (we accelerate toward this)
 	FVector TargetVelocity = FVector::ZeroVector;
+
+	/** Moves the pawn by however much the nav volume under it moved since last tick */
+	void RideNavVolume();
+
+	TWeakInterfacePtr<IAeonixNavVolumeInterface> RiddenVolume;
+	FTransform RiddenNavToWorld;
 };

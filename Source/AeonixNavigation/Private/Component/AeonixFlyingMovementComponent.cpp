@@ -1,6 +1,8 @@
 // Copyright 2024 Chris Ashworth
 
 #include "Component/AeonixFlyingMovementComponent.h"
+#include "Interface/AeonixNavVolumeInterface.h"
+#include "Subsystem/AeonixSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine.h"
@@ -13,6 +15,11 @@ UAeonixFlyingMovementComponent::UAeonixFlyingMovementComponent()
 
 void UAeonixFlyingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	if (bRideNavVolume)
+	{
+		RideNavVolume();
+	}
+
 	// Determine if we have active input (non-zero target)
 	const bool bHasInput = !TargetVelocity.IsNearlyZero();
 
@@ -98,4 +105,44 @@ void UAeonixFlyingMovementComponent::StopMovementImmediately()
 {
 	Super::StopMovementImmediately();
 	TargetVelocity = FVector::ZeroVector;
+}
+
+void UAeonixFlyingMovementComponent::RideNavVolume()
+{
+	if (!UpdatedComponent)
+	{
+		return;
+	}
+
+	// Carry the pawn by however far the volume moved, judged from where the volume was last tick
+	if (const IAeonixNavVolumeInterface* Volume = RiddenVolume.Get())
+	{
+		const FTransform NavToWorld = Volume->GetNavToWorld();
+		const FVector Location = UpdatedComponent->GetComponentLocation();
+		const FVector NewLocation = NavToWorld.TransformPosition(RiddenNavToWorld.InverseTransformPosition(Location));
+		const FQuat DeltaRotation = NavToWorld.GetRotation() * RiddenNavToWorld.GetRotation().Inverse();
+		RiddenNavToWorld = NavToWorld;
+
+		if (!NewLocation.Equals(Location) || !DeltaRotation.IsIdentity())
+		{
+			UpdatedComponent->SetWorldLocationAndRotation(NewLocation, DeltaRotation * UpdatedComponent->GetComponentQuat(), false, nullptr, ETeleportType::TeleportPhysics);
+			Velocity = DeltaRotation.RotateVector(Velocity);
+			TargetVelocity = DeltaRotation.RotateVector(TargetVelocity);
+		}
+
+		if (Volume->IsPointInside(NewLocation))
+		{
+			return;
+		}
+	}
+
+	const FVector Location = UpdatedComponent->GetComponentLocation();
+	UAeonixSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UAeonixSubsystem>() : nullptr;
+	const IAeonixNavVolumeInterface* Volume = Subsystem ? Subsystem->GetVolumeForPosition(Location) : nullptr;
+	RiddenVolume.Reset();
+	if (Volume)
+	{
+		RiddenVolume = TWeakInterfacePtr<IAeonixNavVolumeInterface>(const_cast<IAeonixNavVolumeInterface*>(Volume));
+		RiddenNavToWorld = Volume->GetNavToWorld();
+	}
 }

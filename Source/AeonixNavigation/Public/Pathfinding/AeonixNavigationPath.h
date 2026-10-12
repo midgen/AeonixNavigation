@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UObject/WeakInterfacePtr.h"
+
 #include "AeonixNavigationPath.generated.h"
 
 struct FAeonixData;
@@ -22,7 +24,7 @@ enum class EAeonixPathHeuristicType : uint8
 };
 
 struct FNavigationPath;
-class AAeonixBoundingVolume;
+class IAeonixNavVolumeInterface;
 
 USTRUCT(BlueprintType)
 struct AEONIXNAVIGATION_API FAeonixPathPoint
@@ -32,14 +34,20 @@ struct AEONIXNAVIGATION_API FAeonixPathPoint
 	
 	FAeonixPathPoint(const FVector& aPosition, int aLayer)
 		: Position(aPosition)
+		, NavPosition(aPosition)
 		, Layer(aLayer)
 		, bCullFlag(false)
 
 	{
 	}
 
+	/** World position of the point when the path was planned. For a moving volume use FAeonixNavigationPath::GetPointWorldPosition. */
 	UPROPERTY(BlueprintReadOnly, Category = "Aeonix|Path")
-	FVector Position{}; // Position of the point
+	FVector Position{};
+
+	/** Position of the point in the nav space of the volume the path was planned in */
+	UPROPERTY(BlueprintReadOnly, Category = "Aeonix|Path")
+	FVector NavPosition{};
 
 	UPROPERTY(BlueprintReadOnly, Category = "Aeonix|Path")
 	int Layer{-1};			// Layer that the point came from (so we can infer it's volume)
@@ -105,6 +113,20 @@ public:
 	}
 #endif
 
+	/**
+	 * Records the volume the path was planned in. Pathfinding produces nav-space points;
+	 * this keeps them as NavPosition and sets Position to their world position as of now.
+	 */
+	void BindToVolume(const IAeonixNavVolumeInterface& Volume);
+
+	/** World position of a point now, following the volume if it has moved since planning */
+	FVector GetPointWorldPosition(int32 Index) const;
+
+	/** Nav-to-world transform of the volume the path was planned in, now (identity if unbound) */
+	FTransform GetNavToWorld() const;
+
+	const IAeonixNavVolumeInterface* GetNavVolume() const { return NavVolume.Get(); }
+
 	bool IsReady() const { return myIsReady; };
 	void SetIsReady(bool aIsReady) { myIsReady = aIsReady; }
 
@@ -124,6 +146,11 @@ public:
 protected:
 	bool myIsReady;
 	TArray<FAeonixPathPoint> myPoints;
+
+	// Volume the points were planned in; NavToWorldAtPlan stands in if it is destroyed
+	TWeakInterfacePtr<IAeonixNavVolumeInterface> NavVolume;
+	FTransform NavToWorldAtPlan{FTransform::Identity};
+	bool bBoundToVolume = false;
 #if WITH_EDITOR
 	TArray<FDebugVoxelInfo> myDebugVoxelInfo;
 #endif

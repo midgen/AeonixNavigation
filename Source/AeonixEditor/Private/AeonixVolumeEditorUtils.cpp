@@ -12,8 +12,13 @@
 
 bool FAeonixVolumeEditorUtils::Bake(UAeonixVolumeComponent* Component, UObject* AssetContext)
 {
-	if (!Component || !Component->Generate())
+	if (!Component)
 	{
+		return false;
+	}
+	if (!Component->Generate())
+	{
+		UE_LOG(LogAeonixEditor, Warning, TEXT("Aeonix volume %s: generation failed, nothing baked"), *Component->GetName());
 		return false;
 	}
 
@@ -27,6 +32,7 @@ bool FAeonixVolumeEditorUtils::Bake(UAeonixVolumeComponent* Component, UObject* 
 		UPackage* Package = FPackageName::DoesPackageExist(PackageName) ? LoadPackage(nullptr, *PackageName, LOAD_NoWarn | LOAD_Quiet) : CreatePackage(*PackageName);
 		if (!Package)
 		{
+			UE_LOG(LogAeonixEditor, Warning, TEXT("Aeonix volume %s: could not load or create %s, nothing baked"), *Component->GetName(), *PackageName);
 			return false;
 		}
 		UObject* Existing = FindObject<UObject>(Package, *AssetName);
@@ -45,6 +51,7 @@ bool FAeonixVolumeEditorUtils::Bake(UAeonixVolumeComponent* Component, UObject* 
 
 	if (!Asset)
 	{
+		UE_LOG(LogAeonixEditor, Warning, TEXT("Aeonix volume %s: no Nav Data Asset set and nowhere to create one, nothing baked"), *Component->GetName());
 		return false;
 	}
 

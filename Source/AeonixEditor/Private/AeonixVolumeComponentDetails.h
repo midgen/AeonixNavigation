@@ -44,9 +44,6 @@ private:
 	/** The template's instance in an open Blueprint editor's preview viewport, if any */
 	static UAeonixVolumeComponent* FindPreviewInstance(const UAeonixVolumeComponent* Template);
 
-	/** Generates and stores into the component's asset, creating one beside its owner if it has none */
-	static void Bake(UAeonixVolumeComponent* Component, UObject* AssetContext);
-
 	// Read on each click: a Blueprint recompile replaces the component templates the panel was built for
 	TWeakPtr<IPropertyUtilities> PropertyUtilities;
 };

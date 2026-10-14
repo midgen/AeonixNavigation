@@ -1,19 +1,15 @@
 #include "AeonixVolumeComponentDetails.h"
+#include "AeonixVolumeEditorUtils.h"
 #include "AeonixEditor/AeonixEditor.h"
 #include "Component/AeonixVolumeComponent.h"
-#include "Data/AeonixNavDataAsset.h"
 
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IPropertyUtilities.h"
 #include "Editor.h"
-#include "FileHelpers.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Kismet2/BlueprintEditorUtils.h"
-#include "Misc/PackageName.h"
 #include "UObject/UObjectIterator.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Input/SButton.h"
@@ -151,13 +147,7 @@ void FAeonixVolumeComponentDetails::RunAction(UAeonixVolumeComponent* Selected, 
 		NoUndo.Reset();
 		if (bChanged)
 		{
-			Selected->Modify();
-			Selected->HalfExtent = Instance->HalfExtent;
-			Selected->GenerationParameters.OctreeDepth = Instance->GenerationParameters.OctreeDepth;
-			Selected->NavDataAsset = Instance->NavDataAsset;
-			Selected->SetRelativeLocation_Direct(Instance->GetRelativeLocation());
-			Selected->PostEditChange();
-			FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+			FAeonixVolumeEditorUtils::CopyToTemplate(*Instance, *Selected);
 		}
 	}
 	else
@@ -179,7 +169,7 @@ bool FAeonixVolumeComponentDetails::RunOnInstance(UAeonixVolumeComponent* Instan
 	{
 	case EAction::Fit: return Instance->FitToCollisionSource();
 	case EAction::Generate: Instance->Generate(); return false;
-	case EAction::Bake: Bake(Instance, AssetContext); return true;
+	case EAction::Bake: return FAeonixVolumeEditorUtils::Bake(Instance, AssetContext);
 	case EAction::Clear: Instance->ClearData(); return false;
 	}
 	return false;
@@ -199,52 +189,6 @@ UAeonixVolumeComponent* FAeonixVolumeComponentDetails::FindPreviewInstance(const
 		}
 	}
 	return nullptr;
-}
-
-void FAeonixVolumeComponentDetails::Bake(UAeonixVolumeComponent* Component, UObject* AssetContext)
-{
-	if (!Component->Generate())
-	{
-		return;
-	}
-
-	UAeonixNavDataAsset* Asset = Component->NavDataAsset;
-	if (!Asset && AssetContext)
-	{
-		const FString PackagePath = FPackageName::GetLongPackagePath(AssetContext->GetOutermost()->GetName());
-		const FString AssetName = FString::Printf(TEXT("NAV_%s_%s"), *AssetContext->GetName(), *Component->GetName());
-		const FString PackageName = PackagePath / AssetName;
-
-		UPackage* Package = FPackageName::DoesPackageExist(PackageName) ? LoadPackage(nullptr, *PackageName, LOAD_NoWarn | LOAD_Quiet) : CreatePackage(*PackageName);
-		if (!Package)
-		{
-			return;
-		}
-		UObject* Existing = FindObject<UObject>(Package, *AssetName);
-		Asset = Cast<UAeonixNavDataAsset>(Existing);
-		if (Existing && !Asset)
-		{
-			UE_LOG(LogAeonixEditor, Error, TEXT("Aeonix volume %s: %s exists and is not navigation data; set Nav Data Asset by hand"), *Component->GetName(), *Existing->GetPathName());
-			return;
-		}
-		if (!Asset)
-		{
-			Asset = NewObject<UAeonixNavDataAsset>(Package, *AssetName, RF_Public | RF_Standalone | RF_Transactional);
-			FAssetRegistryModule::AssetCreated(Asset);
-		}
-	}
-
-	if (!Asset)
-	{
-		return;
-	}
-
-	Component->StoreToAsset(Asset);
-	Asset->MarkPackageDirty();
-	UEditorLoadingAndSavingUtils::SavePackages({Asset->GetOutermost()}, true);
-
-	UE_LOG(LogAeonixEditor, Display, TEXT("Aeonix volume %s baked into %s: depth %d, %d leaf nodes, %d bytes"),
-		*Component->GetName(), *Asset->GetPathName(), Asset->OctreeDepth, Asset->NumLeafNodes, Asset->NumBytes);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -16,10 +16,10 @@ struct FAeonixFailedPath
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FVector StartPoint;
+	FVector StartPoint = FVector::ZeroVector;
 
 	UPROPERTY()
-	FVector EndPoint;
+	FVector EndPoint = FVector::ZeroVector;
 
 	FAeonixFailedPath() {}
 	FAeonixFailedPath(const FVector& InStart, const FVector& InEnd)

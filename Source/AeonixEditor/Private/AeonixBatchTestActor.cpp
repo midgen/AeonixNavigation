@@ -12,7 +12,7 @@
 #include "Runtime/Engine/Public/DrawDebugHelpers.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
 #include "Runtime/Core/Public/Misc/DateTime.h"
-#include "Runtime/Core/Public/HAL/PlatformFilemanager.h"
+#include "Runtime/Core/Public/HAL/PlatformFileManager.h"
 #include "Runtime/Core/Public/Misc/FileHelper.h"
 
 AAeonixBatchTestActor::AAeonixBatchTestActor()

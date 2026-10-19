@@ -100,14 +100,14 @@ struct AEONIXNAVIGATION_API FAeonixLoadMetrics
 };
 
 /**
- * Pathfinding worker thread that processes work from its own SPSC queue.
+ * Pathfinding worker thread that processes work from its own MPSC queue.
  * Each worker has a dedicated queue to avoid multi-consumer race conditions.
  */
 class AEONIXNAVIGATION_API FAeonixPathfindWorker : public FRunnable
 {
 public:
 	FAeonixPathfindWorker(
-		TQueue<TFunction<void()>, EQueueMode::Spsc>* InWorkQueue,  // SPSC - single consumer per worker!
+		TQueue<TFunction<void()>, EQueueMode::Mpsc>* InWorkQueue,  // MPSC - any thread enqueues, this worker alone dequeues
 		FEvent* InWorkAvailableEvent,
 		FThreadSafeBool* InShuttingDown,
 		int32 InWorkerIndex);
@@ -121,7 +121,7 @@ public:
 	virtual void Exit() override;
 
 private:
-	TQueue<TFunction<void()>, EQueueMode::Spsc>* WorkQueue;  // SPSC - single consumer!
+	TQueue<TFunction<void()>, EQueueMode::Mpsc>* WorkQueue;  // MPSC - single consumer!
 	FEvent* WorkAvailableEvent;
 	FThreadSafeBool* bShuttingDown;
 	int32 WorkerIndex;
@@ -133,18 +133,19 @@ struct FAeonixWorkerContext;
 
 /**
  * Context for a single pathfinding worker (queue + thread + event).
- * Each worker has its own SPSC queue to avoid the MPSC multi-consumer race condition.
+ * Each worker has its own MPSC queue, so it is the only consumer (a TQueue allows just one), while any
+ * thread may enqueue: EnqueueWork is called concurrently, which an SPSC queue does not allow.
  */
 struct FAeonixWorkerContext
 {
 	TUniquePtr<FAeonixPathfindWorker> Worker;
 	FRunnableThread* Thread = nullptr;  // Raw pointer - Kill() handles cleanup, destructor would double-free
-	TQueue<TFunction<void()>, EQueueMode::Spsc> WorkQueue;  // SPSC - single consumer per worker!
+	TQueue<TFunction<void()>, EQueueMode::Mpsc> WorkQueue;  // MPSC - many producers, single consumer per worker
 	FEvent* WorkAvailableEvent = nullptr;
 };
 
 /**
- * Worker pool with per-worker SPSC queues.
+ * Worker pool with per-worker MPSC queues.
  * Game thread round-robins work distribution across workers.
  * This design fixes the MPSC race condition where multiple workers consumed from one queue.
  */

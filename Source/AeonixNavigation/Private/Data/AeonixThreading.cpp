@@ -7,7 +7,7 @@
 // FAeonixPathfindWorker implementation
 
 FAeonixPathfindWorker::FAeonixPathfindWorker(
-	TQueue<TFunction<void()>, EQueueMode::Spsc>* InWorkQueue,  // SPSC - single consumer!
+	TQueue<TFunction<void()>, EQueueMode::Mpsc>* InWorkQueue,  // MPSC - single consumer!
 	FEvent* InWorkAvailableEvent,
 	FThreadSafeBool* InShuttingDown,
 	int32 InWorkerIndex)
@@ -98,12 +98,12 @@ void FAeonixPathfindWorkerPool::Initialize(int32 NumThreads)
 	const int32 MaxThreads = FPlatformMisc::NumberOfCoresIncludingHyperthreads() - 2;
 	NumThreads = FMath::Clamp(NumThreads, 1, FMath::Max(1, MaxThreads));
 
-	UE_LOG(LogAeonixNavigation, Log, TEXT("Initializing pathfind worker pool with %d threads (per-worker SPSC queues)"), NumThreads);
+	UE_LOG(LogAeonixNavigation, Log, TEXT("Initializing pathfind worker pool with %d threads (per-worker MPSC queues)"), NumThreads);
 
 	// Pre-allocate worker contexts
 	WorkerContexts.SetNum(NumThreads);
 
-	// Create per-worker contexts (each with its own SPSC queue and event)
+	// Create per-worker contexts (each with its own MPSC queue and event)
 	for (int32 i = 0; i < NumThreads; ++i)
 	{
 		FAeonixWorkerContext& Context = WorkerContexts[i];
@@ -111,7 +111,7 @@ void FAeonixPathfindWorkerPool::Initialize(int32 NumThreads)
 		// Per-worker event
 		Context.WorkAvailableEvent = FPlatformProcess::GetSynchEventFromPool(false);
 
-		// Per-worker worker (references its own SPSC queue)
+		// Per-worker worker (references its own MPSC queue)
 		Context.Worker = MakeUnique<FAeonixPathfindWorker>(
 			&Context.WorkQueue,
 			Context.WorkAvailableEvent,
@@ -127,7 +127,7 @@ void FAeonixPathfindWorkerPool::Initialize(int32 NumThreads)
 
 		if (Context.Thread)
 		{
-			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Created pathfind worker thread %d with dedicated SPSC queue"), i);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Created pathfind worker thread %d with dedicated MPSC queue"), i);
 		}
 		else
 		{

@@ -540,6 +540,62 @@ bool FAeonixData::HasLineOfSight(const FVector& aStart, const FVector& aEnd) con
 			}
 		}
 
+		// The segment leaves this cell at a point on one of its faces. Where that point also lies on
+		// the leaf grid along another axis it is on an edge or a corner of the cells beyond, which can
+		// be smaller than this one, and it touches every cell that meets there, not only the one it
+		// goes on into. A blocked cell among them has the segment touching blocked space, so each of
+		// those cells has to be free as well.
+		if (tExit >= 0.f && t + tExit < length)
+		{
+			const FVector exitPos = aStart + dir * (t + tExit);
+			const FVector gridMin = GetParams().Origin - GetParams().Extents;
+			const FVector gridMax = GetParams().Origin + GetParams().Extents;
+
+			// The grid plane the exit point lies on along each axis, if it lies on one
+			int32 gridAxes[3];
+			double gridPlanes[3];
+			int32 numGridAxes = 0;
+			for (int32 axis = 0; axis < 3; ++axis)
+			{
+				const double plane = gridMin[axis] + FMath::RoundToDouble((exitPos[axis] - gridMin[axis]) / leafSize) * leafSize;
+				if (FMath::Abs(exitPos[axis] - plane) <= epsilon)
+				{
+					gridAxes[numGridAxes] = axis;
+					gridPlanes[numGridAxes++] = plane;
+				}
+			}
+			if (numGridAxes >= 2)
+			{
+				// Either side of each of those planes: every cell round the edge or corner
+				FBox knownFree = bounds;
+				for (int32 mask = 0; mask < (1 << numGridAxes); ++mask)
+				{
+					FVector side = exitPos;
+					// A side inside the cell being left, or the last cell found here, is already known free
+					// (in open space one large cell holds every side beyond the face). One beyond the volume's
+					// face has no cell: a segment may run along that face, as long as it stays within it.
+					bool bKnownFree = true;
+					bool bInVolume = true;
+					for (int32 i = 0; i < numGridAxes; ++i)
+					{
+						const int32 axis = gridAxes[i];
+						side[axis] = gridPlanes[i] + ((mask & (1 << i)) != 0 ? epsilon : -epsilon);
+						bKnownFree &= side[axis] > knownFree.Min[axis] && side[axis] < knownFree.Max[axis];
+						bInVolume &= side[axis] >= gridMin[axis] && side[axis] <= gridMax[axis];
+					}
+					if (bKnownFree || !bInVolume)
+					{
+						continue;
+					}
+					AeonixLink sideLink;
+					if (!GetLinkForPosition(side, sideLink) || !GetLinkBounds(sideLink, knownFree))
+					{
+						return false;
+					}
+				}
+			}
+		}
+
 		// If we failed to make progress (numerical edge case on a boundary), push a little harder
 		if (link == previousLink || tExit < 0.f)
 		{

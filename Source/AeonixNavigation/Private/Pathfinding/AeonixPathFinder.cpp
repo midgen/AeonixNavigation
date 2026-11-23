@@ -437,16 +437,32 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	// a proper string pulling algorithm would do better, but this is quick and easy for now!
 	if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
 	{
-		for (int i = points.Num() - 1; i >= 0; i--)
+		// Only points still in the path take part, each moving toward the one before it.
+		TArray<int32, TInlineAllocator<64>> livePoints;
+		for (int32 i = 0; i < points.Num(); i++)
 		{
-			if (i == 0 || i == points.Num() - 1)
+			if (!points[i].bCullFlag)
+			{
+				livePoints.Add(i);
+			}
+		}
+
+		for (int32 i = livePoints.Num() - 2; i >= 1; i--)
+		{
+			FAeonixPathPoint& thisPoint = points[livePoints[i]];
+			const FAeonixPathPoint& previousPoint = points[livePoints[i - 1]];
+			if (thisPoint.Layer != previousPoint.Layer)
 			{
 				continue;
 			}
-			
-			if (points[i].Layer == points[i-1].Layer)
+
+			// Moving the point moves the segments either side of it, so both have to stay in free voxels.
+			// The point after has already made its move; the one before is tested again when it makes its own.
+			const FVector averaged = thisPoint.Position + (previousPoint.Position - thisPoint.Position) * 0.5f;
+			if (NavigationData.HasLineOfSight(previousPoint.Position, averaged)
+				&& NavigationData.HasLineOfSight(averaged, points[livePoints[i + 1]].Position))
 			{
-				points[i].Position += (points[i-1].Position - points[i].Position) * 0.5f;
+				thisPoint.Position = averaged;
 			}
 		}
 	}
@@ -455,23 +471,33 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	// is within the tolerance angle of the vector from the previous valid point and the next point, we just mark it for culling
 	if (Settings.bOptimizePath)
 	{
-		FAeonixPathPoint LastPoint = points[0];
-		for (int i = 0; i < points.Num(); i++)
+		// Only points still in the path take part: one an earlier pass culled is nobody's neighbour,
+		// and measuring against it would join two points that were never tested against each other.
+		TArray<int32, TInlineAllocator<64>> livePoints;
+		for (int32 i = 0; i < points.Num(); i++)
 		{
-			if ( i > 0 && i < points.Num() - 2)
+			if (!points[i].bCullFlag)
 			{
-				FAeonixPathPoint& nextPoint = points[i + 1];
-				FAeonixPathPoint& thisPoint = points[i];
-				
-				const double angle = FMath::RadiansToDegrees(acosf(FVector::DotProduct((thisPoint.Position - LastPoint.Position).GetSafeNormal(), (nextPoint.Position - LastPoint.Position).GetSafeNormal())));
-				if (angle < ((Settings.OptimizeDotTolerance)))
-				{
-					thisPoint.bCullFlag = true;
-				}
-				else
-				{
-					LastPoint = thisPoint;
-				}
+				livePoints.Add(i);
+			}
+		}
+
+		int32 lastIdx = livePoints[0];
+		for (int32 i = 1; i < livePoints.Num() - 1; i++)
+		{
+			const FVector& lastPos = points[lastIdx].Position;
+			FAeonixPathPoint& thisPoint = points[livePoints[i]];
+			const FVector& nextPos = points[livePoints[i + 1]].Position;
+
+			const double angle = FMath::RadiansToDegrees(acosf(FVector::DotProduct((thisPoint.Position - lastPos).GetSafeNormal(), (nextPos - lastPos).GetSafeNormal())));
+			// The angle is a cheap filter. Culling joins the points either side, so confirm that segment stays in free voxels.
+			if (angle < Settings.OptimizeDotTolerance && NavigationData.HasLineOfSight(lastPos, nextPos))
+			{
+				thisPoint.bCullFlag = true;
+			}
+			else
+			{
+				lastIdx = livePoints[i];
 			}
 		}
 	}
@@ -494,125 +520,42 @@ void AeonixPathFinder::StringPullPath(TArray<FAeonixPathPoint>& pathPoints)
 		return;
 	}
 
-	// First, make sure no points are marked for culling initially
 	for (FAeonixPathPoint& point : pathPoints)
 	{
 		point.bCullFlag = false;
 	}
 
-	// Create an array to mark points that should be kept (not culled)
-	TArray<bool, TInlineAllocator<32>> keepPoint;
-	keepPoint.SetNum(pathPoints.Num());
-	
-	// Always keep first and last points
-	keepPoint[0] = true;
-	keepPoint[pathPoints.Num() - 1] = true;
-	
-	// Current apex point for pathfinding
+	// From each point kept (the apex), go straight to the furthest later point it can see through
+	// free voxels, and cull everything between. Line of sight is the only test: the kept points are
+	// joined by segments that have each been checked against the octree, whatever layers the
+	// culled points were on.
+	int32 keptCount = 1;
 	int32 apexIdx = 0;
-	FVector apexPos = pathPoints[apexIdx].Position;
-	
-	// Process all points starting from the apex
 	while (apexIdx < pathPoints.Num() - 1)
 	{
-		// Try to find the furthest visible point from current apex
-		int32 furthestVisible = -1;
-		
-		// Test points starting from the furthest possible
-		for (int32 testIdx = pathPoints.Num() - 1; testIdx > apexIdx; testIdx--)
-		{
-			// Check if we can create a valid corridor between these points
-			bool canConnect = true;
-			
-			// Test if any intermediate nodes need to be kept due to obstacles
-			for (int32 intermediateIdx = apexIdx + 1; intermediateIdx < testIdx; intermediateIdx++)
-			{
-				FVector intermediatePos = pathPoints[intermediateIdx].Position;
-				
-				// Calculate perpendicular distance from intermediate point to the direct line
-				FVector apexToTest = pathPoints[testIdx].Position - apexPos;
-				apexToTest.Normalize();
-				
-				FVector apexToIntermediate = intermediatePos - apexPos;
-				float alongLine = FVector::DotProduct(apexToIntermediate, apexToTest);
-				FVector projectedPoint = apexPos + apexToTest * alongLine;
-				
-				float perpDistance = FVector::Dist(intermediatePos, projectedPoint);
-				
-				// Get voxel size for the intermediate point's layer
-				float voxelSize = NavigationData.GetVoxelSize(pathPoints[intermediateIdx].Layer);
-				
-				// If point is too far from the direct line (more than threshold * voxel size),
-				// we need to keep intermediate points
-				if (perpDistance > voxelSize * Settings.StringPullingVoxelThreshold)
-				{
-					canConnect = false;
-					break;
-				}
-			}
-			
-			// The distance test above is a cheap heuristic. It says nothing about geometry, so
-			// confirm the straightened segment actually stays in free voxels before accepting it.
-			if (canConnect && !NavigationData.HasLineOfSight(apexPos, pathPoints[testIdx].Position))
-			{
-				canConnect = false;
-			}
+		const FVector& apexPos = pathPoints[apexIdx].Position;
 
-			if (canConnect)
+		// The next point is the fallback: the search stepped between the two, so it is always reachable.
+		int32 nextIdx = apexIdx + 1;
+		for (int32 testIdx = pathPoints.Num() - 1; testIdx > apexIdx + 1; testIdx--)
+		{
+			if (NavigationData.HasLineOfSight(apexPos, pathPoints[testIdx].Position))
 			{
-				furthestVisible = testIdx;
+				nextIdx = testIdx;
 				break;
 			}
 		}
-		
-		// If we found a valid connection point
-		if (furthestVisible != -1)
-		{
-			// Mark this furthest visible point to keep
-			keepPoint[furthestVisible] = true;
-			
-			// Mark intermediate points for culling
-			for (int32 i = apexIdx + 1; i < furthestVisible; i++)
-			{
-				// Don't mark points for culling if they're at a different layer
-				if (pathPoints[i].Layer == pathPoints[apexIdx].Layer && 
-				    pathPoints[i].Layer == pathPoints[furthestVisible].Layer)
-				{
-					pathPoints[i].bCullFlag = true;
-				}
-				else
-				{
-					// Keep points at layer transitions
-					keepPoint[i] = true;
-				}
-			}
-			
-			// Move apex to the furthest visible point
-			apexIdx = furthestVisible;
-			apexPos = pathPoints[apexIdx].Position;
-		}
-		else
-		{
-			// If we couldn't find a valid connection, keep the next point and move apex forward
-			keepPoint[apexIdx + 1] = true;
-			apexIdx++;
-			apexPos = pathPoints[apexIdx].Position;
-		}
-	}
-	
-	// Set culling flags based on our analysis
-	for (int32 i = 0; i < pathPoints.Num(); i++)
-	{
-		if (!keepPoint[i])
+
+		for (int32 i = apexIdx + 1; i < nextIdx; i++)
 		{
 			pathPoints[i].bCullFlag = true;
 		}
+
+		apexIdx = nextIdx;
+		keptCount++;
 	}
-	
-	// Debug output
-	UE_LOG(LogAeonixNavigation, Log, TEXT("String pulling: Original points: %d, Kept points: %d"), 
-	       pathPoints.Num(), 
-	       pathPoints.Num() - pathPoints.FilterByPredicate([](const FAeonixPathPoint& Point){ return Point.bCullFlag; }).Num());
+
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("String pulling: Original points: %d, Kept points: %d"), pathPoints.Num(), keptCount);
 }
 
 void AeonixPathFinder::Smooth_Chaikin(TArray<FAeonixPathPoint>& somePoints, int aNumIterations)

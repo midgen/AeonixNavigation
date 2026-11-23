@@ -111,13 +111,20 @@ bool FAeonixNavigation_ObstacleNavigationTest::RunTest(const FString& Parameters
             UE_LOG(LogTemp, Display, TEXT("  Point %d: %s (Layer: %d)"),
                 i, *Point.Position.ToString(), Point.Layer);
 
-            // Check if path goes through the gap (Y between -50 and 50, X near 0)
-            if (FMath::Abs(Point.Position.X) < 100.0f &&
-                Point.Position.Y > -60.0f &&
-                Point.Position.Y < 60.0f)
+            // Check if path goes through the gap: where a segment crosses the obstacles' plane (X = 0),
+            // it is between them (Y between -50 and 50). String pulling can leave no point in the gap itself.
+            if (i > 0)
             {
-                bPassesThroughGap = true;
-                UE_LOG(LogTemp, Display, TEXT("    >>> Path correctly goes through gap!"));
+                const FVector& Previous = PathPoints[i - 1].Position;
+                if ((Previous.X < 0.0) != (Point.Position.X < 0.0))
+                {
+                    const double CrossingY = FMath::Lerp(Previous.Y, Point.Position.Y, Previous.X / (Previous.X - Point.Position.X));
+                    if (CrossingY > -60.0 && CrossingY < 60.0)
+                    {
+                        bPassesThroughGap = true;
+                        UE_LOG(LogTemp, Display, TEXT("    >>> Path correctly goes through gap!"));
+                    }
+                }
             }
 
             // Verify no path point is inside an obstacle
@@ -176,7 +183,8 @@ bool FAeonixNavigation_ObstacleNavigationTest::RunTest(const FString& Parameters
             UE_LOG(LogTemp, Display, TEXT("SUCCESS: Diagonal path found! Path has %d points"),
                 PathPoints2.Num());
 
-            // Path should be longer than direct distance due to navigating around obstacles
+            // The straight line between these two crosses the obstacles' plane at Y = 0, inside the gap, so
+            // a pulled path can be that line: it is never shorter than it
             float directDistance = FVector::Dist(StartPos2, EndPos2);
             float pathLength = 0.0f;
 
@@ -188,8 +196,8 @@ bool FAeonixNavigation_ObstacleNavigationTest::RunTest(const FString& Parameters
             UE_LOG(LogTemp, Display, TEXT("Direct distance: %f, Path length: %f"),
                 directDistance, pathLength);
 
-            TestTrue(TEXT("Path length should be greater than direct distance due to obstacles"),
-                pathLength > directDistance);
+            TestTrue(TEXT("Path length should be no less than the direct distance"),
+                pathLength >= directDistance - KINDA_SMALL_NUMBER);
         }
     }
 

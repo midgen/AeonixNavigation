@@ -401,7 +401,7 @@ bool UAeonixSubsystem::FindPathInVolume(const IAeonixNavVolumeInterface& Volume,
 	}
 
 	OutPath.SetIsReady(true);
-	UE_LOG(LogAeonixNavigation, Log, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
+	UE_LOG(LogAeonixNavigation, Verbose, TEXT("AeonixSubsystem: Path found with %d points, marked as ready"), OutPath.GetPathPoints().Num());
 
 	return Result;
 }

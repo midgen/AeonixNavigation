@@ -32,14 +32,17 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 	int numIterations = 0;
 	FScoreHeapPredicate HeapPredicate(FScore);
 
-	// Diagnostic tracking for iteration explosion debugging
-	TSet<AeonixLink> UniqueNodesProcessed;
+	// Diagnostic tracking for iteration explosion debugging. The closed set holds each node processed once.
 	int32 DuplicatePopCount = 0;
 	int32 TotalNeighborsGenerated = 0;
 	int32 MaxNeighborsInSingleIteration = 0;
 	int32 EmptyLeafNeighbourCount = 0;
 	int32 NonEmptyLeafNeighbourCount = 0;
 	int32 HigherLayerNeighbourCount = 0;
+
+	// One array for every iteration's neighbours, so it allocates once per search
+	TArray<AeonixLink> neighbours;
+	neighbours.Reserve(32);
 
 	while (OpenHeap.Num() > 0)
 	{
@@ -54,14 +57,12 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 			continue;
 		}
 
-		// Track unique nodes processed
-		UniqueNodesProcessed.Add(CurrentLink);
 		ClosedSet.Add(CurrentLink);
 
 		if (CurrentLink == GoalLink)
 		{
 			BuildPath(CameFrom, CurrentLink, StartPos, TargetPos, Path);
-			UE_LOG(LogAeonixNavigation, Display, TEXT("Pathfinding complete, iterations : %i"), numIterations);
+			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Pathfinding complete, iterations : %i"), numIterations);
 
 			LastIterationCount = numIterations;
 			return true;
@@ -69,7 +70,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 		const AeonixNode& currentNode = NavigationData.OctreeData.GetNode(CurrentLink);
 
-		TArray<AeonixLink> neighbours;
+		neighbours.Reset();
 
 		if (CurrentLink.GetLayerIndex() == 0 && currentNode.FirstChild.IsValid())
 		{
@@ -115,7 +116,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 			const float DistToGoal = FVector::Dist(CurrentPos, TargetPos);
 
 			UE_LOG(LogAeonixNavigation, Verbose, TEXT("Iteration %d: Heap=%d, Unique=%d, Dups=%d, Neighbors=%d, MaxNeighbors=%d, DistToGoal=%.1f"),
-				numIterations, OpenHeap.Num(), UniqueNodesProcessed.Num(), DuplicatePopCount,
+				numIterations, OpenHeap.Num(), ClosedSet.Num(), DuplicatePopCount,
 				TotalNeighborsGenerated, MaxNeighborsInSingleIteration, DistToGoal);
 		}
 
@@ -139,7 +140,7 @@ bool AeonixPathFinder::FindPath(const AeonixLink& Start, const AeonixLink& InGoa
 
 			// Detailed diagnostic information
 			UE_LOG(LogAeonixNavigation, Warning, TEXT("  Diagnostics: HeapSize=%d, UniqueNodes=%d, DuplicatePops=%d, TotalNeighbors=%d, MaxNeighbors=%d, DistToGoal=%.1f"),
-				OpenHeap.Num(), UniqueNodesProcessed.Num(), DuplicatePopCount,
+				OpenHeap.Num(), ClosedSet.Num(), DuplicatePopCount,
 				TotalNeighborsGenerated, MaxNeighborsInSingleIteration, DistToGoal);
 
 			// Calculate average neighbors per iteration
@@ -332,6 +333,8 @@ void AeonixPathFinder::ProcessLink(const AeonixLink& aNeighbour)
 void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath)
 {
 	TArray<FAeonixPathPoint> points;
+	// Room for most paths without regrowing as the chain is walked
+	points.Reserve(64);
 
 	// Records the voxel centre and layer for a link on the came-from chain.
 	auto AddLinkPoint = [this, &points](const AeonixLink& aLink)
@@ -503,6 +506,12 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	}
 	
 	// Now construct the final path, dropping the culled points.
+	int32 numKept = 0;
+	for (const FAeonixPathPoint& point : points)
+	{
+		numKept += point.bCullFlag ? 0 : 1;
+	}
+	oPath.GetPathPoints().Reserve(oPath.GetPathPoints().Num() + numKept);
 	for (int i = points.Num() - 1; i >= 0; i--)
 	{
 		if (points[i].bCullFlag != true)
@@ -583,27 +592,8 @@ void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 		return;
 	}
 	
-	// Note: We don't need to store original positions for debug here
-	// because they were already stored when building the path
-	
-	// Create a copy of the original positions for reference
-	TArray<FVector> originalPositions;
-	for (const FAeonixPathPoint& point : pathPoints)
-	{
-		if (!point.bCullFlag)
-		{
-			originalPositions.Add(point.Position);
-		}
-	}
-	
-	// Skip if we don't have enough valid points after culling
-	if (originalPositions.Num() < 3)
-	{
-		return;
-	}
-
 	// Get a filtered array of points that aren't being culled
-	TArray<FAeonixPathPoint*> validPoints;
+	TArray<FAeonixPathPoint*, TInlineAllocator<64>> validPoints;
 	for (int32 i = 0; i < pathPoints.Num(); i++)
 	{
 		if (!pathPoints[i].bCullFlag)
@@ -611,7 +601,13 @@ void AeonixPathFinder::SmoothPathPositions(TArray<FAeonixPathPoint>& pathPoints)
 			validPoints.Add(&pathPoints[i]);
 		}
 	}
-	
+
+	// Skip if we don't have enough valid points after culling
+	if (validPoints.Num() < 3)
+	{
+		return;
+	}
+
 	// Don't modify the first and last points
 	for (int32 i = 1; i < validPoints.Num() - 1; i++)
 	{

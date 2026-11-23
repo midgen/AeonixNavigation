@@ -540,6 +540,48 @@ bool FAeonixData::HasLineOfSight(const FVector& aStart, const FVector& aEnd) con
 			}
 		}
 
+		// The segment leaves this cell at a point on one of its faces. Where that point also lies on
+		// the leaf grid along another axis it is on an edge or a corner of the cells beyond, which can
+		// be smaller than this one, and it touches every cell that meets there, not only the one it
+		// goes on into: between two blocked cells that meet edge to edge there is no room to pass.
+		// So each of those cells has to be free as well.
+		if (tExit >= 0.f && t + tExit < length)
+		{
+			const FVector exitPos = aStart + dir * (t + tExit);
+			const FVector gridMin = GetParams().Origin - GetParams().Extents;
+
+			// The grid plane the exit point lies on along each axis, if it lies on one
+			int32 gridAxes[3];
+			double gridPlanes[3];
+			int32 numGridAxes = 0;
+			for (int32 axis = 0; axis < 3; ++axis)
+			{
+				const double plane = gridMin[axis] + FMath::RoundToDouble((exitPos[axis] - gridMin[axis]) / leafSize) * leafSize;
+				if (FMath::Abs(exitPos[axis] - plane) <= epsilon)
+				{
+					gridAxes[numGridAxes] = axis;
+					gridPlanes[numGridAxes++] = plane;
+				}
+			}
+			if (numGridAxes >= 2)
+			{
+				// Either side of each of those planes: every cell round the edge or corner
+				for (int32 mask = 0; mask < (1 << numGridAxes); ++mask)
+				{
+					FVector side = exitPos;
+					for (int32 i = 0; i < numGridAxes; ++i)
+					{
+						side[gridAxes[i]] = gridPlanes[i] + ((mask & (1 << i)) != 0 ? epsilon : -epsilon);
+					}
+					AeonixLink sideLink;
+					if (!GetLinkForPosition(side, sideLink))
+					{
+						return false;
+					}
+				}
+			}
+		}
+
 		// If we failed to make progress (numerical edge case on a boundary), push a little harder
 		if (link == previousLink || tExit < 0.f)
 		{

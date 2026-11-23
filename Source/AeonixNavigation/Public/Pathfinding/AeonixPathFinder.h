@@ -111,11 +111,11 @@ struct FAeonixPathFinderSettings
 	/** Tolerance for dot product when checking if two points are aligned enough to the previous point, to be consider for trimming*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix",meta=(EditCondition="bOptimizePath"))
 	double OptimizeDotTolerance{FLT_EPSILON};
-	/** Apply string-pulling algorithm for path smoothing (provides better results than simple optimization) */
+	/** Pull the path taut: from each point kept, go straight to the furthest later point with a clear line of sight through free voxels, dropping the points between */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	bool bUseStringPulling{true};
-	/** Controls how much a path can deviate as a fraction of voxel size (lower values create tighter paths) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix", meta=(EditCondition="bUseStringPulling", ClampMin="0.1", ClampMax="1.0"))
+	/** Unused: string pulling joins any two points with a clear line of sight, however far the points between them stray */
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="String pulling tests line of sight only; this threshold is no longer read."))
 	float StringPullingVoxelThreshold{0.16841f};
 	/** Adjust point positions within voxel bounds for smoother paths */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
@@ -196,7 +196,7 @@ private:
 	/* Constructs the path by navigating back through our CameFrom map */
 	void BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, AeonixLink aCurrent, const FVector& aStartPos, const FVector& aTargetPos, FAeonixNavigationPath& oPath);
 
-	/* Implements corridor-based string pulling algorithm to smooth path by removing unnecessary waypoints */
+	/* Pulls the path taut by line of sight: marks for culling every point between one kept and the furthest later point it can see */
 	void StringPullPath(TArray<FAeonixPathPoint>& pathPoints);
 
 	/* Adjusts path point positions within voxel bounds to create smoother paths */

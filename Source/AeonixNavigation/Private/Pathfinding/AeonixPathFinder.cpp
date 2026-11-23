@@ -437,16 +437,32 @@ void AeonixPathFinder::BuildPath(TMap<AeonixLink, AeonixLink>& aCameFrom, Aeonix
 	// a proper string pulling algorithm would do better, but this is quick and easy for now!
 	if (Settings.PathPointType == EAeonixPathPointType::INTERMEDIATE)
 	{
-		for (int i = points.Num() - 1; i >= 0; i--)
+		// Only points still in the path take part, each moving toward the one before it.
+		TArray<int32, TInlineAllocator<64>> livePoints;
+		for (int32 i = 0; i < points.Num(); i++)
 		{
-			if (i == 0 || i == points.Num() - 1)
+			if (!points[i].bCullFlag)
+			{
+				livePoints.Add(i);
+			}
+		}
+
+		for (int32 i = livePoints.Num() - 2; i >= 1; i--)
+		{
+			FAeonixPathPoint& thisPoint = points[livePoints[i]];
+			const FAeonixPathPoint& previousPoint = points[livePoints[i - 1]];
+			if (thisPoint.Layer != previousPoint.Layer)
 			{
 				continue;
 			}
-			
-			if (points[i].Layer == points[i-1].Layer)
+
+			// Moving the point moves the segments either side of it, so both have to stay in free voxels.
+			// The point after has already made its move; the one before is tested again when it makes its own.
+			const FVector averaged = thisPoint.Position + (previousPoint.Position - thisPoint.Position) * 0.5f;
+			if (NavigationData.HasLineOfSight(previousPoint.Position, averaged)
+				&& NavigationData.HasLineOfSight(averaged, points[livePoints[i + 1]].Position))
 			{
-				points[i].Position += (points[i-1].Position - points[i].Position) * 0.5f;
+				thisPoint.Position = averaged;
 			}
 		}
 	}

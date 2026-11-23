@@ -50,7 +50,8 @@ public:
 	 * Walks the segment cell by cell through the octree, so the cost scales with the number
 	 * of voxels crossed rather than the segment length. Leaving the volume counts as blocked.
 	 * Where the segment crosses an edge or a corner of the leaf grid, every cell meeting there has
-	 * to be free: it cannot squeeze between two blocked cells that touch edge to edge.
+	 * to be free: touching a blocked cell there counts as passing through it. Cells beyond the volume's
+	 * faces are not counted, so a segment may run along a face.
 	 */
 	bool HasLineOfSight(const FVector& aStart, const FVector& aEnd) const;
 

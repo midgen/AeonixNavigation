@@ -81,7 +81,7 @@ namespace
 	// both ends of each accepted by AcceptEndpoint.
 	FClipSweepResult SweepWorld(const TCHAR* WorldName, IAeonixCollisionQueryInterface& Collision,
 		const FAeonixPathFinderSettings& PathSettings, int32 Seed, int32 NumPairs,
-		TFunctionRef<bool(const FVector&)> AcceptEndpoint = [](const FVector&) { return true; })
+		TFunctionRef<bool(const FVector&)> AcceptEndpoint = [](const FVector&) { return true; }, int32 AttemptsPerPair = 10)
 	{
 		FSilentDebugDrawInterface DebugDraw;
 		FAeonixData NavData;
@@ -106,7 +106,7 @@ namespace
 		// Keep queries inside the volume with a margin so the endpoints resolve to real voxels.
 		const float Range = 450.f;
 		int32 Attempts = 0;
-		while (Result.PathsTested < NumPairs && Attempts < NumPairs * 1000)
+		while (Result.PathsTested < NumPairs && Attempts < NumPairs * AttemptsPerPair)
 		{
 			Attempts++;
 			const FVector StartPos(Rng.FRandRange(-Range, Range), Rng.FRandRange(-Range, Range), Rng.FRandRange(-Range, Range));
@@ -179,6 +179,8 @@ bool FAeonixNavigation_StringPullClippingTest::RunTest(const FString& Parameters
 	const int32 PairsPerWorld = 150;
 	// The ring clips rarely enough to need a longer sweep.
 	const int32 RingPairs = 600;
+	// Few random points lie close enough to the ring to be accepted.
+	const int32 RingAttemptsPerPair = 1000;
 
 	// World A: two walls on the X=0 plane with a gap between them.
 	FTestPartialObstacleCollisionQueryInterface GapWorld;
@@ -198,16 +200,24 @@ bool FAeonixNavigation_StringPullClippingTest::RunTest(const FString& Parameters
 	const FClipSweepResult GapResult = SweepWorld(TEXT("gap"), GapWorld, PathSettings, Seed, PairsPerWorld);
 	const FClipSweepResult CornerResult = SweepWorld(TEXT("corner"), CornerWorld, PathSettings, Seed, PairsPerWorld);
 	const FClipSweepResult RingResult = SweepWorld(TEXT("ring"), RingWorld, PathSettings, Seed, RingPairs,
-		[&RingWorld](const FVector& Point) { return RingWorld.IsNear(Point); });
+		[&RingWorld](const FVector& Point) { return RingWorld.IsNear(Point); }, RingAttemptsPerPair);
 
-	UE_LOG(LogTemp, Display, TEXT("Post-process clipping sweep: gap world %d/%d clipped, corner world %d/%d clipped, ring world %d/%d clipped"),
-		GapResult.PathsClipped, GapResult.PathsTested, CornerResult.PathsClipped, CornerResult.PathsTested, RingResult.PathsClipped, RingResult.PathsTested);
+	// The same ring with the intermediate point type, whose averaging pass moves points after string pulling.
+	FAeonixPathFinderSettings IntermediateSettings = PathSettings;
+	IntermediateSettings.PathPointType = EAeonixPathPointType::INTERMEDIATE;
+	const FClipSweepResult IntermediateResult = SweepWorld(TEXT("ring, intermediate points"), RingWorld, IntermediateSettings, Seed, RingPairs,
+		[&RingWorld](const FVector& Point) { return RingWorld.IsNear(Point); }, RingAttemptsPerPair);
+
+	UE_LOG(LogTemp, Display, TEXT("Post-process clipping sweep: gap world %d/%d clipped, corner world %d/%d clipped, ring world %d/%d clipped, ring world with intermediate points %d/%d clipped"),
+		GapResult.PathsClipped, GapResult.PathsTested, CornerResult.PathsClipped, CornerResult.PathsTested, RingResult.PathsClipped, RingResult.PathsTested,
+		IntermediateResult.PathsClipped, IntermediateResult.PathsTested);
 
 	TestTrue(TEXT("Sweep found enough reachable pairs in the gap world"), GapResult.PathsTested >= PairsPerWorld / 2);
 	TestTrue(TEXT("Sweep found enough reachable pairs in the corner world"), CornerResult.PathsTested >= PairsPerWorld / 2);
 	TestTrue(TEXT("Sweep found enough reachable pairs in the ring world"), RingResult.PathsTested >= RingPairs / 2);
+	TestTrue(TEXT("Sweep found enough reachable pairs in the ring world with intermediate points"), IntermediateResult.PathsTested >= RingPairs / 2);
 
-	for (const FClipSweepResult* Result : { &GapResult, &CornerResult, &RingResult })
+	for (const FClipSweepResult* Result : { &GapResult, &CornerResult, &RingResult, &IntermediateResult })
 	{
 		if (Result->PathsClipped > 0)
 		{
@@ -219,6 +229,7 @@ bool FAeonixNavigation_StringPullClippingTest::RunTest(const FString& Parameters
 	TestEqual(TEXT("No post-processed path in the gap world passes through a blocked voxel"), GapResult.PathsClipped, 0);
 	TestEqual(TEXT("No post-processed path in the corner world passes through a blocked voxel"), CornerResult.PathsClipped, 0);
 	TestEqual(TEXT("No post-processed path in the ring world passes through a blocked voxel"), RingResult.PathsClipped, 0);
+	TestEqual(TEXT("No post-processed path of intermediate points in the ring world passes through a blocked voxel"), IntermediateResult.PathsClipped, 0);
 
 	return true;
 }

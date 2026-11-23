@@ -115,7 +115,7 @@ struct FAeonixPathFinderSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
 	bool bUseStringPulling{true};
 	/** Unused: string pulling joins any two points with a clear line of sight, however far the points between them stray */
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="String pulling tests line of sight only; this threshold is no longer read."))
+	UPROPERTY(BlueprintReadWrite, Category="Aeonix", meta=(DeprecatedProperty, DeprecationMessage="String pulling tests line of sight only; this threshold is no longer read."))
 	float StringPullingVoxelThreshold{0.16841f};
 	/** Adjust point positions within voxel bounds for smoother paths */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aeonix")
